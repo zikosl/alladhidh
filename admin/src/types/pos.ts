@@ -114,6 +114,14 @@ export interface ProfitReport {
     sales: number;
     netProfit: number;
     activeOrders: number;
+    estimatedCosts: number;
+    expenses: number;
+    losses: number;
+    averageTicket: number;
+  };
+  margins: {
+    bestProducts: Array<{ productId: number; name: string; revenue: number; estimatedProfit: number; marginRate: number }>;
+    weakestProducts: Array<{ productId: number; name: string; revenue: number; estimatedProfit: number; marginRate: number }>;
   };
   stockAlerts: Array<{
     ingredientId: number;
@@ -160,12 +168,45 @@ export interface DashboardData {
     profitToday: number;
     activeOrders: number;
     lowStockAlerts: number;
+    averageTicketToday: number;
+    lossesToday: number;
   };
   charts: {
     salesPerDay: Array<{ date: string; ordersCount: number; totalSales: number }>;
     topSellingProducts: Array<{ productId: number; name: string; totalQuantity: number; revenue: number }>;
+    salesByType: Array<{ type: OrderType; ordersCount: number; totalSales: number }>;
+    salesByHour: Array<{ hour: string; ordersCount: number; totalSales: number }>;
   };
   stockAlerts: Array<{ ingredientId: number; name: string; currentStock: number; purchasePrice: number }>;
+  operations: {
+    statusBreakdown: Array<{ status: OrderStatus; count: number }>;
+    averagePreparationMinutes: number;
+    averagePaymentMinutes: number;
+    delayedOrders: number;
+    averageDeliveryMinutes: number;
+    delayedDeliveries: number;
+  };
+  stockInsights: {
+    stockValue: number;
+    totalLossValue: number;
+    lossesByIngredient: Array<{ ingredientId: number; name: string; quantity: number; value: number }>;
+    topConsumedIngredients: Array<{ ingredientId: number; name: string; quantity: number }>;
+  };
+  financials: {
+    expensesByCategory: Array<{ category: string; amount: number }>;
+    expenseTotal: number;
+    estimatedCostsTotal: number;
+  };
+  delivery: {
+    totalOrders: number;
+    revenue: number;
+    averageFee: number;
+    byStatus: Array<{ status: DeliveryStatus; count: number }>;
+  };
+  tables: {
+    activeDineInOrders: number;
+    revenueByTable: Array<{ tableNumber: string; ordersCount: number; totalSales: number }>;
+  };
 }
 
 export interface CartItem {
