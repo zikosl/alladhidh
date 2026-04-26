@@ -1,0 +1,50 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: restaurant-pos-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: restaurant_pos
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d restaurant_pos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: restaurant-pos-backend-prod
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/restaurant_pos?schema=public
+      LOW_STOCK_THRESHOLD: 1000
+      CLIENT_ORIGIN: http://localhost:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npm run db:push:prod && npm run db:prepare:prod && npm run db:seed:prod && npm run start"
+    ports:
+      - "3000:3000"
+
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile.prod
+    container_name: restaurant-pos-admin-prod
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  postgres_prod_data:

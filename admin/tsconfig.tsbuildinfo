@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/adminscreen.tsx","./src/components/cashierscreen.tsx","./src/components/deliveryscreen.tsx","./src/components/kitchenscreen.tsx","./src/components/orderscreen.tsx","./src/components/topnav.tsx","./src/lib/api.ts","./src/store/useposstore.ts","./src/types/pos.ts"],"version":"5.9.3"}

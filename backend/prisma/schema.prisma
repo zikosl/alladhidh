@@ -1,0 +1,304 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum StockMovementType {
+  IN
+  OUT
+
+  @@map("stock_movement_type")
+}
+
+enum StockMovementReason {
+  purchase
+  sale
+  loss
+  adjustment
+
+  @@map("stock_movement_reason")
+}
+
+enum SaleType {
+  dine_in
+  take_away
+  delivery
+
+  @@map("sale_type")
+}
+
+enum SaleStatus {
+  pending
+  preparing
+  ready
+  paid
+  cancelled
+
+  @@map("sale_status")
+}
+
+enum PaymentMethod {
+  cash
+  card
+
+  @@map("payment_method")
+}
+
+enum DeliveryStatus {
+  pending
+  on_the_way
+  delivered
+
+  @@map("delivery_status")
+}
+
+enum UserStatus {
+  active
+  disabled
+
+  @@map("user_status")
+}
+
+model Product {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique @db.VarChar(150)
+  category  String     @default("General") @db.VarChar(80)
+  categoryId Int?      @map("category_id")
+  price     Decimal    @db.Decimal(10, 2)
+  estimatedCost Decimal @default(0) @map("estimated_cost") @db.Decimal(10, 2)
+  color     String     @default("#1f2937") @db.VarChar(30)
+  icon      String     @default("🍽️") @db.VarChar(10)
+  imageUrl  String?    @map("image_url") @db.VarChar(255)
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  recipes   Recipe[]
+  saleItems SaleItem[]
+  categoryRef MenuCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([category], map: "idx_products_category")
+  @@index([categoryId], map: "idx_products_category_id")
+  @@map("products")
+}
+
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique @db.VarChar(80)
+  description String?          @db.VarChar(255)
+  isSystem    Boolean          @default(true) @map("is_system")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Int              @id @default(autoincrement())
+  code        String           @unique @db.VarChar(100)
+  label       String           @db.VarChar(120)
+  module      String           @db.VarChar(80)
+  description String?          @db.VarChar(255)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  roleLinks   RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int         @map("role_id")
+  permissionId Int         @map("permission_id")
+  role         Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  id           Int         @id @default(autoincrement())
+  fullName     String      @map("full_name") @db.VarChar(150)
+  username     String      @unique @db.VarChar(80)
+  email        String?     @unique @db.VarChar(150)
+  passwordHash String      @map("password_hash") @db.VarChar(255)
+  status       UserStatus  @default(active)
+  roleId       Int         @map("role_id")
+  lastLoginAt  DateTime?   @map("last_login_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  role         Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@index([roleId], map: "idx_users_role_id")
+  @@map("users")
+}
+
+model RestaurantTable {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique @db.VarChar(60)
+  zone      String?   @db.VarChar(80)
+  capacity  Int       @default(2)
+  isActive  Boolean   @default(true) @map("is_active")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("restaurant_tables")
+}
+
+model RestaurantSettings {
+  id                  Int      @id
+  restaurantName      String   @default("Restaurant Suite") @map("restaurant_name") @db.VarChar(150)
+  currency            String   @default("DZD") @db.VarChar(10)
+  defaultDeliveryFee  Decimal  @default(0) @map("default_delivery_fee") @db.Decimal(10, 2)
+  lowStockThreshold   Decimal  @default(1000) @map("low_stock_threshold") @db.Decimal(10, 2)
+  receiptFooter       String?  @map("receipt_footer") @db.VarChar(255)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("restaurant_settings")
+}
+
+model MenuCategory {
+  id            Int               @id @default(autoincrement())
+  name          String            @unique @db.VarChar(80)
+  description   String?           @db.VarChar(255)
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  products      Product[]
+
+  @@map("menu_categories")
+}
+
+model Ingredient {
+  id              Int             @id @default(autoincrement())
+  name            String          @unique @db.VarChar(150)
+  category        String          @default("General") @db.VarChar(80)
+  measurementType String          @default("weight") @map("measurement_type") @db.VarChar(20)
+  unit            String          @default("g") @db.VarChar(20)
+  purchasePrice   Decimal         @map("purchase_price") @db.Decimal(10, 4)
+  minimumStock    Decimal?        @map("minimum_stock") @db.Decimal(10, 3)
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  purchases       Purchase[]
+  recipes         Recipe[]
+  stockMovements  StockMovement[]
+  categoryRef     IngredientCategory @relation(fields: [category], references: [name], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([category], map: "idx_ingredients_category")
+  @@map("ingredients")
+}
+
+model IngredientCategory {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique @db.VarChar(80)
+  description String?      @db.VarChar(255)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  ingredients Ingredient[]
+
+  @@map("ingredient_categories")
+}
+
+model Recipe {
+  id           Int        @id @default(autoincrement())
+  productId    Int        @map("product_id")
+  ingredientId Int        @map("ingredient_id")
+  quantity     Decimal    @db.Decimal(10, 3)
+  unit         String     @default("g") @db.VarChar(20)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, ingredientId], map: "uq_recipe_product_ingredient")
+  @@map("recipes")
+}
+
+model StockMovement {
+  id           Int                 @id @default(autoincrement())
+  ingredientId Int                 @map("ingredient_id")
+  type         StockMovementType
+  quantity     Decimal             @db.Decimal(10, 3)
+  reason       StockMovementReason
+  date         DateTime            @default(now())
+  createdAt    DateTime            @default(now()) @map("created_at")
+  ingredient   Ingredient          @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@index([ingredientId, date], map: "idx_stock_movements_ingredient_date")
+  @@map("stock_movements")
+}
+
+model Sale {
+  id             Int             @id @default(autoincrement())
+  type           SaleType
+  status         SaleStatus      @default(pending)
+  tableNumber    String?         @map("table_number") @db.VarChar(30)
+  customerName   String?         @map("customer_name") @db.VarChar(150)
+  phone          String?         @db.VarChar(50)
+  address        String?         @db.VarChar(255)
+  notes          String?
+  deliveryFee    Decimal         @default(0) @map("delivery_fee") @db.Decimal(10, 2)
+  deliveryStatus DeliveryStatus? @map("delivery_status")
+  totalPrice     Decimal         @default(0) @map("total_price") @db.Decimal(10, 2)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  payments       Payment[]
+  saleItems      SaleItem[]
+
+  @@index([createdAt], map: "idx_sales_created_at")
+  @@index([status], map: "idx_sales_status")
+  @@index([deliveryStatus], map: "idx_sales_delivery_status")
+  @@map("sales")
+}
+
+model SaleItem {
+  id        Int      @id @default(autoincrement())
+  saleId    Int      @map("sale_id")
+  productId Int      @map("product_id")
+  quantity  Int
+  unitPrice Decimal  @map("unit_price") @db.Decimal(10, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  sale      Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId], map: "idx_sale_items_sale_id")
+  @@map("sale_items")
+}
+
+model Purchase {
+  id           Int        @id @default(autoincrement())
+  ingredientId Int        @map("ingredient_id")
+  quantity     Decimal    @db.Decimal(10, 3)
+  totalPrice   Decimal    @map("total_price") @db.Decimal(10, 2)
+  date         DateTime   @default(now())
+  createdAt    DateTime   @default(now()) @map("created_at")
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@index([date], map: "idx_purchases_date")
+  @@map("purchases")
+}
+
+model Expense {
+  id          Int      @id @default(autoincrement())
+  amount      Decimal  @db.Decimal(10, 2)
+  category    String   @db.VarChar(100)
+  description String?  @db.VarChar(255)
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([date], map: "idx_expenses_date")
+  @@map("expenses")
+}
+
+model Payment {
+  id        Int           @id @default(autoincrement())
+  saleId    Int           @map("sale_id")
+  method    PaymentMethod
+  amount    Decimal       @db.Decimal(10, 2)
+  createdAt DateTime      @default(now()) @map("created_at")
+  sale      Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}

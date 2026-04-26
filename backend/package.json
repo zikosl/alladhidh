@@ -1,0 +1,41 @@
+{
+  "name": "restaurant-pos-backend",
+  "version": "2.0.0",
+  "description": "TypeScript Express backend for a restaurant POS with PostgreSQL stock movement logic.",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "npm run prisma:generate && tsx watch src/server.ts",
+    "build": "npm run prisma:generate && tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "prisma:generate": "prisma generate",
+    "db:push": "prisma db push --accept-data-loss",
+    "db:push:prod": "prisma db push --accept-data-loss",
+    "db:prepare": "tsx src/scripts/prepareDatabase.ts",
+    "db:prepare:prod": "node dist/scripts/prepareDatabase.js",
+    "db:seed": "tsx src/scripts/seed.ts",
+    "db:seed:prod": "node dist/scripts/seed.js"
+  },
+  "keywords": [
+    "restaurant",
+    "pos",
+    "typescript",
+    "express",
+    "postgresql"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.10.2",
+    "prisma": "^7.8.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

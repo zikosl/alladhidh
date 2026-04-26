@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: restaurant-pos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: restaurant_pos
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d restaurant_pos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: restaurant-pos-backend
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/restaurant_pos?schema=public
+      LOW_STOCK_THRESHOLD: 1000
+      CLIENT_ORIGIN: http://localhost:5173
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh /app/docker/dev-entrypoint.sh
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - backend_node_modules:/app/node_modules
+
+  admin:
+    build:
+      context: ./admin
+    container_name: restaurant-pos-admin
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:3000
+    depends_on:
+      - backend
+    command: npm run dev -- --host 0.0.0.0
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./admin:/app
+      - admin_node_modules:/app/node_modules
+
+volumes:
+  postgres_data:
+  backend_node_modules:
+  admin_node_modules:
