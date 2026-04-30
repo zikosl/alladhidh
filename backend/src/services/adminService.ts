@@ -146,6 +146,20 @@ export async function createStaffUser(payload: {
     }
   });
 
+  await prisma.employeeProfile.upsert({
+    where: { userId: created.id },
+    update: {
+      isActive: created.status === 'active'
+    },
+    create: {
+      userId: created.id,
+      position: created.role.name,
+      employmentType: 'monthly',
+      baseSalary: 0,
+      isActive: created.status === 'active'
+    }
+  });
+
   return {
     id: created.id,
     fullName: created.fullName,
@@ -188,6 +202,20 @@ export async function updateStaffUser(
     },
     include: {
       role: true
+    }
+  });
+
+  await prisma.employeeProfile.upsert({
+    where: { userId: updated.id },
+    update: {
+      isActive: updated.status === 'active'
+    },
+    create: {
+      userId: updated.id,
+      position: updated.role.name,
+      employmentType: 'monthly',
+      baseSalary: 0,
+      isActive: updated.status === 'active'
     }
   });
 
@@ -300,7 +328,26 @@ export async function getRestaurantSettings(): Promise<RestaurantSettingsSummary
     currency: settings.currency,
     defaultDeliveryFee: Number(settings.defaultDeliveryFee),
     lowStockThreshold: Number(settings.lowStockThreshold),
-    receiptFooter: settings.receiptFooter
+    logoUrl: settings.logoUrl,
+    receiptTitle: settings.receiptTitle,
+    receiptSubtitle: settings.receiptSubtitle,
+    receiptAddress: settings.receiptAddress,
+    receiptPhone: settings.receiptPhone,
+    receiptEmail: settings.receiptEmail,
+    receiptWebsite: settings.receiptWebsite,
+    receiptFacebook: settings.receiptFacebook,
+    receiptInstagram: settings.receiptInstagram,
+    receiptTiktok: settings.receiptTiktok,
+    receiptWhatsapp: settings.receiptWhatsapp,
+    receiptFooter: settings.receiptFooter,
+    receiptAdditionalNote: settings.receiptAdditionalNote,
+    kitchenTicketHeader: settings.kitchenTicketHeader,
+    kitchenTicketFooter: settings.kitchenTicketFooter,
+    showContactBlock: settings.showContactBlock,
+    showSocialLinks: settings.showSocialLinks,
+    showFooterNote: settings.showFooterNote,
+    showLogoInKitchenTicket: settings.showLogoInKitchenTicket,
+    autoPrintKitchenTicket: settings.autoPrintKitchenTicket
   };
 }
 
@@ -309,10 +356,30 @@ export async function updateRestaurantSettings(payload: {
   currency: string;
   defaultDeliveryFee: number;
   lowStockThreshold: number;
+  logoUrl?: string | null;
+  receiptTitle: string;
+  receiptSubtitle?: string | null;
+  receiptAddress?: string | null;
+  receiptPhone?: string | null;
+  receiptEmail?: string | null;
+  receiptWebsite?: string | null;
+  receiptFacebook?: string | null;
+  receiptInstagram?: string | null;
+  receiptTiktok?: string | null;
+  receiptWhatsapp?: string | null;
   receiptFooter?: string | null;
+  receiptAdditionalNote?: string | null;
+  kitchenTicketHeader?: string | null;
+  kitchenTicketFooter?: string | null;
+  showContactBlock: boolean;
+  showSocialLinks: boolean;
+  showFooterNote: boolean;
+  showLogoInKitchenTicket: boolean;
+  autoPrintKitchenTicket: boolean;
 }): Promise<RestaurantSettingsSummary> {
   requireField(payload, 'restaurantName');
   requireField(payload, 'currency');
+  requireField(payload, 'receiptTitle');
 
   const updated = await prisma.restaurantSettings.upsert({
     where: { id: 1 },
@@ -321,7 +388,26 @@ export async function updateRestaurantSettings(payload: {
       currency: String(payload.currency).trim(),
       defaultDeliveryFee: toNonNegativeNumber(payload.defaultDeliveryFee, 'defaultDeliveryFee'),
       lowStockThreshold: toNonNegativeNumber(payload.lowStockThreshold, 'lowStockThreshold'),
-      receiptFooter: payload.receiptFooter ? String(payload.receiptFooter).trim() : null
+      logoUrl: payload.logoUrl ? String(payload.logoUrl).trim() : null,
+      receiptTitle: String(payload.receiptTitle).trim(),
+      receiptSubtitle: payload.receiptSubtitle ? String(payload.receiptSubtitle).trim() : null,
+      receiptAddress: payload.receiptAddress ? String(payload.receiptAddress).trim() : null,
+      receiptPhone: payload.receiptPhone ? String(payload.receiptPhone).trim() : null,
+      receiptEmail: payload.receiptEmail ? String(payload.receiptEmail).trim() : null,
+      receiptWebsite: payload.receiptWebsite ? String(payload.receiptWebsite).trim() : null,
+      receiptFacebook: payload.receiptFacebook ? String(payload.receiptFacebook).trim() : null,
+      receiptInstagram: payload.receiptInstagram ? String(payload.receiptInstagram).trim() : null,
+      receiptTiktok: payload.receiptTiktok ? String(payload.receiptTiktok).trim() : null,
+      receiptWhatsapp: payload.receiptWhatsapp ? String(payload.receiptWhatsapp).trim() : null,
+      receiptFooter: payload.receiptFooter ? String(payload.receiptFooter).trim() : null,
+      receiptAdditionalNote: payload.receiptAdditionalNote ? String(payload.receiptAdditionalNote).trim() : null,
+      kitchenTicketHeader: payload.kitchenTicketHeader ? String(payload.kitchenTicketHeader).trim() : null,
+      kitchenTicketFooter: payload.kitchenTicketFooter ? String(payload.kitchenTicketFooter).trim() : null,
+      showContactBlock: Boolean(payload.showContactBlock),
+      showSocialLinks: Boolean(payload.showSocialLinks),
+      showFooterNote: Boolean(payload.showFooterNote),
+      showLogoInKitchenTicket: Boolean(payload.showLogoInKitchenTicket),
+      autoPrintKitchenTicket: Boolean(payload.autoPrintKitchenTicket)
     },
     create: {
       id: 1,
@@ -329,7 +415,26 @@ export async function updateRestaurantSettings(payload: {
       currency: String(payload.currency).trim(),
       defaultDeliveryFee: toNonNegativeNumber(payload.defaultDeliveryFee, 'defaultDeliveryFee'),
       lowStockThreshold: toNonNegativeNumber(payload.lowStockThreshold, 'lowStockThreshold'),
-      receiptFooter: payload.receiptFooter ? String(payload.receiptFooter).trim() : null
+      logoUrl: payload.logoUrl ? String(payload.logoUrl).trim() : null,
+      receiptTitle: String(payload.receiptTitle).trim(),
+      receiptSubtitle: payload.receiptSubtitle ? String(payload.receiptSubtitle).trim() : null,
+      receiptAddress: payload.receiptAddress ? String(payload.receiptAddress).trim() : null,
+      receiptPhone: payload.receiptPhone ? String(payload.receiptPhone).trim() : null,
+      receiptEmail: payload.receiptEmail ? String(payload.receiptEmail).trim() : null,
+      receiptWebsite: payload.receiptWebsite ? String(payload.receiptWebsite).trim() : null,
+      receiptFacebook: payload.receiptFacebook ? String(payload.receiptFacebook).trim() : null,
+      receiptInstagram: payload.receiptInstagram ? String(payload.receiptInstagram).trim() : null,
+      receiptTiktok: payload.receiptTiktok ? String(payload.receiptTiktok).trim() : null,
+      receiptWhatsapp: payload.receiptWhatsapp ? String(payload.receiptWhatsapp).trim() : null,
+      receiptFooter: payload.receiptFooter ? String(payload.receiptFooter).trim() : null,
+      receiptAdditionalNote: payload.receiptAdditionalNote ? String(payload.receiptAdditionalNote).trim() : null,
+      kitchenTicketHeader: payload.kitchenTicketHeader ? String(payload.kitchenTicketHeader).trim() : null,
+      kitchenTicketFooter: payload.kitchenTicketFooter ? String(payload.kitchenTicketFooter).trim() : null,
+      showContactBlock: Boolean(payload.showContactBlock),
+      showSocialLinks: Boolean(payload.showSocialLinks),
+      showFooterNote: Boolean(payload.showFooterNote),
+      showLogoInKitchenTicket: Boolean(payload.showLogoInKitchenTicket),
+      autoPrintKitchenTicket: Boolean(payload.autoPrintKitchenTicket)
     }
   });
 
@@ -338,6 +443,25 @@ export async function updateRestaurantSettings(payload: {
     currency: updated.currency,
     defaultDeliveryFee: Number(updated.defaultDeliveryFee),
     lowStockThreshold: Number(updated.lowStockThreshold),
-    receiptFooter: updated.receiptFooter
+    logoUrl: updated.logoUrl,
+    receiptTitle: updated.receiptTitle,
+    receiptSubtitle: updated.receiptSubtitle,
+    receiptAddress: updated.receiptAddress,
+    receiptPhone: updated.receiptPhone,
+    receiptEmail: updated.receiptEmail,
+    receiptWebsite: updated.receiptWebsite,
+    receiptFacebook: updated.receiptFacebook,
+    receiptInstagram: updated.receiptInstagram,
+    receiptTiktok: updated.receiptTiktok,
+    receiptWhatsapp: updated.receiptWhatsapp,
+    receiptFooter: updated.receiptFooter,
+    receiptAdditionalNote: updated.receiptAdditionalNote,
+    kitchenTicketHeader: updated.kitchenTicketHeader,
+    kitchenTicketFooter: updated.kitchenTicketFooter,
+    showContactBlock: updated.showContactBlock,
+    showSocialLinks: updated.showSocialLinks,
+    showFooterNote: updated.showFooterNote,
+    showLogoInKitchenTicket: updated.showLogoInKitchenTicket,
+    autoPrintKitchenTicket: updated.autoPrintKitchenTicket
   };
 }

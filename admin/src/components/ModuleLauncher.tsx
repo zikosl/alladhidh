@@ -1,4 +1,4 @@
-import { formatMoney } from '../lib/format';
+import { BrandLogo } from './BrandLogo';
 import { useAuthStore } from '../store/useAuthStore';
 import { usePosStore } from '../store/usePosStore';
 import { ModuleId } from '../types/pos';
@@ -7,49 +7,65 @@ const moduleCards: Array<{
   id: ModuleId;
   icon: string;
   title: string;
-  description: string;
+  hint: string;
   accent: string;
+  priority?: boolean;
 }> = [
   {
     id: 'inventory',
     icon: '📦',
     title: 'Stock',
-    description: 'Gerer les matieres premieres, les portions, les poids, les entrees et les alertes.',
+    hint: 'Matieres & alertes',
     accent: 'linear-gradient(135deg, #155e75, #16a34a)'
   },
   {
     id: 'pos',
     icon: '🧾',
     title: 'Point de vente',
-    description: 'Prendre des commandes, suivre la cuisine, encaisser et preparer les recus.',
-    accent: 'linear-gradient(135deg, #d9481c, #fb923c)'
+    hint: 'Commande rapide',
+    accent: 'linear-gradient(135deg, #d9481c, #fb923c)',
+    priority: true
   },
   {
     id: 'recipes',
     icon: '🍔',
-    title: 'Recettes / Menu',
-    description: 'Construire les articles vendables depuis le stock avec cout, prix et marge.',
+    title: 'Recettes',
+    hint: 'Menu & marges',
     accent: 'linear-gradient(135deg, #0f766e, #14b8a6)'
   },
   {
     id: 'sales',
     icon: '📋',
-    title: 'Ventes / Commandes',
-    description: 'Consulter les commandes actives, les paiements et l’historique recent.',
+    title: 'Commandes',
+    hint: 'Tickets & factures',
     accent: 'linear-gradient(135deg, #7c3aed, #8b5cf6)'
   },
   {
     id: 'reports',
     icon: '📊',
-    title: 'Statistiques / Rapports',
-    description: 'Suivre les ventes, le profit estime, les meilleures ventes et les alertes stock.',
+    title: 'Rapports',
+    hint: 'Ventes & profit',
     accent: 'linear-gradient(135deg, #111827, #334155)'
+  },
+  {
+    id: 'finance',
+    icon: '💸',
+    title: 'Finance',
+    hint: 'Depenses',
+    accent: 'linear-gradient(135deg, #0f766e, #14b8a6)'
+  },
+  {
+    id: 'payroll',
+    icon: '👥',
+    title: 'Paie',
+    hint: 'Personnel',
+    accent: 'linear-gradient(135deg, #1d4ed8, #38bdf8)'
   },
   {
     id: 'settings',
     icon: '⚙️',
     title: 'Parametres',
-    description: 'Regler les parametres du restaurant, les equipes, les seuils et les options POS.',
+    hint: 'Acces & systeme',
     accent: 'linear-gradient(135deg, #64748b, #94a3b8)'
   }
 ];
@@ -59,6 +75,7 @@ export function ModuleLauncher() {
   const { user, logout, hasPermission } = useAuthStore();
 
   const lowStockCount = inventoryItems.filter((item) => item.status !== 'in_stock').length;
+  const activeOrders = dashboard?.cards.activeOrders ?? 0;
   const visibleCards = moduleCards.filter((card) => {
     switch (card.id) {
       case 'inventory':
@@ -71,6 +88,10 @@ export function ModuleLauncher() {
         return hasPermission('sales.read');
       case 'reports':
         return hasPermission('reports.read');
+      case 'finance':
+        return hasPermission('finance.read', 'finance.write');
+      case 'payroll':
+        return hasPermission('payroll.read', 'payroll.write');
       case 'settings':
         return hasPermission('settings.read', 'settings.write', 'staff.manage', 'roles.manage', 'tables.manage');
       default:
@@ -78,72 +99,73 @@ export function ModuleLauncher() {
     }
   });
 
-  return (
-    <section className="space-y-4">
-      <div className="rounded-2xl border border-white/60 bg-white/90 px-5 py-5 shadow-soft backdrop-blur md:px-6">
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.32em] text-brand">Apps</div>
-            <h2 className="mt-2 text-2xl font-black tracking-tight text-zinc-950 md:text-3xl">
-              Tableau des modules
-            </h2>
-            <p className="mt-3 max-w-3xl text-sm text-zinc-600">
-              Une entree claire par module, avec des espaces de travail dedies comme dans un ERP moderne.
-            </p>
-          </div>
+  function moduleStat(moduleId: ModuleId) {
+    switch (moduleId) {
+      case 'inventory':
+        return lowStockCount > 0 ? `${lowStockCount} alertes` : 'OK';
+      case 'pos':
+        return 'Ouvrir';
+      case 'recipes':
+        return `${menuItems.length} menus`;
+      case 'sales':
+        return `${orders.length} tickets`;
+      case 'reports':
+        return `${activeOrders} actives`;
+      case 'finance':
+        return 'Charges';
+      case 'payroll':
+        return 'Salaires';
+      case 'settings':
+        return 'Config';
+      default:
+        return '';
+    }
+  }
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl bg-zinc-950 px-4 py-3 text-white">
-              <div className="text-[11px] uppercase tracking-[0.2em] text-white/70">Ventes du jour</div>
-              <div className="mt-2 text-2xl font-bold">{formatMoney(dashboard?.cards.totalSalesToday ?? 0)}</div>
+  return (
+    <section className="space-y-3">
+      <div className="rounded-2xl border border-white/70 bg-white/90 px-4 py-3 shadow-soft backdrop-blur">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <BrandLogo size={48} showName />
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-zinc-50 px-3 py-2 md:min-w-[300px]">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-zinc-900">{user?.fullName}</div>
+              <div className="text-xs text-zinc-500">{user?.roleName}</div>
             </div>
-            <div className="rounded-2xl bg-white px-4 py-3">
-              <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">Stock bas</div>
-              <div className="mt-2 text-2xl font-bold text-zinc-950">{lowStockCount}</div>
-            </div>
-            <div className="rounded-2xl bg-white px-4 py-3">
-              <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">Menus</div>
-              <div className="mt-2 text-2xl font-bold text-zinc-950">{menuItems.length}</div>
-            </div>
+            <button
+              onClick={() => void logout()}
+              className="shrink-0 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-zinc-700 shadow-sm transition hover:bg-zinc-100"
+            >
+              Sortir
+            </button>
           </div>
         </div>
-        <div className="mt-4 flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-3">
-          <div className="text-sm text-zinc-600">
-            Connecte en tant que <span className="font-semibold text-zinc-900">{user?.fullName}</span>
-            {' '}• {user?.roleName}
-          </div>
-          <button onClick={() => void logout()} className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-zinc-700">
-            Deconnexion
-          </button>
-        </div>
+
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {visibleCards.map((card) => (
           <button
             key={card.id}
             onClick={() => setCurrentModule(card.id)}
-            className="rounded-2xl border border-white/60 bg-white/90 p-4 text-left shadow-soft transition hover:-translate-y-1"
+            className={`group min-h-[112px] rounded-2xl border bg-white/90 p-3 text-left shadow-soft transition hover:-translate-y-0.5 hover:border-zinc-300 ${
+              card.priority ? 'border-zinc-900/25 ring-2 ring-zinc-950/5' : 'border-white/70'
+            }`}
           >
-            <div
-              className="inline-flex rounded-xl px-4 py-3 text-2xl text-white"
-              style={{ background: card.accent }}
-            >
-              {card.icon}
-            </div>
-            <div className="mt-4 text-lg font-bold text-zinc-950">{card.title}</div>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">{card.description}</p>
-
-            <div className="mt-5 flex items-center justify-between text-xs text-zinc-500">
-              <span>
-                {card.id === 'inventory' && `${inventoryItems.length} articles`}
-                {card.id === 'recipes' && `${menuItems.length} menus`}
-                {card.id === 'sales' && `${orders.length} commandes`}
-                {card.id === 'reports' && `${dashboard?.cards.activeOrders ?? 0} actives`}
-                {card.id === 'pos' && 'Service rapide'}
-                {card.id === 'settings' && 'Configuration'}
+            <div className="flex items-start justify-between gap-3">
+              <div
+                className="grid h-10 w-10 place-items-center rounded-xl text-xl text-white"
+                style={{ background: card.accent }}
+              >
+                {card.icon}
+              </div>
+              <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">
+                {moduleStat(card.id)}
               </span>
-              <span className="rounded-full bg-zinc-100 px-3 py-1 text-zinc-700">Ouvrir</span>
+            </div>
+            <div className="mt-3">
+              <div className="text-base font-black text-zinc-950">{card.title}</div>
+              <div className="mt-0.5 text-xs font-semibold text-zinc-500">{card.hint}</div>
             </div>
           </button>
         ))}

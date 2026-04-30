@@ -1,10 +1,16 @@
-export type ModuleId = 'apps' | 'inventory' | 'pos' | 'recipes' | 'sales' | 'reports' | 'settings';
+export type ModuleId = 'apps' | 'inventory' | 'pos' | 'recipes' | 'sales' | 'reports' | 'finance' | 'payroll' | 'settings';
 export type PosScreen = 'order' | 'kitchen' | 'cashier' | 'delivery';
 export type OrderType = 'dine_in' | 'take_away' | 'delivery';
 export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'paid' | 'cancelled';
 export type DeliveryStatus = 'pending' | 'on_the_way' | 'delivered';
 export type PaymentMethod = 'cash' | 'card';
 export type UserStatus = 'active' | 'disabled';
+export type ExpenseType = 'fixed' | 'variable' | 'exceptional';
+export type ExpenseStatus = 'planned' | 'partial' | 'paid' | 'cancelled';
+export type FinancePaymentMethod = 'cash' | 'card' | 'transfer';
+export type ExpenseSourceType = 'manual' | 'stock_purchase' | 'payroll_payment' | 'salary_advance';
+export type EmploymentType = 'monthly' | 'daily' | 'hourly';
+export type PayrollPeriodStatus = 'draft' | 'validated' | 'paid';
 export type MeasurementType = 'portion' | 'weight' | 'volume';
 export type MeasurementUnit =
   | 'g'
@@ -106,7 +112,172 @@ export interface RestaurantSettings {
   currency: string;
   defaultDeliveryFee: number;
   lowStockThreshold: number;
+  logoUrl: string | null;
+  receiptTitle: string;
+  receiptSubtitle: string | null;
+  receiptAddress: string | null;
+  receiptPhone: string | null;
+  receiptEmail: string | null;
+  receiptWebsite: string | null;
+  receiptFacebook: string | null;
+  receiptInstagram: string | null;
+  receiptTiktok: string | null;
+  receiptWhatsapp: string | null;
   receiptFooter: string | null;
+  receiptAdditionalNote: string | null;
+  kitchenTicketHeader: string | null;
+  kitchenTicketFooter: string | null;
+  showContactBlock: boolean;
+  showSocialLinks: boolean;
+  showFooterNote: boolean;
+  showLogoInKitchenTicket: boolean;
+  autoPrintKitchenTicket: boolean;
+}
+
+export interface ExpenseCategory {
+  id: number;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  expensesCount: number;
+}
+
+export interface Expense {
+  id: number;
+  amount: number;
+  category: string;
+  categoryId: number | null;
+  type: ExpenseType;
+  status: ExpenseStatus;
+  paymentMethod: FinancePaymentMethod | null;
+  supplierName: string | null;
+  description: string | null;
+  sourceType: ExpenseSourceType;
+  sourceId: number | null;
+  sourceLabel: string | null;
+  isSystemGenerated: boolean;
+  dueDate: string | null;
+  paidAt: string | null;
+  date: string;
+}
+
+export interface ExpenseInput {
+  id?: number;
+  amount: number;
+  categoryId?: number | null;
+  type: ExpenseType;
+  status: ExpenseStatus;
+  paymentMethod?: FinancePaymentMethod | null;
+  supplierName?: string | null;
+  description?: string | null;
+  dueDate?: string | null;
+  paidAt?: string | null;
+  date?: string | null;
+}
+
+export interface EmployeeProfile {
+  id: number;
+  userId: number;
+  fullName: string;
+  username: string;
+  roleName: string;
+  position: string | null;
+  employmentType: EmploymentType;
+  baseSalary: number;
+  hireDate: string | null;
+  isActive: boolean;
+  payrollNotes: string | null;
+}
+
+export interface EmployeeProfileInput {
+  id?: number;
+  userId: number;
+  position?: string | null;
+  employmentType: EmploymentType;
+  baseSalary: number;
+  hireDate?: string | null;
+  isActive: boolean;
+  payrollNotes?: string | null;
+}
+
+export interface SalaryAdvance {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  amount: number;
+  remainingAmount: number;
+  reason: string;
+  note: string | null;
+  date: string;
+}
+
+export interface SalaryAdvanceInput {
+  employeeId: number;
+  amount: number;
+  reason: string;
+  method?: FinancePaymentMethod;
+  note?: string | null;
+  date?: string | null;
+}
+
+export interface PayrollPayment {
+  id: number;
+  amount: number;
+  method: FinancePaymentMethod;
+  paidAt: string;
+  note: string | null;
+}
+
+export interface PayrollEntry {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  position: string | null;
+  baseSalary: number;
+  bonuses: number;
+  deductions: number;
+  advanceDeduction: number;
+  netSalary: number;
+  paidAmount: number;
+  remainingAmount: number;
+  paymentStatus: 'unpaid' | 'partial' | 'paid';
+  notes: string | null;
+  payments: PayrollPayment[];
+}
+
+export interface PayrollPeriod {
+  id: number;
+  label: string;
+  startDate: string;
+  endDate: string;
+  status: PayrollPeriodStatus;
+  notes: string | null;
+  payrollTotal: number;
+  paidTotal: number;
+  remainingTotal: number;
+  entries: PayrollEntry[];
+}
+
+export interface PayrollPeriodInput {
+  label: string;
+  startDate: string;
+  endDate: string;
+  notes?: string | null;
+}
+
+export interface PayrollEntryInput {
+  baseSalary: number;
+  bonuses: number;
+  deductions: number;
+  advanceDeduction: number;
+  notes?: string | null;
+}
+
+export interface PayrollPaymentInput {
+  amount: number;
+  method: FinancePaymentMethod;
+  paidAt?: string | null;
+  note?: string | null;
 }
 
 export interface ProfitReport {
@@ -116,8 +287,14 @@ export interface ProfitReport {
     activeOrders: number;
     estimatedCosts: number;
     expenses: number;
+    cashBenefit: number;
+    cashRevenue: number;
+    cashOut: number;
+    payroll: number;
     losses: number;
     averageTicket: number;
+    previousSales: number;
+    previousNetProfit: number;
   };
   margins: {
     bestProducts: Array<{ productId: number; name: string; revenue: number; estimatedProfit: number; marginRate: number }>;
@@ -136,6 +313,19 @@ export interface StockRow {
   name: string;
   currentStock: number;
   purchasePrice: number;
+}
+
+export interface StockMovement {
+  id: number;
+  ingredientId: number;
+  ingredientName: string;
+  category: string;
+  type: 'IN' | 'OUT';
+  reason: 'purchase' | 'sale' | 'loss' | 'adjustment';
+  quantity: number;
+  unit: MeasurementUnit;
+  date: string;
+  createdAt: string;
 }
 
 export interface OrderItem {
@@ -166,13 +356,28 @@ export interface DashboardData {
   cards: {
     totalSalesToday: number;
     profitToday: number;
+    cashBenefitToday: number;
     activeOrders: number;
     lowStockAlerts: number;
     averageTicketToday: number;
     lossesToday: number;
+    salesChangePct: number;
+    profitChangePct: number;
+    cashBenefitChangePct: number;
   };
   charts: {
     salesPerDay: Array<{ date: string; ordersCount: number; totalSales: number }>;
+    cashBenefitPerDay: Array<{
+      date: string;
+      sales: number;
+      cashIn: number;
+      cashOut: number;
+      manualExpenses: number;
+      stockPurchases: number;
+      payrollPaid: number;
+      salaryAdvances: number;
+      cashBenefit: number;
+    }>;
     topSellingProducts: Array<{ productId: number; name: string; totalQuantity: number; revenue: number }>;
     salesByType: Array<{ type: OrderType; ordersCount: number; totalSales: number }>;
     salesByHour: Array<{ hour: string; ordersCount: number; totalSales: number }>;
@@ -195,6 +400,17 @@ export interface DashboardData {
   financials: {
     expensesByCategory: Array<{ category: string; amount: number }>;
     expenseTotal: number;
+    manualExpenseTotal: number;
+    stockPurchaseTotal: number;
+    payrollAccruedTotal: number;
+    payrollPaidTotal: number;
+    payrollPaymentExpenseTotal: number;
+    salaryAdvanceTotal: number;
+    payrollOutstandingTotal: number;
+    cashRevenueTotal: number;
+    cashOutTotal: number;
+    cashBenefitTotal: number;
+    payrollByEmployee: Array<{ employeeId: number; employeeName: string; payrollTotal: number; paidTotal: number }>;
     estimatedCostsTotal: number;
   };
   delivery: {
@@ -207,6 +423,12 @@ export interface DashboardData {
     activeDineInOrders: number;
     revenueByTable: Array<{ tableNumber: string; ordersCount: number; totalSales: number }>;
   };
+}
+
+export interface ReportFilters {
+  period: 'today' | '7d' | '30d' | 'custom';
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export interface CartItem {
@@ -260,6 +482,15 @@ export interface StockEntryInput {
   ingredientId: number;
   quantity: number;
   totalPrice: number;
+  expenseStatus?: ExpenseStatus;
+  paymentMethod?: FinancePaymentMethod;
+  supplierName?: string | null;
+  date?: string | null;
+}
+
+export interface StockLossInput {
+  ingredientId: number;
+  quantity: number;
   date?: string | null;
 }
 

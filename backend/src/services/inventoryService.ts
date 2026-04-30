@@ -1,6 +1,7 @@
-import { Prisma, StockMovementReason, StockMovementType } from '@prisma/client';
+import { ExpenseSourceType, ExpenseStatus, ExpenseType, FinancePaymentMethod, Prisma, StockMovementReason, StockMovementType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { InventoryCategorySummary, InventoryItemSummary, MeasurementType, MeasurementUnit } from '../types/pos';
+import { systemExpenseCategories, upsertLinkedExpense } from './expenseSyncService';
+import { InventoryCategorySummary, InventoryItemSummary, MeasurementType, MeasurementUnit, StockMovementSummary } from '../types/pos';
 import { HttpError } from '../utils/httpError';
 import { requireField, toNonNegativeNumber } from '../utils/validation';
 
@@ -30,6 +31,15 @@ interface StockEntryPayload {
   ingredientId: number;
   quantity: number;
   totalPrice: number;
+  expenseStatus?: 'planned' | 'partial' | 'paid' | 'cancelled';
+  paymentMethod?: 'cash' | 'card' | 'transfer';
+  supplierName?: string | null;
+  date?: string | null;
+}
+
+interface StockLossPayload {
+  ingredientId: number;
+  quantity: number;
   date?: string | null;
 }
 
@@ -63,6 +73,21 @@ function mapInventoryRow(row: InventoryRow): InventoryItemSummary {
     estimatedCost: toNumber(row.purchase_price),
     minimumStock,
     status
+  };
+}
+
+function mapStockMovement(row: Prisma.StockMovementGetPayload<{ include: { ingredient: true } }>): StockMovementSummary {
+  return {
+    id: row.id,
+    ingredientId: row.ingredientId,
+    ingredientName: row.ingredient.name,
+    category: row.ingredient.category,
+    type: row.type,
+    reason: row.reason,
+    quantity: toNumber(row.quantity),
+    unit: row.ingredient.unit as MeasurementUnit,
+    date: row.date.toISOString(),
+    createdAt: row.createdAt.toISOString()
   };
 }
 
@@ -151,6 +176,19 @@ export async function listInventoryCategories(): Promise<InventoryCategorySummar
     description: category.description,
     itemsCount: category._count.ingredients
   }));
+}
+
+export async function listStockMovements(limit = 120): Promise<StockMovementSummary[]> {
+  const safeLimit = Math.max(1, Math.min(Number.isFinite(limit) ? Math.trunc(limit) : 120, 250));
+  const rows = await prisma.stockMovement.findMany({
+    take: safeLimit,
+    orderBy: [{ date: 'desc' }, { id: 'desc' }],
+    include: {
+      ingredient: true
+    }
+  });
+
+  return rows.map(mapStockMovement);
 }
 
 export async function createInventoryCategory(payload: CategoryPayload): Promise<InventoryCategorySummary> {
@@ -244,7 +282,7 @@ export async function createInventoryItem(payload: InventoryPayload): Promise<In
 
     if (initialQuantity > 0) {
       const date = new Date();
-      await client.purchase.create({
+      const purchase = await client.purchase.create({
         data: {
           ingredientId: created.id,
           quantity: initialQuantity,
@@ -261,6 +299,21 @@ export async function createInventoryItem(payload: InventoryPayload): Promise<In
           reason: StockMovementReason.purchase,
           date
         }
+      });
+
+      await upsertLinkedExpense(client, {
+        sourceType: ExpenseSourceType.stock_purchase,
+        sourceId: purchase.id,
+        sourceLabel: name,
+        amount: initialTotalPrice,
+        category: systemExpenseCategories.stockPurchase,
+        type: ExpenseType.variable,
+        status: ExpenseStatus.paid,
+        paymentMethod: FinancePaymentMethod.cash,
+        supplierName: null,
+        description: `Stock initial - ${name}`,
+        date,
+        paidAt: date
       });
     }
 
@@ -335,7 +388,7 @@ export async function createStockEntry(payload: StockEntryPayload): Promise<Inve
     const date = payload.date ? new Date(payload.date) : new Date();
     const unitCost = totalPrice > 0 ? totalPrice / quantity : Number(ingredient.purchasePrice);
 
-    await client.purchase.create({
+    const purchase = await client.purchase.create({
       data: {
         ingredientId,
         quantity,
@@ -354,6 +407,21 @@ export async function createStockEntry(payload: StockEntryPayload): Promise<Inve
       }
     });
 
+    await upsertLinkedExpense(client, {
+      sourceType: ExpenseSourceType.stock_purchase,
+      sourceId: purchase.id,
+      sourceLabel: ingredient.name,
+      amount: totalPrice,
+      category: systemExpenseCategories.stockPurchase,
+      type: ExpenseType.variable,
+      status: (payload.expenseStatus ?? 'paid') as ExpenseStatus,
+      paymentMethod: (payload.paymentMethod ?? 'cash') as FinancePaymentMethod,
+      supplierName: payload.supplierName ? String(payload.supplierName).trim() : null,
+      description: `Achat stock - ${ingredient.name} (${quantity} ${ingredient.unit})`,
+      date,
+      paidAt: payload.expenseStatus === 'planned' || payload.expenseStatus === 'partial' ? null : date
+    });
+
     await client.ingredient.update({
       where: { id: ingredientId },
       data: {
@@ -364,6 +432,58 @@ export async function createStockEntry(payload: StockEntryPayload): Promise<Inve
     const row = await getInventoryRow(ingredientId, client);
     if (!row) {
       throw new HttpError(500, 'Stock entry failed');
+    }
+
+    return mapInventoryRow(row);
+  });
+}
+
+export async function createStockLoss(payload: StockLossPayload): Promise<InventoryItemSummary> {
+  requireField(payload, 'ingredientId');
+
+  return prisma.$transaction(async (client) => {
+    const ingredientId = Number(payload.ingredientId);
+    const quantity = toNonNegativeNumber(payload.quantity, 'quantity');
+
+    if (quantity <= 0) {
+      throw new HttpError(400, 'Stock loss quantity must be greater than zero');
+    }
+
+    const ingredient = await client.ingredient.findUnique({ where: { id: ingredientId } });
+    if (!ingredient) {
+      throw new HttpError(404, 'Raw material not found');
+    }
+
+    await client.$queryRaw(Prisma.sql`
+      SELECT id
+      FROM ingredients
+      WHERE id = ${ingredientId}
+      FOR UPDATE
+    `);
+
+    const rowBeforeLoss = await getInventoryRow(ingredientId, client);
+    if (!rowBeforeLoss) {
+      throw new HttpError(404, 'Raw material not found');
+    }
+
+    const currentStock = toNumber(rowBeforeLoss.quantity);
+    if (quantity > currentStock) {
+      throw new HttpError(400, `Stock loss exceeds available stock (${currentStock})`);
+    }
+
+    await client.stockMovement.create({
+      data: {
+        ingredientId,
+        type: StockMovementType.OUT,
+        quantity,
+        reason: StockMovementReason.loss,
+        date: payload.date ? new Date(payload.date) : new Date()
+      }
+    });
+
+    const row = await getInventoryRow(ingredientId, client);
+    if (!row) {
+      throw new HttpError(500, 'Stock loss failed');
     }
 
     return mapInventoryRow(row);
@@ -385,8 +505,15 @@ export async function deleteInventoryItem(id: number): Promise<void> {
       throw new HttpError(400, 'Cannot delete inventory item used by recipes');
     }
 
-    await client.stockMovement.deleteMany({ where: { ingredientId: id } });
-    await client.purchase.deleteMany({ where: { ingredientId: id } });
+    const [movementsCount, purchasesCount] = await Promise.all([
+      client.stockMovement.count({ where: { ingredientId: id } }),
+      client.purchase.count({ where: { ingredientId: id } })
+    ]);
+
+    if (movementsCount > 0 || purchasesCount > 0) {
+      throw new HttpError(400, 'Cannot delete inventory item with stock history');
+    }
+
     await client.ingredient.delete({ where: { id } });
   });
 }

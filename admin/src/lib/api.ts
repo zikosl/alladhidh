@@ -1,8 +1,17 @@
-import axios from 'axios';
+import axios, { InternalAxiosRequestConfig } from 'axios';
 import {
   AuthLoginResponse,
   AuthUser,
   DashboardData,
+  EmployeeProfile,
+  EmployeeProfileInput,
+  Expense,
+  ExpenseCategory,
+  ExpenseInput,
+  PayrollEntryInput,
+  PayrollPaymentInput,
+  PayrollPeriod,
+  PayrollPeriodInput,
   InventoryCategory,
   InventoryItem,
   InventoryItemInput,
@@ -13,11 +22,16 @@ import {
   Permission,
   Product,
   ProfitReport,
+  ReportFilters,
   RestaurantSettings,
   RestaurantTable,
   RestaurantTableInput,
   Role,
+  SalaryAdvance,
+  SalaryAdvanceInput,
   StockEntryInput,
+  StockLossInput,
+  StockMovement,
   StockRow,
   StaffUser,
   StaffUserInput
@@ -27,10 +41,41 @@ const api = axios.create({
   baseURL: '/api'
 });
 
+type BlockingAxiosConfig = InternalAxiosRequestConfig & { __blocksUi?: boolean };
+
+let pendingMutations = 0;
+
+function isMutationRequest(config: InternalAxiosRequestConfig) {
+  const method = (config.method ?? 'get').toLowerCase();
+  return ['post', 'put', 'patch', 'delete'].includes(method);
+}
+
+function emitMutationState() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(
+    new CustomEvent('restaurant-pos:backend-busy', {
+      detail: {
+        pending: pendingMutations
+      }
+    })
+  );
+}
+
+function finishMutation(config?: BlockingAxiosConfig) {
+  if (!config?.__blocksUi) return;
+  pendingMutations = Math.max(0, pendingMutations - 1);
+  emitMutationState();
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('restaurant-pos-auth-token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  if (isMutationRequest(config)) {
+    (config as BlockingAxiosConfig).__blocksUi = true;
+    pendingMutations += 1;
+    emitMutationState();
   }
   return config;
 });
@@ -43,8 +88,16 @@ function getErrorMessage(error: unknown) {
 }
 
 api.interceptors.response.use(
-  (response) => response,
-  (error) => Promise.reject(new Error(getErrorMessage(error)))
+  (response) => {
+    finishMutation(response.config as BlockingAxiosConfig);
+    return response;
+  },
+  (error) => {
+    if (axios.isAxiosError(error)) {
+      finishMutation(error.config as BlockingAxiosConfig | undefined);
+    }
+    return Promise.reject(new Error(getErrorMessage(error)));
+  }
 );
 
 export async function login(payload: { login: string; password: string }) {
@@ -76,13 +129,23 @@ export async function fetchKitchenOrders() {
   return response.data.data;
 }
 
-export async function fetchDashboard() {
-  const response = await api.get<{ success: boolean; data: DashboardData }>('/dashboard');
+function reportQuery(filters?: Partial<ReportFilters>) {
+  return {
+    params: {
+      period: filters?.period ?? '7d',
+      dateFrom: filters?.dateFrom,
+      dateTo: filters?.dateTo
+    }
+  };
+}
+
+export async function fetchDashboard(filters?: Partial<ReportFilters>) {
+  const response = await api.get<{ success: boolean; data: DashboardData }>('/dashboard', reportQuery(filters));
   return response.data.data;
 }
 
-export async function fetchProfitReport() {
-  const response = await api.get<{ success: boolean; data: ProfitReport }>('/reports/profit');
+export async function fetchProfitReport(filters?: Partial<ReportFilters>) {
+  const response = await api.get<{ success: boolean; data: ProfitReport }>('/reports/profit', reportQuery(filters));
   return response.data.data;
 }
 
@@ -98,6 +161,13 @@ export async function fetchInventoryItems() {
 
 export async function fetchInventoryCategories() {
   const response = await api.get<{ success: boolean; data: InventoryCategory[] }>('/inventory/categories');
+  return response.data.data;
+}
+
+export async function fetchStockMovements(limit = 120) {
+  const response = await api.get<{ success: boolean; data: StockMovement[] }>('/inventory/movements', {
+    params: { limit }
+  });
   return response.data.data;
 }
 
@@ -122,6 +192,11 @@ export async function updateInventoryItem(id: number, payload: InventoryItemInpu
 
 export async function createStockEntry(payload: StockEntryInput) {
   const response = await api.post<{ success: boolean; data: InventoryItem }>('/inventory/entries', payload);
+  return response.data.data;
+}
+
+export async function createStockLoss(payload: StockLossInput) {
+  const response = await api.post<{ success: boolean; data: InventoryItem }>('/inventory/losses', payload);
   return response.data.data;
 }
 
@@ -169,6 +244,11 @@ export async function createOrder(payload: unknown) {
 
 export async function updateOrderStatus(orderId: number, status: string) {
   const response = await api.patch<{ success: boolean; data: Order }>(`/orders/${orderId}/status`, { status });
+  return response.data.data;
+}
+
+export async function cancelOrder(orderId: number) {
+  const response = await api.patch<{ success: boolean; data: Order }>(`/orders/${orderId}/cancel`);
   return response.data.data;
 }
 
@@ -242,5 +322,83 @@ export async function fetchSettings() {
 
 export async function updateSettings(payload: RestaurantSettings) {
   const response = await api.put<{ success: boolean; data: RestaurantSettings }>('/admin/settings', payload);
+  return response.data.data;
+}
+
+export async function fetchExpenseCategories() {
+  const response = await api.get<{ success: boolean; data: ExpenseCategory[] }>('/admin/finance/categories');
+  return response.data.data;
+}
+
+export async function createExpenseCategory(payload: { name: string; description?: string | null }) {
+  const response = await api.post<{ success: boolean; data: ExpenseCategory }>('/admin/finance/categories', payload);
+  return response.data.data;
+}
+
+export async function deleteExpenseCategory(id: number) {
+  await api.delete(`/admin/finance/categories/${id}`);
+}
+
+export async function fetchExpenses() {
+  const response = await api.get<{ success: boolean; data: Expense[] }>('/admin/finance/expenses');
+  return response.data.data;
+}
+
+export async function createExpense(payload: ExpenseInput) {
+  const response = await api.post<{ success: boolean; data: Expense }>('/admin/finance/expenses', payload);
+  return response.data.data;
+}
+
+export async function updateExpense(id: number, payload: ExpenseInput) {
+  const response = await api.put<{ success: boolean; data: Expense }>(`/admin/finance/expenses/${id}`, payload);
+  return response.data.data;
+}
+
+export async function deleteExpense(id: number) {
+  await api.delete(`/admin/finance/expenses/${id}`);
+}
+
+export async function fetchEmployeeProfiles() {
+  const response = await api.get<{ success: boolean; data: EmployeeProfile[] }>('/admin/payroll/employees');
+  return response.data.data;
+}
+
+export async function upsertEmployeeProfile(payload: EmployeeProfileInput) {
+  const response = await api.put<{ success: boolean; data: EmployeeProfile }>('/admin/payroll/employees', payload);
+  return response.data.data;
+}
+
+export async function fetchSalaryAdvances() {
+  const response = await api.get<{ success: boolean; data: SalaryAdvance[] }>('/admin/payroll/advances');
+  return response.data.data;
+}
+
+export async function createSalaryAdvance(payload: SalaryAdvanceInput) {
+  const response = await api.post<{ success: boolean; data: SalaryAdvance }>('/admin/payroll/advances', payload);
+  return response.data.data;
+}
+
+export async function fetchPayrollPeriods() {
+  const response = await api.get<{ success: boolean; data: PayrollPeriod[] }>('/admin/payroll/periods');
+  return response.data.data;
+}
+
+export async function createPayrollPeriod(payload: PayrollPeriodInput) {
+  const response = await api.post<{ success: boolean; data: PayrollPeriod }>('/admin/payroll/periods', payload);
+  return response.data.data;
+}
+
+export async function updatePayrollPeriodStatus(id: number, status: 'draft' | 'validated' | 'paid') {
+  const response = await api.patch<{ success: boolean; data: PayrollPeriod }>(`/admin/payroll/periods/${id}/status`, { status });
+  return response.data.data;
+}
+
+export async function updatePayrollEntry(id: number, payload: PayrollEntryInput) {
+  const response = await api.put<{ success: boolean; data: PayrollPeriod }>(`/admin/payroll/entries/${id}`, payload);
+  return response.data.data;
+}
+
+export async function createPayrollPayment(id: number, payload: PayrollPaymentInput) {
+  const response = await api.post<{ success: boolean; data: PayrollPeriod }>(`/admin/payroll/entries/${id}/payments`, payload);
   return response.data.data;
 }

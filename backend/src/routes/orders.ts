@@ -33,6 +33,15 @@ ordersRouter.patch(
 );
 
 ordersRouter.patch(
+  '/:id/cancel',
+  requirePermission('sales.read', 'pos.cashier', 'pos.use', 'pos.kitchen'),
+  asyncHandler(async (req, res) => {
+    const data = await updateOrderStatus(Number(req.params.id), 'cancelled');
+    res.json({ success: true, data });
+  })
+);
+
+ordersRouter.patch(
   '/:id/delivery-status',
   requirePermission('pos.delivery'),
   asyncHandler(async (req, res) => {

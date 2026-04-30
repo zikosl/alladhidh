@@ -3,6 +3,12 @@ export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'paid' | 'cancelle
 export type DeliveryStatus = 'pending' | 'on_the_way' | 'delivered';
 export type PaymentMethod = 'cash' | 'card';
 export type UserStatus = 'active' | 'disabled';
+export type ExpenseType = 'fixed' | 'variable' | 'exceptional';
+export type ExpenseStatus = 'planned' | 'partial' | 'paid' | 'cancelled';
+export type FinancePaymentMethod = 'cash' | 'card' | 'transfer';
+export type ExpenseSourceType = 'manual' | 'stock_purchase' | 'payroll_payment' | 'salary_advance';
+export type EmploymentType = 'monthly' | 'daily' | 'hourly';
+export type PayrollPeriodStatus = 'draft' | 'validated' | 'paid';
 export type MeasurementType = 'portion' | 'weight' | 'volume';
 export type MeasurementUnit =
   | 'g'
@@ -85,7 +91,122 @@ export interface RestaurantSettingsSummary {
   currency: string;
   defaultDeliveryFee: number;
   lowStockThreshold: number;
+  logoUrl: string | null;
+  receiptTitle: string;
+  receiptSubtitle: string | null;
+  receiptAddress: string | null;
+  receiptPhone: string | null;
+  receiptEmail: string | null;
+  receiptWebsite: string | null;
+  receiptFacebook: string | null;
+  receiptInstagram: string | null;
+  receiptTiktok: string | null;
+  receiptWhatsapp: string | null;
   receiptFooter: string | null;
+  receiptAdditionalNote: string | null;
+  kitchenTicketHeader: string | null;
+  kitchenTicketFooter: string | null;
+  showContactBlock: boolean;
+  showSocialLinks: boolean;
+  showFooterNote: boolean;
+  showLogoInKitchenTicket: boolean;
+  autoPrintKitchenTicket: boolean;
+}
+
+export interface ExpenseCategorySummary {
+  id: number;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
+  expensesCount: number;
+}
+
+export interface ExpenseSummary {
+  id: number;
+  amount: number;
+  category: string;
+  categoryId: number | null;
+  type: ExpenseType;
+  status: ExpenseStatus;
+  paymentMethod: FinancePaymentMethod | null;
+  supplierName: string | null;
+  description: string | null;
+  sourceType: ExpenseSourceType;
+  sourceId: number | null;
+  sourceLabel: string | null;
+  isSystemGenerated: boolean;
+  dueDate: string | null;
+  paidAt: string | null;
+  date: string;
+}
+
+export interface EmployeeProfileSummary {
+  id: number;
+  userId: number;
+  fullName: string;
+  username: string;
+  roleName: string;
+  position: string | null;
+  employmentType: EmploymentType;
+  baseSalary: number;
+  hireDate: string | null;
+  isActive: boolean;
+  payrollNotes: string | null;
+}
+
+export interface SalaryAdvanceSummary {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  amount: number;
+  remainingAmount: number;
+  reason: string;
+  note: string | null;
+  date: string;
+}
+
+export interface PayrollPaymentSummary {
+  id: number;
+  amount: number;
+  method: FinancePaymentMethod;
+  paidAt: string;
+  note: string | null;
+}
+
+export interface PayrollEntrySummary {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  position: string | null;
+  baseSalary: number;
+  bonuses: number;
+  deductions: number;
+  advanceDeduction: number;
+  netSalary: number;
+  paidAmount: number;
+  remainingAmount: number;
+  paymentStatus: 'unpaid' | 'partial' | 'paid';
+  notes: string | null;
+  payments: PayrollPaymentSummary[];
+}
+
+export interface PayrollPeriodSummary {
+  id: number;
+  label: string;
+  startDate: string;
+  endDate: string;
+  status: PayrollPeriodStatus;
+  notes: string | null;
+  payrollTotal: number;
+  paidTotal: number;
+  remainingTotal: number;
+  entries: PayrollEntrySummary[];
+}
+
+export interface ReportFilters {
+  period: 'today' | '7d' | '30d' | 'custom';
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export interface InventoryItemSummary {
@@ -105,6 +226,19 @@ export interface InventoryCategorySummary {
   name: string;
   description: string | null;
   itemsCount: number;
+}
+
+export interface StockMovementSummary {
+  id: number;
+  ingredientId: number;
+  ingredientName: string;
+  category: string;
+  type: 'IN' | 'OUT';
+  reason: 'purchase' | 'sale' | 'loss' | 'adjustment';
+  quantity: number;
+  unit: MeasurementUnit;
+  date: string;
+  createdAt: string;
 }
 
 export interface RecipeIngredientSummary {

@@ -1,11 +1,12 @@
 import { ReactNode, useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
 import { usePosStore } from '../store/usePosStore';
-import { InventoryCategory, InventoryItem, MeasurementType, MeasurementUnit } from '../types/pos';
+import { ExpenseStatus, FinancePaymentMethod, InventoryCategory, InventoryItem, MeasurementType, MeasurementUnit, StockMovement } from '../types/pos';
+import { useFeedback } from './FeedbackProvider';
 import { WorkspaceShell } from './WorkspaceShell';
 
-type StockView = 'overview' | 'materials' | 'categories' | 'alerts';
-type ModalMode = 'material' | 'entry' | 'category' | null;
+type StockView = 'overview' | 'materials' | 'movements' | 'categories' | 'alerts';
+type ModalMode = 'material' | 'entry' | 'loss' | 'category' | null;
 type CoreUnit = 'kg' | 'portion' | 'liter';
 
 const coreUnits: Array<{ value: CoreUnit; label: string; hint: string; placeholder: string }> = [
@@ -25,7 +26,15 @@ const emptyMaterialForm = {
 const emptyEntryForm = {
   ingredientId: 0,
   quantity: 0,
-  totalPrice: 0
+  totalPrice: 0,
+  expenseStatus: 'paid' as ExpenseStatus,
+  paymentMethod: 'cash' as FinancePaymentMethod,
+  supplierName: ''
+};
+
+const emptyLossForm = {
+  ingredientId: 0,
+  quantity: 0
 };
 
 const emptyCategoryForm = {
@@ -55,13 +64,16 @@ function formatQuantity(item: Pick<InventoryItem, 'quantity' | 'unit'>) {
 }
 
 export function InventoryWorkspace() {
+  const { confirm } = useFeedback();
   const {
     inventoryItems,
     inventoryCategories,
+    stockMovements,
     upsertInventoryItem,
     addInventoryCategory,
     removeInventoryCategory,
     addStockEntry,
+    addStockLoss,
     removeInventoryItem,
     setCurrentModule
   } = usePosStore();
@@ -70,6 +82,7 @@ export function InventoryWorkspace() {
   const [statusFilter, setStatusFilter] = useState<'all' | InventoryItem['status']>('all');
   const [materialForm, setMaterialForm] = useState(emptyMaterialForm);
   const [entryForm, setEntryForm] = useState(emptyEntryForm);
+  const [lossForm, setLossForm] = useState(emptyLossForm);
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
@@ -100,6 +113,7 @@ export function InventoryWorkspace() {
   const portionCount = inventoryItems.filter((item) => item.measurementType === 'portion').length;
   const measuredCount = inventoryItems.filter((item) => item.measurementType !== 'portion').length;
   const selectedEntryItem = inventoryItems.find((item) => item.id === entryForm.ingredientId);
+  const selectedLossItem = inventoryItems.find((item) => item.id === lossForm.ingredientId);
   const selectedUnit = coreUnits.find((unit) => unit.value === materialForm.unit) ?? coreUnits[0];
   const visibleItems = view === 'alerts' ? lowStockItems : filteredItems;
 
@@ -127,9 +141,20 @@ export function InventoryWorkspace() {
     setEntryForm({
       ingredientId: item?.id ?? 0,
       quantity: 0,
-      totalPrice: 0
+      totalPrice: 0,
+      expenseStatus: 'paid',
+      paymentMethod: 'cash',
+      supplierName: ''
     });
     setModalMode('entry');
+  }
+
+  function openLossModal(item?: InventoryItem) {
+    setLossForm({
+      ingredientId: item?.id ?? 0,
+      quantity: 0
+    });
+    setModalMode('loss');
   }
 
   function openCategoryModal() {
@@ -142,6 +167,7 @@ export function InventoryWorkspace() {
     setEditingId(null);
     setMaterialForm(emptyMaterialForm);
     setEntryForm(emptyEntryForm);
+    setLossForm(emptyLossForm);
     setCategoryForm(emptyCategoryForm);
   }
 
@@ -178,6 +204,7 @@ export function InventoryWorkspace() {
       navigation={[
         { id: 'overview', label: 'Vue globale', hint: 'Valeur & alertes' },
         { id: 'materials', label: 'Matieres', hint: 'Articles bruts' },
+        { id: 'movements', label: 'Mouvements', hint: 'Audit stock' },
         { id: 'categories', label: 'Categories', hint: 'Organisation' },
         { id: 'alerts', label: 'Alertes', hint: 'Bas & rupture' }
       ]}
@@ -191,7 +218,7 @@ export function InventoryWorkspace() {
         <Metric label="Valeur" value={formatMoney(totalValue)} />
       </section>
 
-      {view !== 'categories' && (
+      {(view === 'overview' || view === 'materials' || view === 'alerts') && (
         <section className="rounded-2xl bg-white/90 p-4 shadow-soft">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -278,7 +305,22 @@ export function InventoryWorkspace() {
                           Entree
                         </button>
                         <button
-                          onClick={() => removeInventoryItem(item.id)}
+                          onClick={() => openLossModal(item)}
+                          className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
+                        >
+                          Perte
+                        </button>
+                        <button
+                          onClick={() => {
+                            void confirm({
+                              title: 'Supprimer la matiere ?',
+                              message: `"${item.name}" sera supprimee si aucun historique stock ne bloque l'action.`,
+                              confirmLabel: 'Supprimer',
+                              tone: 'danger'
+                            }).then((confirmed) => {
+                              if (confirmed) void removeInventoryItem(item.id);
+                            });
+                          }}
                           className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600"
                         >
                           Supprimer
@@ -293,6 +335,34 @@ export function InventoryWorkspace() {
 
           <div className="mt-3 text-xs text-zinc-500">
             {measuredCount} matieres en poids/volume. Les quantites restent derivees des mouvements stock.
+          </div>
+        </section>
+      )}
+
+      {view === 'movements' && (
+        <section className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Audit stock</div>
+              <h2 className="mt-1 text-xl font-bold text-zinc-950">Derniers mouvements</h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Chaque entree, vente et perte reste tracee. Le stock affiche est derive de cette liste.
+              </p>
+            </div>
+            <button onClick={() => openEntryModal()} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white">
+              Entree stock
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            {stockMovements.map((movement) => (
+              <MovementRow key={movement.id} movement={movement} />
+            ))}
+            {stockMovements.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center text-sm text-zinc-500">
+                Aucun mouvement stock trouve.
+              </div>
+            ) : null}
           </div>
         </section>
       )}
@@ -314,7 +384,16 @@ export function InventoryWorkspace() {
               <CategoryCard
                 key={category.id}
                 category={category}
-                onDelete={() => removeInventoryCategory(category.id)}
+                onDelete={() => {
+                  void confirm({
+                    title: 'Supprimer la categorie ?',
+                    message: `"${category.name}" ne sera supprimee que si elle n'est plus utilisee.`,
+                    confirmLabel: 'Supprimer',
+                    tone: 'danger'
+                  }).then((confirmed) => {
+                    if (confirmed) void removeInventoryCategory(category.id);
+                  });
+                }}
               />
             ))}
           </div>
@@ -475,6 +554,46 @@ export function InventoryWorkspace() {
               </label>
             </div>
 
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="block">
+                <span className="text-xs font-medium text-zinc-500">Statut finance</span>
+                <select
+                  value={entryForm.expenseStatus}
+                  onChange={(event) =>
+                    setEntryForm((current) => ({ ...current, expenseStatus: event.target.value as ExpenseStatus }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                >
+                  <option value="paid">Payee</option>
+                  <option value="planned">A payer</option>
+                  <option value="partial">Partielle</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-zinc-500">Paiement</span>
+                <select
+                  value={entryForm.paymentMethod}
+                  onChange={(event) =>
+                    setEntryForm((current) => ({ ...current, paymentMethod: event.target.value as FinancePaymentMethod }))
+                  }
+                  className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                >
+                  <option value="cash">Especes</option>
+                  <option value="card">Carte</option>
+                  <option value="transfer">Virement</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs font-medium text-zinc-500">Fournisseur</span>
+                <input
+                  value={entryForm.supplierName ?? ''}
+                  onChange={(event) => setEntryForm((current) => ({ ...current, supplierName: event.target.value }))}
+                  placeholder="Ex: Grossiste centre"
+                  className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                />
+              </label>
+            </div>
+
             <div className="rounded-xl bg-zinc-50 p-3 text-sm text-zinc-600">
               <Summary label="Matiere" value={selectedEntryItem?.name ?? '-'} />
               <Summary label="Unite" value={selectedEntryItem ? displayUnit(selectedEntryItem.unit) : '-'} />
@@ -482,6 +601,7 @@ export function InventoryWorkspace() {
                 label="Cout unitaire calcule"
                 value={entryForm.quantity > 0 ? formatMoney(entryForm.totalPrice / entryForm.quantity) : formatMoney(0)}
               />
+              <Summary label="Impact finance" value={entryForm.totalPrice > 0 ? `Achat stock - ${formatMoney(entryForm.totalPrice)}` : 'Aucun montant'} />
             </div>
 
             <button
@@ -494,6 +614,78 @@ export function InventoryWorkspace() {
             >
               Valider l'entree stock
             </button>
+          </div>
+        </Modal>
+      )}
+
+      {modalMode === 'loss' && (
+        <Modal title="Declarer une perte" onClose={closeModal}>
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-900">
+              Cette action cree un mouvement <span className="font-semibold">OUT / perte</span>. Le stock reste calcule uniquement depuis les mouvements.
+            </div>
+
+            <select
+              value={lossForm.ingredientId}
+              onChange={(event) => setLossForm((current) => ({ ...current, ingredientId: Number(event.target.value) }))}
+              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+            >
+              <option value={0}>Choisir une matiere premiere</option>
+              {inventoryItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} · {formatQuantity(item)}
+                </option>
+              ))}
+            </select>
+
+            <label className="block">
+              <span className="text-xs font-medium text-zinc-500">
+                {selectedLossItem?.measurementType === 'portion'
+                  ? 'Nombre de portions perdues'
+                  : selectedLossItem?.measurementType === 'volume'
+                    ? 'Volume perdu'
+                    : 'Poids perdu'}
+              </span>
+              <input
+                type="number"
+                min={0}
+                value={lossForm.quantity}
+                onChange={(event) => setLossForm((current) => ({ ...current, quantity: Number(event.target.value) }))}
+                placeholder="Ex: 2"
+                className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+              />
+            </label>
+
+            <div className="rounded-xl bg-zinc-50 p-3 text-sm text-zinc-600">
+              <Summary label="Matiere" value={selectedLossItem?.name ?? '-'} />
+              <Summary label="Stock actuel" value={selectedLossItem ? formatQuantity(selectedLossItem) : '-'} />
+              <Summary
+                label="Stock apres perte"
+                value={
+                  selectedLossItem
+                    ? `${Math.max(0, selectedLossItem.quantity - lossForm.quantity).toLocaleString('fr-DZ', {
+                        maximumFractionDigits: 3
+                      })} ${displayUnit(selectedLossItem.unit)}`
+                    : '-'
+                }
+              />
+            </div>
+
+            <button
+              disabled={!lossForm.ingredientId || lossForm.quantity <= 0 || Boolean(selectedLossItem && lossForm.quantity > selectedLossItem.quantity)}
+              onClick={async () => {
+                await addStockLoss(lossForm);
+                closeModal();
+              }}
+              className="w-full rounded-xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+            >
+              Valider la perte
+            </button>
+            {selectedLossItem && lossForm.quantity > selectedLossItem.quantity ? (
+              <div className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">
+                La perte ne peut pas depasser le stock disponible.
+              </div>
+            ) : null}
           </div>
         </Modal>
       )}
@@ -549,6 +741,41 @@ function Summary({ label, value }: { label: string; value: string }) {
       <span className="font-semibold text-zinc-950">{value}</span>
     </div>
   );
+}
+
+function MovementRow({ movement }: { movement: StockMovement }) {
+  const isIn = movement.type === 'IN';
+  return (
+    <article className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${isIn ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+              {movement.type}
+            </span>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-zinc-600">
+              {formatMovementReason(movement.reason)}
+            </span>
+            <span className="text-sm font-semibold text-zinc-950">{movement.ingredientName}</span>
+          </div>
+          <div className="mt-2 text-xs text-zinc-500">
+            {movement.category} - {new Date(movement.date).toLocaleString('fr-DZ')}
+          </div>
+        </div>
+        <div className={`text-lg font-black ${isIn ? 'text-emerald-700' : 'text-red-700'}`}>
+          {isIn ? '+' : '-'}
+          {movement.quantity.toLocaleString('fr-DZ', { maximumFractionDigits: 3 })} {displayUnit(movement.unit)}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function formatMovementReason(reason: StockMovement['reason']) {
+  if (reason === 'purchase') return 'Achat';
+  if (reason === 'sale') return 'Vente';
+  if (reason === 'loss') return 'Perte';
+  return 'Ajustement';
 }
 
 function CategoryCard({ category, onDelete }: { category: InventoryCategory; onDelete: () => void }) {

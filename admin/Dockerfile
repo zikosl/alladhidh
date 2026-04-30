@@ -14,6 +14,7 @@ COPY vite.config.ts ./
 COPY postcss.config.js ./
 COPY tailwind.config.js ./
 COPY index.html ./
+COPY public ./public
 COPY src ./src
 
 EXPOSE 5173

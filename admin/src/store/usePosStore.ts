@@ -1,11 +1,20 @@
 import { create } from 'zustand';
 import {
+  cancelOrder as cancelOrderRequest,
+  createExpense,
+  createExpenseCategory,
+  createPayrollPayment,
+  createPayrollPeriod,
+  createSalaryAdvance,
   createStaffUser,
   createTable,
   createInventoryCategory,
   createInventoryItem,
   createMenuCategory,
   createStockEntry,
+  createStockLoss,
+  deleteExpense,
+  deleteExpenseCategory,
   deleteTable,
   deleteInventoryCategory,
   deleteInventoryItem,
@@ -13,6 +22,9 @@ import {
   createOrder,
   createPayment,
   deleteMenuCategory,
+  fetchEmployeeProfiles,
+  fetchExpenseCategories,
+  fetchExpenses,
   fetchDashboard,
   fetchInventoryCategories,
   fetchInventoryItems,
@@ -21,18 +33,25 @@ import {
   fetchKitchenOrders,
   fetchMenuItems,
   fetchOrders,
+  fetchPayrollPeriods,
   fetchProfitReport,
   fetchProducts,
   fetchRoles,
+  fetchSalaryAdvances,
   fetchSettings,
   fetchStock,
+  fetchStockMovements,
   fetchStaffUsers,
   fetchTables,
   resetStaffPassword,
+  updateExpense,
+  updatePayrollEntry,
+  updatePayrollPeriodStatus,
   updateRolePermissions,
   updateSettings,
   updateStaffUser,
   updateTable,
+  upsertEmployeeProfile,
   updateDeliveryStatus,
   updateInventoryItem,
   deleteMenuItem,
@@ -40,11 +59,18 @@ import {
   updateOrderStatus
 } from '../lib/api';
 import { initialInventoryItems, initialMenuItems } from '../lib/mockData';
+import { resolveNavigationPath, writeNavigationPath } from '../lib/navigation';
+import { printCustomerInvoice } from '../lib/print';
 import {
   Permission,
   CartItem,
   DashboardData,
   DeliveryForm,
+  EmployeeProfile,
+  EmployeeProfileInput,
+  Expense,
+  ExpenseCategory,
+  ExpenseInput,
   InventoryCategory,
   InventoryItem,
   InventoryItemInput,
@@ -58,11 +84,19 @@ import {
   PosScreen,
   Product,
   ProfitReport,
+  PayrollEntryInput,
+  PayrollPaymentInput,
+  PayrollPeriod,
+  PayrollPeriodInput,
   RestaurantSettings,
   RestaurantTable,
   RestaurantTableInput,
   Role,
+  SalaryAdvance,
+  SalaryAdvanceInput,
   StockEntryInput,
+  StockLossInput,
+  StockMovement,
   StaffUser,
   StaffUserInput,
   StockRow
@@ -78,7 +112,13 @@ interface PosState {
   kitchenOrders: Order[];
   dashboard: DashboardData | null;
   profitReport: ProfitReport | null;
+  expenses: Expense[];
+  expenseCategories: ExpenseCategory[];
+  employeeProfiles: EmployeeProfile[];
+  salaryAdvances: SalaryAdvance[];
+  payrollPeriods: PayrollPeriod[];
   stockRows: StockRow[];
+  stockMovements: StockMovement[];
   inventoryItems: InventoryItem[];
   inventoryCategories: InventoryCategory[];
   menuItems: MenuItem[];
@@ -100,6 +140,7 @@ interface PosState {
   lastError: string | null;
   setCurrentModule: (module: ModuleId) => void;
   setPosScreen: (screen: PosScreen) => void;
+  syncNavigationFromUrl: () => void;
   setSearch: (value: string) => void;
   setSelectedCategory: (value: string) => void;
   setOrderType: (value: OrderType) => void;
@@ -117,11 +158,22 @@ interface PosState {
   addInventoryCategory: (category: { name: string; description?: string | null }) => Promise<void>;
   removeInventoryCategory: (id: number) => Promise<void>;
   addStockEntry: (entry: StockEntryInput) => Promise<void>;
+  addStockLoss: (loss: StockLossInput) => Promise<void>;
   upsertMenuItem: (item: MenuItemInput) => Promise<void>;
   addMenuCategory: (category: { name: string; description?: string | null }) => Promise<void>;
   removeMenuCategory: (id: number) => Promise<void>;
   removeInventoryItem: (id: number) => Promise<void>;
   removeMenuItem: (id: number) => Promise<void>;
+  upsertExpense: (expense: ExpenseInput) => Promise<void>;
+  removeExpense: (id: number) => Promise<void>;
+  addExpenseCategory: (category: { name: string; description?: string | null }) => Promise<void>;
+  removeExpenseCategory: (id: number) => Promise<void>;
+  upsertEmployeePayrollProfile: (profile: EmployeeProfileInput) => Promise<void>;
+  addSalaryAdvance: (advance: SalaryAdvanceInput) => Promise<void>;
+  addPayrollPeriod: (period: PayrollPeriodInput) => Promise<void>;
+  savePayrollEntry: (entryId: number, entry: PayrollEntryInput) => Promise<void>;
+  addPayrollPayment: (entryId: number, payment: PayrollPaymentInput) => Promise<void>;
+  savePayrollPeriodStatus: (periodId: number, status: 'draft' | 'validated' | 'paid') => Promise<void>;
   upsertStaffUser: (user: StaffUserInput) => Promise<void>;
   resetStaffPasswordForUser: (userId: number, password: string) => Promise<void>;
   saveRolePermissions: (roleId: number, permissionCodes: string[]) => Promise<void>;
@@ -132,6 +184,7 @@ interface PosState {
   refreshLiveData: () => Promise<void>;
   refreshAdminData: () => Promise<void>;
   submitOrder: () => Promise<void>;
+  cancelOrder: (orderId: number) => Promise<void>;
   setKitchenStatus: (orderId: number, status: 'pending' | 'preparing' | 'ready') => Promise<void>;
   payOrder: (orderId: number, method: 'cash' | 'card') => Promise<void>;
   setDeliveryOrderStatus: (orderId: number, status: 'pending' | 'on_the_way' | 'delivered') => Promise<void>;
@@ -264,16 +317,24 @@ function hasPermission(...permissions: string[]) {
   return useAuthStore.getState().hasPermission(...permissions);
 }
 
+const initialNavigation = resolveNavigationPath(typeof window === 'undefined' ? '/apps' : window.location.pathname);
+
 export const usePosStore = create<PosState>((set, get) => ({
-  currentModule: 'apps',
-  posScreen: 'order',
+  currentModule: initialNavigation.module,
+  posScreen: initialNavigation.posScreen,
   categories: [],
   products: [],
   orders: [],
   kitchenOrders: [],
   dashboard: null,
   profitReport: null,
+  expenses: [],
+  expenseCategories: [],
+  employeeProfiles: [],
+  salaryAdvances: [],
+  payrollPeriods: [],
   stockRows: [],
+  stockMovements: [],
   inventoryItems: initialInventoryItems,
   inventoryCategories: categoriesFromInventory(initialInventoryItems),
   menuItems: initialMenuItems,
@@ -293,13 +354,32 @@ export const usePosStore = create<PosState>((set, get) => ({
     customerName: '',
     phone: '',
     address: '',
-    deliveryFee: 2
+    deliveryFee: 0
   },
   loading: true,
   submitting: false,
   lastError: null,
-  setCurrentModule: (currentModule) => set({ currentModule }),
-  setPosScreen: (posScreen) => set({ posScreen }),
+  setCurrentModule: (currentModule) => {
+    const posScreen = get().posScreen;
+    set({ currentModule });
+    writeNavigationPath(currentModule, posScreen);
+  },
+  setPosScreen: (posScreen) => {
+    set({ currentModule: 'pos', posScreen });
+    writeNavigationPath('pos', posScreen);
+  },
+  syncNavigationFromUrl: () => {
+    const nextNavigation = resolveNavigationPath(typeof window === 'undefined' ? '/apps' : window.location.pathname);
+    set({
+      currentModule: nextNavigation.module,
+      posScreen: nextNavigation.module === 'pos' ? nextNavigation.posScreen : get().posScreen
+    });
+    writeNavigationPath(
+      nextNavigation.module,
+      nextNavigation.module === 'pos' ? nextNavigation.posScreen : get().posScreen,
+      'replace'
+    );
+  },
   setSearch: (value) => set({ search: value }),
   setSelectedCategory: (value) => set({ selectedCategory: value }),
   setOrderType: (value) => set({ orderType: value }),
@@ -354,6 +434,10 @@ export const usePosStore = create<PosState>((set, get) => ({
   clearCart: () => set({ cart: [], notes: '' }),
   holdCart: () => {
     const state = get();
+    if (state.cart.length === 0) {
+      set({ lastError: 'Le panier est vide, rien a mettre en attente' });
+      return;
+    }
     localStorage.setItem(
       heldCartKey,
       JSON.stringify({
@@ -364,17 +448,22 @@ export const usePosStore = create<PosState>((set, get) => ({
         deliveryForm: state.deliveryForm
       })
     );
+    set({ cart: [], notes: '', lastError: null });
   },
   restoreHeldCart: () => {
     const raw = localStorage.getItem(heldCartKey);
-    if (!raw) return;
+    if (!raw) {
+      set({ lastError: 'Aucune commande en attente' });
+      return;
+    }
     const held = JSON.parse(raw) as Pick<PosState, 'cart' | 'orderType' | 'tableNumber' | 'notes' | 'deliveryForm'>;
     set({
       cart: held.cart,
       orderType: held.orderType,
       tableNumber: held.tableNumber,
       notes: held.notes,
-      deliveryForm: held.deliveryForm
+      deliveryForm: held.deliveryForm,
+      lastError: null
     });
   },
   upsertInventoryItem: async (item) => {
@@ -389,6 +478,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       const inventoryCategories = categoriesFromInventory(inventoryItems);
       set({ inventoryItems, inventoryCategories, lastError: null });
       persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
+      await get().refreshLiveData();
     } catch {
       const quantity = item.initialQuantity ?? state.inventoryItems.find((existing) => existing.id === item.id)?.quantity ?? 0;
       const minimumStock = item.minimumStock ?? null;
@@ -420,6 +510,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       );
       set({ inventoryCategories, lastError: null });
       persistLocalData(state.inventoryItems, state.menuItems, inventoryCategories);
+      await get().refreshLiveData();
     } catch {
       const nextCategory: InventoryCategory = {
         id: Date.now(),
@@ -441,6 +532,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       const inventoryCategories = state.inventoryCategories.filter((category) => category.id !== id);
       set({ inventoryCategories, lastError: null });
       persistLocalData(state.inventoryItems, state.menuItems, inventoryCategories);
+      await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Suppression categorie impossible' });
     }
@@ -458,6 +550,19 @@ export const usePosStore = create<PosState>((set, get) => ({
       set({ lastError: error instanceof Error ? error.message : 'Entree de stock impossible' });
     }
   },
+  addStockLoss: async (loss) => {
+    const state = get();
+    try {
+      const updatedItem = await createStockLoss(loss);
+      const inventoryItems = state.inventoryItems.map((item) => (item.id === updatedItem.id ? updatedItem : item));
+      const inventoryCategories = categoriesFromInventory(inventoryItems);
+      set({ inventoryItems, inventoryCategories, lastError: null });
+      persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Declaration de perte impossible' });
+    }
+  },
   upsertMenuItem: async (item) => {
     const state = get();
     try {
@@ -470,6 +575,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       const menuCategories = menuCategoriesFromMenu(menuItems);
       set({ menuItems, menuCategories, lastError: null });
       persistLocalData(state.inventoryItems, menuItems, state.inventoryCategories, menuCategories);
+      await get().refreshLiveData();
     } catch {
       const metrics = computeMenuMetrics(item, state.inventoryItems);
       const category = state.menuCategories.find((entry) => entry.id === item.categoryId);
@@ -500,6 +606,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       );
       set({ menuCategories, lastError: null });
       persistLocalData(state.inventoryItems, state.menuItems, state.inventoryCategories, menuCategories);
+      await get().refreshLiveData();
     } catch {
       const nextCategory: MenuCategory = {
         id: Date.now(),
@@ -521,6 +628,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       const menuCategories = state.menuCategories.filter((category) => category.id !== id);
       set({ menuCategories, lastError: null });
       persistLocalData(state.inventoryItems, state.menuItems, state.inventoryCategories, menuCategories);
+      await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Suppression categorie menu impossible' });
     }
@@ -533,6 +641,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       const inventoryCategories = categoriesFromInventory(inventoryItems);
       set({ inventoryItems, inventoryCategories, lastError: null });
       persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
+      await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Suppression stock impossible' });
     }
@@ -545,8 +654,141 @@ export const usePosStore = create<PosState>((set, get) => ({
       const menuCategories = menuCategoriesFromMenu(menuItems);
       set({ menuItems, menuCategories, lastError: null });
       persistLocalData(state.inventoryItems, menuItems, state.inventoryCategories, menuCategories);
+      await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Suppression menu impossible' });
+    }
+  },
+  upsertExpense: async (expense) => {
+    const state = get();
+    try {
+      const nextExpense = expense.id ? await updateExpense(expense.id, expense) : await createExpense(expense);
+      const expenses = expense.id
+        ? state.expenses.map((entry) => (entry.id === expense.id ? nextExpense : entry))
+        : [nextExpense, ...state.expenses];
+      set({ expenses, lastError: null });
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Sauvegarde depense impossible' });
+    }
+  },
+  removeExpense: async (id) => {
+    const state = get();
+    try {
+      await deleteExpense(id);
+      set({
+        expenses: state.expenses.filter((entry) => entry.id !== id),
+        lastError: null
+      });
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Suppression depense impossible' });
+    }
+  },
+  addExpenseCategory: async (category) => {
+    const state = get();
+    try {
+      const nextCategory = await createExpenseCategory(category);
+      set({
+        expenseCategories: [...state.expenseCategories, nextCategory].sort((left, right) => left.name.localeCompare(right.name)),
+        lastError: null
+      });
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Creation categorie depense impossible' });
+    }
+  },
+  removeExpenseCategory: async (id) => {
+    const state = get();
+    try {
+      await deleteExpenseCategory(id);
+      set({
+        expenseCategories: state.expenseCategories.filter((entry) => entry.id !== id),
+        lastError: null
+      });
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Suppression categorie depense impossible' });
+    }
+  },
+  upsertEmployeePayrollProfile: async (profile) => {
+    const state = get();
+    try {
+      const nextProfile = await upsertEmployeeProfile(profile);
+      const existing = state.employeeProfiles.some((entry) => entry.id === nextProfile.id);
+      set({
+        employeeProfiles: existing
+          ? state.employeeProfiles.map((entry) => (entry.id === nextProfile.id ? nextProfile : entry))
+          : [...state.employeeProfiles, nextProfile].sort((left, right) => left.fullName.localeCompare(right.fullName)),
+        lastError: null
+      });
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Sauvegarde profil paie impossible' });
+    }
+  },
+  addSalaryAdvance: async (advance) => {
+    const state = get();
+    try {
+      const nextAdvance = await createSalaryAdvance(advance);
+      set({
+        salaryAdvances: [nextAdvance, ...state.salaryAdvances],
+        lastError: null
+      });
+      await get().refreshAdminData();
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Creation avance impossible' });
+    }
+  },
+  addPayrollPeriod: async (period) => {
+    const state = get();
+    try {
+      const nextPeriod = await createPayrollPeriod(period);
+      set({
+        payrollPeriods: [nextPeriod, ...state.payrollPeriods],
+        lastError: null
+      });
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Creation periode de paie impossible' });
+    }
+  },
+  savePayrollEntry: async (entryId, entry) => {
+    const state = get();
+    try {
+      const period = await updatePayrollEntry(entryId, entry);
+      set({
+        payrollPeriods: state.payrollPeriods.map((item) => (item.id === period.id ? period : item)),
+        lastError: null
+      });
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Mise a jour ligne de paie impossible' });
+    }
+  },
+  addPayrollPayment: async (entryId, payment) => {
+    const state = get();
+    try {
+      const period = await createPayrollPayment(entryId, payment);
+      set({
+        payrollPeriods: state.payrollPeriods.map((item) => (item.id === period.id ? period : item)),
+        lastError: null
+      });
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Paiement de paie impossible' });
+    }
+  },
+  savePayrollPeriodStatus: async (periodId, status) => {
+    const state = get();
+    try {
+      const period = await updatePayrollPeriodStatus(periodId, status);
+      set({
+        payrollPeriods: state.payrollPeriods.map((item) => (item.id === period.id ? period : item)),
+        lastError: null
+      });
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Mise a jour statut paie impossible' });
     }
   },
   upsertStaffUser: async (user) => {
@@ -622,7 +864,7 @@ export const usePosStore = create<PosState>((set, get) => ({
               restaurantSettings,
               deliveryForm: {
                 ...state.deliveryForm,
-                deliveryFee: restaurantSettings.defaultDeliveryFee
+                deliveryFee: 0
               }
             }))
           )
@@ -637,6 +879,21 @@ export const usePosStore = create<PosState>((set, get) => ({
       if (hasPermission('roles.manage')) {
         calls.push(
           Promise.all([fetchRoles(), fetchPermissions()]).then(([roles, permissions]) => set({ roles, permissions }))
+        );
+      }
+      if (hasPermission('finance.read', 'finance.write')) {
+        calls.push(
+          Promise.all([fetchExpenseCategories(), fetchExpenses()]).then(([expenseCategories, expenses]) =>
+            set({ expenseCategories, expenses })
+          )
+        );
+      }
+      if (hasPermission('payroll.read', 'payroll.write')) {
+        calls.push(
+          Promise.all([fetchEmployeeProfiles(), fetchSalaryAdvances(), fetchPayrollPeriods()]).then(
+            ([employeeProfiles, salaryAdvances, payrollPeriods]) =>
+              set({ employeeProfiles, salaryAdvances, payrollPeriods })
+          )
         );
       }
 
@@ -659,7 +916,13 @@ export const usePosStore = create<PosState>((set, get) => ({
       kitchenOrders: [],
       dashboard: null,
       profitReport: null,
+      expenses: [],
+      expenseCategories: [],
+      employeeProfiles: [],
+      salaryAdvances: [],
+      payrollPeriods: [],
       stockRows: [],
+      stockMovements: [],
       restaurantTables: [],
       restaurantSettings: null,
       staffUsers: [],
@@ -693,12 +956,14 @@ export const usePosStore = create<PosState>((set, get) => ({
       }
 
       if (hasPermission('inventory.read', 'inventory.write')) {
-        const [stockRows, serverInventory, serverCategories] = await Promise.all([
+        const [stockRows, stockMovements, serverInventory, serverCategories] = await Promise.all([
           fetchStock(),
+          fetchStockMovements(),
           fetchInventoryItems(),
           fetchInventoryCategories()
         ]);
         nextState.stockRows = stockRows;
+        nextState.stockMovements = stockMovements;
         nextState.inventoryItems = serverInventory;
         nextState.inventoryCategories = serverCategories;
         persistLocalData(serverInventory, nextState.menuItems ?? menuItems, serverCategories, nextState.menuCategories ?? menuCategories);
@@ -716,13 +981,11 @@ export const usePosStore = create<PosState>((set, get) => ({
         loading: false
       });
       await get().refreshAdminData();
-      get().restoreHeldCart();
     } catch (error) {
       set({
         loading: false,
         lastError: error instanceof Error ? error.message : 'Impossible de charger les donnees POS'
       });
-      get().restoreHeldCart();
     }
   },
   refreshLiveData: async () => {
@@ -740,12 +1003,36 @@ export const usePosStore = create<PosState>((set, get) => ({
         tasks.push(fetchDashboard().then((dashboard) => void (updates.dashboard = dashboard)));
         tasks.push(fetchProfitReport().then((profitReport) => void (updates.profitReport = profitReport)));
       }
+      if (hasPermission('finance.read', 'finance.write')) {
+        tasks.push(fetchExpenses().then((expenses) => void (updates.expenses = expenses)));
+        tasks.push(fetchExpenseCategories().then((expenseCategories) => void (updates.expenseCategories = expenseCategories)));
+      }
+      if (hasPermission('payroll.read', 'payroll.write')) {
+        tasks.push(fetchPayrollPeriods().then((payrollPeriods) => void (updates.payrollPeriods = payrollPeriods)));
+        tasks.push(fetchSalaryAdvances().then((salaryAdvances) => void (updates.salaryAdvances = salaryAdvances)));
+      }
       if (hasPermission('inventory.read', 'inventory.write')) {
         tasks.push(fetchStock().then((stockRows) => void (updates.stockRows = stockRows)));
+        tasks.push(fetchStockMovements().then((stockMovements) => void (updates.stockMovements = stockMovements)));
+        tasks.push(fetchInventoryItems().then((inventoryItems) => void (updates.inventoryItems = inventoryItems)));
+        tasks.push(fetchInventoryCategories().then((inventoryCategories) => void (updates.inventoryCategories = inventoryCategories)));
+      }
+      if (hasPermission('recipes.read', 'recipes.write')) {
+        tasks.push(fetchMenuItems().then((menuItems) => void (updates.menuItems = menuItems)));
+        tasks.push(fetchMenuCategories().then((menuCategories) => void (updates.menuCategories = menuCategories)));
       }
 
       await Promise.all(tasks);
       set(updates);
+      if (updates.inventoryItems || updates.menuItems || updates.inventoryCategories || updates.menuCategories) {
+        const current = get();
+        persistLocalData(
+          updates.inventoryItems ?? current.inventoryItems,
+          updates.menuItems ?? current.menuItems,
+          updates.inventoryCategories ?? current.inventoryCategories,
+          updates.menuCategories ?? current.menuCategories
+        );
+      }
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Actualisation live impossible' });
     }
@@ -756,26 +1043,38 @@ export const usePosStore = create<PosState>((set, get) => ({
       set({ lastError: 'Ajoutez au moins un produit au panier' });
       return;
     }
+    if (state.orderType === 'dine_in' && !state.tableNumber.trim()) {
+      set({ lastError: "Choisissez une table avant l'envoi en cuisine" });
+      return;
+    }
+    if (state.orderType === 'delivery') {
+      const delivery = state.deliveryForm;
+      if (!delivery.customerName.trim() || !delivery.phone.trim() || !delivery.address.trim()) {
+        set({ lastError: 'Completez le nom, telephone et adresse pour la livraison' });
+        return;
+      }
+    }
 
     set({ submitting: true, lastError: null });
     try {
-      await createOrder({
+      const createdOrder = await createOrder({
         type: state.orderType,
         tableNumber: state.orderType === 'dine_in' ? state.tableNumber : null,
         customerName: state.orderType === 'dine_in' ? null : state.deliveryForm.customerName || null,
         phone: state.orderType === 'dine_in' ? null : state.deliveryForm.phone || null,
         address: state.orderType === 'delivery' ? state.deliveryForm.address : null,
-        deliveryFee: state.orderType === 'delivery' ? state.deliveryForm.deliveryFee : 0,
+        deliveryFee: 0,
         notes: state.notes || null,
         items: state.cart.map((item) => ({
           productId: item.productId,
           quantity: item.quantity
         }))
       });
+      printCustomerInvoice(createdOrder, state.restaurantSettings);
       localStorage.removeItem(heldCartKey);
       set({ cart: [], notes: '', submitting: false });
       await get().refreshLiveData();
-      set({ currentModule: 'pos', posScreen: state.orderType === 'delivery' ? 'delivery' : 'cashier' });
+      get().setPosScreen('kitchen');
     } catch (error) {
       set({ submitting: false, lastError: error instanceof Error ? error.message : 'Creation commande impossible' });
     }
@@ -783,6 +1082,14 @@ export const usePosStore = create<PosState>((set, get) => ({
   setKitchenStatus: async (orderId, status) => {
     await updateOrderStatus(orderId, status);
     await get().refreshLiveData();
+  },
+  cancelOrder: async (orderId) => {
+    try {
+      await cancelOrderRequest(orderId);
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Annulation commande impossible' });
+    }
   },
   payOrder: async (orderId, method) => {
     await createPayment(orderId, method);

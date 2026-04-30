@@ -33,6 +33,24 @@ type ProductWithRecipes = Prisma.ProductGetPayload<{
   };
 }>;
 
+type SaleWithRecipes = Prisma.SaleGetPayload<{
+  include: {
+    saleItems: {
+      include: {
+        product: {
+          include: {
+            recipes: {
+              include: {
+                ingredient: true;
+              };
+            };
+          };
+        };
+      };
+    };
+  };
+}>;
+
 const orderTypes: OrderType[] = ['dine_in', 'take_away', 'delivery'];
 const orderStatuses: OrderStatus[] = ['pending', 'preparing', 'ready', 'paid', 'cancelled'];
 const deliveryStatuses: DeliveryStatus[] = ['pending', 'on_the_way', 'delivered'];
@@ -124,6 +142,50 @@ async function getOrderOrThrow(client: PrismaClient | Prisma.TransactionClient, 
   return order;
 }
 
+async function getOrderWithRecipesOrThrow(client: PrismaClient | Prisma.TransactionClient, orderId: number): Promise<SaleWithRecipes> {
+  const order = await client.sale.findUnique({
+    where: { id: orderId },
+    include: {
+      saleItems: {
+        include: {
+          product: {
+            include: {
+              recipes: {
+                include: {
+                  ingredient: true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!order) {
+    throw new HttpError(404, 'Order not found');
+  }
+
+  return order;
+}
+
+async function restoreStockForCancelledOrder(client: Prisma.TransactionClient, order: SaleWithRecipes) {
+  const movements = order.saleItems.flatMap((item) =>
+    item.product.recipes.map((recipe) => ({
+      ingredientId: recipe.ingredientId,
+      type: StockMovementType.IN,
+      quantity:
+        convertRecipeQuantityToStockUnit(toNumber(recipe.quantity), recipe.unit, recipe.ingredient.unit) *
+        item.quantity,
+      reason: StockMovementReason.adjustment
+    }))
+  );
+
+  if (movements.length > 0) {
+    await client.stockMovement.createMany({ data: movements });
+  }
+}
+
 export async function listOrders(): Promise<OrderSummary[]> {
   const rows = await prisma.sale.findMany({
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -175,8 +237,10 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderSummary
     throw new HttpError(400, 'Customer name, phone, and address are required for delivery');
   }
 
-  const initialStatus = input.status ?? 'pending';
-  validateOrderStatus(initialStatus);
+  const initialStatus = 'pending';
+  if (input.status && input.status !== 'pending') {
+    throw new HttpError(400, 'Toutes les commandes doivent passer par la cuisine');
+  }
 
   if (input.type === 'delivery' && input.deliveryStatus) {
     validateDeliveryStatus(input.deliveryStatus);
@@ -263,12 +327,12 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderSummary
         const stockByIngredientId = new Map(stockRows.map((row) => [row.ingredient_id, toNumber(row.current_stock)]));
         for (const [ingredientId, usage] of ingredientUsage.entries()) {
           if ((stockByIngredientId.get(ingredientId) ?? 0) < usage.requiredQuantity) {
-            throw new HttpError(400, `Insufficient stock for ingredient "${usage.ingredientName}"`);
+            throw new HttpError(400, `Stock insuffisant pour "${usage.ingredientName}"`);
           }
         }
       }
 
-      const deliveryFee = input.type === 'delivery' ? toNonNegativeNumber(input.deliveryFee ?? 0, 'deliveryFee') : 0;
+      const deliveryFee = 0;
       const createdSale = await client.sale.create({
         data: {
           type: input.type as PrismaSaleType,
@@ -319,7 +383,19 @@ export async function updateOrderStatus(orderId: number, status: string): Promis
   validateOrderStatus(status);
 
   return prisma.$transaction(async (client) => {
-    await getOrderOrThrow(client, orderId);
+    const existing = await getOrderWithRecipesOrThrow(client, orderId);
+
+    if (existing.status === PrismaSaleStatus.cancelled) {
+      throw new HttpError(400, 'Cancelled orders cannot be changed');
+    }
+
+    if (status === 'cancelled') {
+      if (existing.status === PrismaSaleStatus.paid) {
+        throw new HttpError(400, 'Paid orders cannot be cancelled');
+      }
+
+      await restoreStockForCancelledOrder(client, existing);
+    }
 
     const updated = await client.sale.update({
       where: { id: orderId },
@@ -372,6 +448,18 @@ export async function createPayment(orderId: number, method: string): Promise<Or
 
   return prisma.$transaction(async (client) => {
     const existing = await getOrderOrThrow(client, orderId);
+
+    if (existing.status === PrismaSaleStatus.cancelled) {
+      throw new HttpError(400, 'Cancelled orders cannot be paid');
+    }
+
+    if (existing.status === PrismaSaleStatus.paid) {
+      throw new HttpError(400, 'Order is already paid');
+    }
+
+    if (existing.status !== PrismaSaleStatus.ready) {
+      throw new HttpError(400, 'La commande doit etre prete en cuisine avant le paiement');
+    }
 
     await client.payment.create({
       data: {

@@ -1,495 +1,582 @@
-import { Prisma } from '@prisma/client';
+import { ExpenseSourceType } from '@prisma/client';
+import { DeliveryStatus, OrderStatus, OrderType, ReportFilters } from '../types/pos';
 import { prisma } from '../lib/prisma';
 
-interface MetricRow {
-  value: Prisma.Decimal | number | string | null;
+function toIsoDate(value: Date) {
+  return value.toISOString().slice(0, 10);
 }
 
-interface DailySalesRow {
-  sale_date: string;
-  orders_count: number;
-  total_sales: Prisma.Decimal | number | string;
+function startOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0);
 }
 
-interface TopProductRow {
-  product_id: number;
-  name: string;
-  total_quantity: Prisma.Decimal | number | string;
-  revenue: Prisma.Decimal | number | string;
+function endOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999);
 }
 
-interface StockAlertRow {
-  ingredient_id: number;
-  name: string;
-  current_stock: Prisma.Decimal | number | string;
-  purchase_price: Prisma.Decimal | number | string;
-}
+function resolveRange(filters?: Partial<ReportFilters>) {
+  const now = new Date();
+  const period = filters?.period ?? '7d';
 
-interface SalesByTypeRow {
-  type: 'dine_in' | 'take_away' | 'delivery';
-  orders_count: number;
-  total_sales: Prisma.Decimal | number | string;
-}
-
-interface SalesByHourRow {
-  sale_hour: string;
-  orders_count: number;
-  total_sales: Prisma.Decimal | number | string;
-}
-
-interface StatusRow {
-  status: 'pending' | 'preparing' | 'ready' | 'paid' | 'cancelled';
-  count: number;
-}
-
-interface DurationRow {
-  value: Prisma.Decimal | number | string | null;
-}
-
-interface LossRow {
-  ingredient_id: number;
-  name: string;
-  total_quantity: Prisma.Decimal | number | string;
-  total_value: Prisma.Decimal | number | string;
-}
-
-interface ConsumptionRow {
-  ingredient_id: number;
-  name: string;
-  total_quantity: Prisma.Decimal | number | string;
-}
-
-interface ExpenseCategoryRow {
-  category: string;
-  amount: Prisma.Decimal | number | string;
-}
-
-interface DeliveryStatusRow {
-  status: 'pending' | 'on_the_way' | 'delivered';
-  count: number;
-}
-
-interface TableRevenueRow {
-  table_number: string;
-  orders_count: number;
-  total_sales: Prisma.Decimal | number | string;
-}
-
-interface ProductProfitRow {
-  product_id: number;
-  name: string;
-  revenue: Prisma.Decimal | number | string;
-  estimated_profit: Prisma.Decimal | number | string;
-  margin_rate: Prisma.Decimal | number | string;
-}
-
-function toNumber(value: Prisma.Decimal | number | string | null | undefined): number {
-  if (value === null || value === undefined) {
-    return 0;
+  if (period === 'today') {
+    const start = startOfDay(now);
+    const end = endOfDay(now);
+    return { period, start, end };
   }
 
-  return Number(value);
+  if (period === '30d') {
+    const end = endOfDay(now);
+    const start = startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29));
+    return { period, start, end };
+  }
+
+  if (period === 'custom' && filters?.dateFrom && filters?.dateTo) {
+    const start = startOfDay(new Date(filters.dateFrom));
+    const end = endOfDay(new Date(filters.dateTo));
+    return { period, start, end };
+  }
+
+  const end = endOfDay(now);
+  const start = startOfDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6));
+  return { period: '7d' as const, start, end };
 }
 
-export async function getDashboardData() {
+function previousRange(start: Date, end: Date) {
+  const spanMs = end.getTime() - start.getTime() + 1;
+  const prevEnd = new Date(start.getTime() - 1);
+  const prevStart = new Date(prevEnd.getTime() - spanMs + 1);
+  return { start: prevStart, end: prevEnd };
+}
+
+function percentChange(current: number, previous: number) {
+  if (previous === 0) {
+    return current === 0 ? 0 : 100;
+  }
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+function sum(values: number[]) {
+  return values.reduce((acc, value) => acc + value, 0);
+}
+
+export async function getDashboardData(filters?: Partial<ReportFilters>) {
+  const range = resolveRange(filters);
+  const previous = previousRange(range.start, range.end);
   const lowStockThreshold = Number(process.env.LOW_STOCK_THRESHOLD ?? 1000);
+
   const [
-    salesToday,
-    expensesToday,
-    activeOrders,
-    ordersToday,
-    dailySales,
-    topProducts,
-    stockAlerts,
-    salesByType,
-    salesByHour,
-    statusBreakdown,
-    averagePreparationMinutes,
-    averagePaymentMinutes,
-    delayedOrders,
-    averageDeliveryMinutes,
-    delayedDeliveries,
-    lossesToday,
-    lossesByIngredient,
-    topConsumedIngredients,
-    stockValue,
-    expensesByCategory,
-    expenseTotal,
-    estimatedCostsTotal,
-    deliveryOrders,
-    deliveryRevenue,
-    averageDeliveryFee,
-    deliveryByStatus,
-    activeDineInOrders,
-    revenueByTable
+    sales,
+    previousSales,
+    expenses,
+    previousExpenses,
+    ingredients,
+    stockMovements,
+    payrollPeriods,
+    previousPayrollPeriods,
+    payrollPayments,
+    previousPayrollPayments,
+    salePayments,
+    previousSalePayments
   ] = await Promise.all([
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COALESCE(SUM(total_price), 0) AS value
-      FROM sales
-      WHERE status != 'cancelled'
-        AND DATE(created_at) = CURRENT_DATE
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COALESCE(SUM(amount), 0) AS value
-      FROM expenses
-      WHERE DATE(date) = CURRENT_DATE
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COUNT(*) AS value
-      FROM sales
-      WHERE status IN ('pending', 'preparing', 'ready')
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COUNT(*) AS value
-      FROM sales
-      WHERE status != 'cancelled'
-        AND DATE(created_at) = CURRENT_DATE
-    `),
-    prisma.$queryRaw<DailySalesRow[]>(Prisma.sql`
-      SELECT
-        TO_CHAR(DATE(created_at), 'YYYY-MM-DD') AS sale_date,
-        COUNT(*)::int AS orders_count,
-        COALESCE(SUM(total_price), 0) AS total_sales
-      FROM sales
-      WHERE status != 'cancelled'
-      GROUP BY DATE(created_at)
-      ORDER BY DATE(created_at) DESC
-      LIMIT 7
-    `),
-    prisma.$queryRaw<TopProductRow[]>(Prisma.sql`
-      SELECT
-        p.id AS product_id,
-        p.name,
-        COALESCE(SUM(si.quantity), 0) AS total_quantity,
-        COALESCE(SUM(si.quantity * si.unit_price), 0) AS revenue
-      FROM sale_items si
-      JOIN sales s ON s.id = si.sale_id
-      JOIN products p ON p.id = si.product_id
-      WHERE s.status != 'cancelled'
-      GROUP BY p.id
-      ORDER BY SUM(si.quantity) DESC, SUM(si.quantity * si.unit_price) DESC
-      LIMIT 8
-    `),
-    prisma.$queryRaw<StockAlertRow[]>(Prisma.sql`
-      SELECT
-        i.id AS ingredient_id,
-        i.name,
-        COALESCE(SUM(CASE WHEN sm.type = 'IN' THEN sm.quantity ELSE -sm.quantity END), 0) AS current_stock,
-        i.purchase_price
-      FROM ingredients i
-      LEFT JOIN stock_movements sm ON sm.ingredient_id = i.id
-      GROUP BY i.id
-      HAVING COALESCE(SUM(CASE WHEN sm.type = 'IN' THEN sm.quantity ELSE -sm.quantity END), 0) <= ${lowStockThreshold}
-      ORDER BY current_stock ASC
-    `),
-    prisma.$queryRaw<SalesByTypeRow[]>(Prisma.sql`
-      SELECT
-        type,
-        COUNT(*)::int AS orders_count,
-        COALESCE(SUM(total_price), 0) AS total_sales
-      FROM sales
-      WHERE status != 'cancelled'
-      GROUP BY type
-      ORDER BY total_sales DESC
-    `),
-    prisma.$queryRaw<SalesByHourRow[]>(Prisma.sql`
-      SELECT
-        TO_CHAR(DATE_TRUNC('hour', created_at), 'HH24:00') AS sale_hour,
-        COUNT(*)::int AS orders_count,
-        COALESCE(SUM(total_price), 0) AS total_sales
-      FROM sales
-      WHERE status != 'cancelled'
-        AND DATE(created_at) = CURRENT_DATE
-      GROUP BY DATE_TRUNC('hour', created_at)
-      ORDER BY DATE_TRUNC('hour', created_at)
-    `),
-    prisma.$queryRaw<StatusRow[]>(Prisma.sql`
-      SELECT status, COUNT(*)::int AS count
-      FROM sales
-      GROUP BY status
-    `),
-    prisma.$queryRaw<DurationRow[]>(Prisma.sql`
-      SELECT COALESCE(AVG(EXTRACT(EPOCH FROM updated_at - created_at) / 60), 0) AS value
-      FROM sales
-      WHERE status IN ('preparing', 'ready', 'paid')
-        AND status != 'cancelled'
-    `),
-    prisma.$queryRaw<DurationRow[]>(Prisma.sql`
-      SELECT COALESCE(AVG(EXTRACT(EPOCH FROM updated_at - created_at) / 60), 0) AS value
-      FROM sales
-      WHERE status = 'paid'
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COUNT(*) AS value
-      FROM sales
-      WHERE status IN ('pending', 'preparing')
-        AND created_at <= NOW() - INTERVAL '20 minutes'
-    `),
-    prisma.$queryRaw<DurationRow[]>(Prisma.sql`
-      SELECT COALESCE(AVG(EXTRACT(EPOCH FROM updated_at - created_at) / 60), 0) AS value
-      FROM sales
-      WHERE type = 'delivery'
-        AND delivery_status = 'delivered'
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COUNT(*) AS value
-      FROM sales
-      WHERE type = 'delivery'
-        AND delivery_status IN ('pending', 'on_the_way')
-        AND created_at <= NOW() - INTERVAL '45 minutes'
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COALESCE(SUM(sm.quantity * i.purchase_price), 0) AS value
-      FROM stock_movements sm
-      JOIN ingredients i ON i.id = sm.ingredient_id
-      WHERE sm.reason = 'loss'
-        AND DATE(sm.date) = CURRENT_DATE
-    `),
-    prisma.$queryRaw<LossRow[]>(Prisma.sql`
-      SELECT
-        i.id AS ingredient_id,
-        i.name,
-        COALESCE(SUM(sm.quantity), 0) AS total_quantity,
-        COALESCE(SUM(sm.quantity * i.purchase_price), 0) AS total_value
-      FROM stock_movements sm
-      JOIN ingredients i ON i.id = sm.ingredient_id
-      WHERE sm.reason = 'loss'
-      GROUP BY i.id
-      ORDER BY total_value DESC
-      LIMIT 8
-    `),
-    prisma.$queryRaw<ConsumptionRow[]>(Prisma.sql`
-      SELECT
-        i.id AS ingredient_id,
-        i.name,
-        COALESCE(SUM(sm.quantity), 0) AS total_quantity
-      FROM stock_movements sm
-      JOIN ingredients i ON i.id = sm.ingredient_id
-      WHERE sm.reason = 'sale'
-      GROUP BY i.id
-      ORDER BY total_quantity DESC
-      LIMIT 8
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COALESCE(SUM(stock.current_stock * i.purchase_price), 0) AS value
-      FROM ingredients i
-      JOIN (
-        SELECT ingredient_id, COALESCE(SUM(CASE WHEN type = 'IN' THEN quantity ELSE -quantity END), 0) AS current_stock
-        FROM stock_movements
-        GROUP BY ingredient_id
-      ) AS stock ON stock.ingredient_id = i.id
-    `),
-    prisma.$queryRaw<ExpenseCategoryRow[]>(Prisma.sql`
-      SELECT category, COALESCE(SUM(amount), 0) AS amount
-      FROM expenses
-      GROUP BY category
-      ORDER BY amount DESC
-      LIMIT 8
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COALESCE(SUM(amount), 0) AS value
-      FROM expenses
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COALESCE(SUM(si.quantity * p.estimated_cost), 0) AS value
-      FROM sale_items si
-      JOIN sales s ON s.id = si.sale_id
-      JOIN products p ON p.id = si.product_id
-      WHERE s.status != 'cancelled'
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COUNT(*) AS value
-      FROM sales
-      WHERE type = 'delivery'
-        AND status != 'cancelled'
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COALESCE(SUM(total_price), 0) AS value
-      FROM sales
-      WHERE type = 'delivery'
-        AND status != 'cancelled'
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COALESCE(AVG(delivery_fee), 0) AS value
-      FROM sales
-      WHERE type = 'delivery'
-        AND status != 'cancelled'
-    `),
-    prisma.$queryRaw<DeliveryStatusRow[]>(Prisma.sql`
-      SELECT COALESCE(delivery_status, 'pending') AS status, COUNT(*)::int AS count
-      FROM sales
-      WHERE type = 'delivery'
-      GROUP BY COALESCE(delivery_status, 'pending')
-    `),
-    prisma.$queryRaw<MetricRow[]>(Prisma.sql`
-      SELECT COUNT(*) AS value
-      FROM sales
-      WHERE type = 'dine_in'
-        AND status IN ('pending', 'preparing', 'ready')
-    `),
-    prisma.$queryRaw<TableRevenueRow[]>(Prisma.sql`
-      SELECT
-        table_number,
-        COUNT(*)::int AS orders_count,
-        COALESCE(SUM(total_price), 0) AS total_sales
-      FROM sales
-      WHERE type = 'dine_in'
-        AND status != 'cancelled'
-        AND table_number IS NOT NULL
-      GROUP BY table_number
-      ORDER BY total_sales DESC
-      LIMIT 8
-    `)
+    prisma.sale.findMany({
+      where: { createdAt: { gte: range.start, lte: range.end } },
+      include: { saleItems: { include: { product: true } } },
+      orderBy: { createdAt: 'asc' }
+    }),
+    prisma.sale.findMany({
+      where: { createdAt: { gte: previous.start, lte: previous.end } },
+      include: { saleItems: { include: { product: true } } }
+    }),
+    prisma.expense.findMany({
+      where: { date: { gte: range.start, lte: range.end } }
+    }),
+    prisma.expense.findMany({
+      where: { date: { gte: previous.start, lte: previous.end } }
+    }),
+    prisma.ingredient.findMany(),
+    prisma.stockMovement.findMany({
+      where: {
+        OR: [{ date: { gte: previous.start, lte: range.end } }, {}]
+      }
+    }),
+    prisma.payrollPeriod.findMany({
+      where: { endDate: { gte: range.start, lte: range.end } },
+      include: {
+        entries: {
+          include: {
+            employee: {
+              include: {
+                user: true
+              }
+            }
+          }
+        }
+      }
+    }),
+    prisma.payrollPeriod.findMany({
+      where: { endDate: { gte: previous.start, lte: previous.end } },
+      include: {
+        entries: true
+      }
+    }),
+    prisma.payrollPayment.findMany({
+      where: { paidAt: { gte: range.start, lte: range.end } },
+      include: {
+        entry: {
+          include: {
+            employee: {
+              include: {
+                user: true
+              }
+            }
+          }
+        }
+      }
+    }),
+    prisma.payrollPayment.findMany({
+      where: { paidAt: { gte: previous.start, lte: previous.end } },
+      include: {
+        entry: true
+      }
+    }),
+    prisma.payment.findMany({
+      where: { createdAt: { gte: range.start, lte: range.end } }
+    }),
+    prisma.payment.findMany({
+      where: { createdAt: { gte: previous.start, lte: previous.end } }
+    })
   ]);
 
-  const totalSalesToday = toNumber(salesToday[0]?.value);
-  const totalExpensesToday = toNumber(expensesToday[0]?.value);
-  const ordersCountToday = toNumber(ordersToday[0]?.value);
+  const nonCancelledSales = sales.filter((sale) => sale.status !== 'cancelled');
+  const previousNonCancelledSales = previousSales.filter((sale) => sale.status !== 'cancelled');
+  const totalSalesCurrent = sum(nonCancelledSales.map((sale) => Number(sale.totalPrice)));
+  const totalSalesPrevious = sum(previousNonCancelledSales.map((sale) => Number(sale.totalPrice)));
+  const activeExpenses = expenses.filter((expense) => expense.status !== 'cancelled');
+  const previousActiveExpenses = previousExpenses.filter((expense) => expense.status !== 'cancelled');
+  const expenseCurrent = sum(activeExpenses.map((expense) => Number(expense.amount)));
+  const expensePrevious = sum(previousActiveExpenses.map((expense) => Number(expense.amount)));
+  const manualExpenseCurrent = sum(activeExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.manual).map((expense) => Number(expense.amount)));
+  const manualExpensePrevious = sum(previousActiveExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.manual).map((expense) => Number(expense.amount)));
+  const paidExpenseCurrent = sum(activeExpenses.filter((expense) => expense.status === 'paid').map((expense) => Number(expense.amount)));
+  const paidExpensePrevious = sum(previousActiveExpenses.filter((expense) => expense.status === 'paid').map((expense) => Number(expense.amount)));
+  const stockPurchaseExpenseCurrent = sum(activeExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.stock_purchase).map((expense) => Number(expense.amount)));
+  const payrollPaymentExpenseCurrent = sum(activeExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.payroll_payment).map((expense) => Number(expense.amount)));
+  const salaryAdvanceExpenseCurrent = sum(activeExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.salary_advance).map((expense) => Number(expense.amount)));
+  const cashRevenueCurrent = sum(salePayments.map((payment) => Number(payment.amount)));
+  const cashRevenuePrevious = sum(previousSalePayments.map((payment) => Number(payment.amount)));
+  const cashBenefitCurrent = cashRevenueCurrent - paidExpenseCurrent;
+  const cashBenefitPrevious = cashRevenuePrevious - paidExpensePrevious;
+  const payrollAccruedCurrent = payrollPeriods.reduce(
+    (acc, period) => acc + period.entries.reduce((entrySum, entry) => entrySum + Number(entry.netSalary), 0),
+    0
+  );
+  const payrollAccruedPrevious = previousPayrollPeriods.reduce(
+    (acc, period) => acc + period.entries.reduce((entrySum, entry) => entrySum + Number(entry.netSalary), 0),
+    0
+  );
+  const payrollPaidCurrent = sum(payrollPayments.map((payment) => Number(payment.amount)));
+  const payrollPaidPrevious = sum(previousPayrollPayments.map((payment) => Number(payment.amount)));
+  const activeOrders = sales.filter((sale) => ['pending', 'preparing', 'ready'].includes(sale.status)).length;
+  const averageTicketCurrent = nonCancelledSales.length > 0 ? totalSalesCurrent / nonCancelledSales.length : 0;
+
+  const currentStockByIngredient = new Map<number, number>();
+  for (const movement of stockMovements) {
+    const signedQuantity = Number(movement.quantity) * (movement.type === 'IN' ? 1 : -1);
+    currentStockByIngredient.set(movement.ingredientId, (currentStockByIngredient.get(movement.ingredientId) ?? 0) + signedQuantity);
+  }
+
+  const stockAlerts = ingredients
+    .map((ingredient) => ({
+      ingredientId: ingredient.id,
+      name: ingredient.name,
+      currentStock: currentStockByIngredient.get(ingredient.id) ?? 0,
+      purchasePrice: Number(ingredient.purchasePrice),
+      threshold: ingredient.minimumStock !== null ? Number(ingredient.minimumStock) : lowStockThreshold
+    }))
+    .filter((ingredient) => ingredient.currentStock <= ingredient.threshold)
+    .sort((left, right) => left.currentStock - right.currentStock);
+
+  const salesPerDayMap = new Map<string, { ordersCount: number; totalSales: number }>();
+  const salesByTypeMap = new Map<OrderType, { ordersCount: number; totalSales: number }>();
+  const salesByHourMap = new Map<string, { ordersCount: number; totalSales: number }>();
+  const statusBreakdownMap = new Map<OrderStatus, number>();
+  const topSellingMap = new Map<number, { productId: number; name: string; totalQuantity: number; revenue: number }>();
+  const deliveryStatusMap = new Map<DeliveryStatus, number>();
+  const revenueByTableMap = new Map<string, { ordersCount: number; totalSales: number }>();
+
+  let estimatedCostsTotal = 0;
+  let averagePreparationMinutesAccumulator = 0;
+  let averagePreparationCount = 0;
+  let averagePaymentMinutesAccumulator = 0;
+  let averagePaymentCount = 0;
+  let averageDeliveryMinutesAccumulator = 0;
+  let averageDeliveryCount = 0;
+  let delayedOrders = 0;
+  let delayedDeliveries = 0;
+  let activeDineInOrders = 0;
+
+  for (const sale of sales) {
+    const saleDate = toIsoDate(sale.createdAt);
+    const hourLabel = `${String(sale.createdAt.getHours()).padStart(2, '0')}:00`;
+    const totalPrice = Number(sale.totalPrice);
+    const deliveryFee = Number(sale.deliveryFee);
+
+    statusBreakdownMap.set(sale.status as OrderStatus, (statusBreakdownMap.get(sale.status as OrderStatus) ?? 0) + 1);
+
+    if (sale.status !== 'cancelled') {
+      const byDay = salesPerDayMap.get(saleDate) ?? { ordersCount: 0, totalSales: 0 };
+      byDay.ordersCount += 1;
+      byDay.totalSales += totalPrice;
+      salesPerDayMap.set(saleDate, byDay);
+
+      const byType = salesByTypeMap.get(sale.type as OrderType) ?? { ordersCount: 0, totalSales: 0 };
+      byType.ordersCount += 1;
+      byType.totalSales += totalPrice;
+      salesByTypeMap.set(sale.type as OrderType, byType);
+
+      const byHour = salesByHourMap.get(hourLabel) ?? { ordersCount: 0, totalSales: 0 };
+      byHour.ordersCount += 1;
+      byHour.totalSales += totalPrice;
+      salesByHourMap.set(hourLabel, byHour);
+
+      if (sale.type === 'delivery') {
+        const status = (sale.deliveryStatus ?? 'pending') as DeliveryStatus;
+        deliveryStatusMap.set(status, (deliveryStatusMap.get(status) ?? 0) + 1);
+      }
+
+      if (sale.type === 'dine_in' && sale.tableNumber) {
+        const tableStats = revenueByTableMap.get(sale.tableNumber) ?? { ordersCount: 0, totalSales: 0 };
+        tableStats.ordersCount += 1;
+        tableStats.totalSales += totalPrice;
+        revenueByTableMap.set(sale.tableNumber, tableStats);
+      }
+
+      if (sale.type === 'dine_in' && ['pending', 'preparing', 'ready'].includes(sale.status)) {
+        activeDineInOrders += 1;
+      }
+
+      if (['preparing', 'ready', 'paid'].includes(sale.status)) {
+        averagePreparationMinutesAccumulator += (sale.updatedAt.getTime() - sale.createdAt.getTime()) / 60000;
+        averagePreparationCount += 1;
+      }
+
+      if (sale.status === 'paid') {
+        averagePaymentMinutesAccumulator += (sale.updatedAt.getTime() - sale.createdAt.getTime()) / 60000;
+        averagePaymentCount += 1;
+      }
+
+      if (sale.type === 'delivery' && sale.deliveryStatus === 'delivered') {
+        averageDeliveryMinutesAccumulator += (sale.updatedAt.getTime() - sale.createdAt.getTime()) / 60000;
+        averageDeliveryCount += 1;
+      }
+
+      if (['pending', 'preparing'].includes(sale.status) && Date.now() - sale.createdAt.getTime() >= 20 * 60000) {
+        delayedOrders += 1;
+      }
+
+      if (sale.type === 'delivery' && ['pending', 'preparing', 'ready'].includes(sale.status) && Date.now() - sale.createdAt.getTime() >= 45 * 60000) {
+        delayedDeliveries += 1;
+      }
+
+      for (const item of sale.saleItems) {
+        const existing = topSellingMap.get(item.productId) ?? {
+          productId: item.productId,
+          name: item.product.name,
+          totalQuantity: 0,
+          revenue: 0
+        };
+        existing.totalQuantity += item.quantity;
+        existing.revenue += item.quantity * Number(item.unitPrice);
+        topSellingMap.set(item.productId, existing);
+
+        estimatedCostsTotal += item.quantity * Number(item.product.estimatedCost);
+      }
+    }
+
+    void deliveryFee;
+  }
+
+  const rangeLossMovements = stockMovements.filter(
+    (movement) => movement.reason === 'loss' && movement.date >= range.start && movement.date <= range.end
+  );
+  const rangeSaleMovements = stockMovements.filter(
+    (movement) => movement.reason === 'sale' && movement.date >= range.start && movement.date <= range.end
+  );
+
+  const ingredientById = new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
+  const lossMap = new Map<number, { ingredientId: number; name: string; quantity: number; value: number }>();
+  const consumptionMap = new Map<number, { ingredientId: number; name: string; quantity: number }>();
+
+  for (const movement of rangeLossMovements) {
+    const ingredient = ingredientById.get(movement.ingredientId);
+    if (!ingredient) continue;
+    const existing = lossMap.get(movement.ingredientId) ?? {
+      ingredientId: movement.ingredientId,
+      name: ingredient.name,
+      quantity: 0,
+      value: 0
+    };
+    existing.quantity += Number(movement.quantity);
+    existing.value += Number(movement.quantity) * Number(ingredient.purchasePrice);
+    lossMap.set(movement.ingredientId, existing);
+  }
+
+  for (const movement of rangeSaleMovements) {
+    const ingredient = ingredientById.get(movement.ingredientId);
+    if (!ingredient) continue;
+    const existing = consumptionMap.get(movement.ingredientId) ?? {
+      ingredientId: movement.ingredientId,
+      name: ingredient.name,
+      quantity: 0
+    };
+    existing.quantity += Number(movement.quantity);
+    consumptionMap.set(movement.ingredientId, existing);
+  }
+
+  const stockValue = ingredients.reduce((acc, ingredient) => {
+    return acc + (currentStockByIngredient.get(ingredient.id) ?? 0) * Number(ingredient.purchasePrice);
+  }, 0);
+  const totalLossValue = [...lossMap.values()].reduce((acc, item) => acc + item.value, 0);
+
+  const expensesByCategoryMap = new Map<string, number>();
+  const payrollByEmployeeMap = new Map<number, { employeeId: number; employeeName: string; payrollTotal: number; paidTotal: number }>();
+  for (const expense of activeExpenses) {
+    expensesByCategoryMap.set(expense.category, (expensesByCategoryMap.get(expense.category) ?? 0) + Number(expense.amount));
+  }
+  for (const period of payrollPeriods) {
+    for (const entry of period.entries) {
+      const existing = payrollByEmployeeMap.get(entry.employeeId) ?? {
+        employeeId: entry.employeeId,
+        employeeName: entry.employee.user.fullName,
+        payrollTotal: 0,
+        paidTotal: 0
+      };
+      existing.payrollTotal += Number(entry.netSalary);
+      payrollByEmployeeMap.set(entry.employeeId, existing);
+    }
+  }
+  for (const payment of payrollPayments) {
+    const employeeId = payment.entry.employeeId;
+    const existing = payrollByEmployeeMap.get(employeeId) ?? {
+      employeeId,
+      employeeName: payment.entry.employee.user.fullName,
+      payrollTotal: 0,
+      paidTotal: 0
+    };
+    existing.paidTotal += Number(payment.amount);
+    payrollByEmployeeMap.set(employeeId, existing);
+  }
+
+  const cashBenefitPerDayMap = new Map<
+    string,
+    {
+      sales: number;
+      cashIn: number;
+      cashOut: number;
+      manualExpenses: number;
+      stockPurchases: number;
+      payrollPaid: number;
+      salaryAdvances: number;
+    }
+  >();
+  const dailyCashRow = (date: string) => {
+    const existing =
+      cashBenefitPerDayMap.get(date) ??
+      {
+        sales: 0,
+        cashIn: 0,
+        cashOut: 0,
+        manualExpenses: 0,
+        stockPurchases: 0,
+        payrollPaid: 0,
+        salaryAdvances: 0
+      };
+    cashBenefitPerDayMap.set(date, existing);
+    return existing;
+  };
+
+  for (const sale of nonCancelledSales) {
+    dailyCashRow(toIsoDate(sale.createdAt)).sales += Number(sale.totalPrice);
+  }
+  for (const payment of salePayments) {
+    dailyCashRow(toIsoDate(payment.createdAt)).cashIn += Number(payment.amount);
+  }
+  for (const expense of activeExpenses) {
+    const row = dailyCashRow(toIsoDate(expense.date));
+    const amount = Number(expense.amount);
+    if (expense.status === 'paid') {
+      row.cashOut += amount;
+    }
+    if (expense.sourceType === ExpenseSourceType.manual) {
+      row.manualExpenses += amount;
+    }
+    if (expense.sourceType === ExpenseSourceType.stock_purchase) {
+      row.stockPurchases += amount;
+    }
+    if (expense.sourceType === ExpenseSourceType.payroll_payment) {
+      row.payrollPaid += amount;
+    }
+    if (expense.sourceType === ExpenseSourceType.salary_advance) {
+      row.salaryAdvances += amount;
+    }
+  }
+
+  const previousEstimatedCostsTotal = previousNonCancelledSales.reduce((acc, sale) => {
+    return (
+      acc +
+      sale.saleItems.reduce((sum, item) => sum + item.quantity * Number(item.product.estimatedCost), 0)
+    );
+  }, 0);
+  const previousLossMovements = stockMovements.filter(
+    (movement) => movement.reason === 'loss' && movement.date >= previous.start && movement.date <= previous.end
+  );
+  const previousLossValue = previousLossMovements.reduce((acc, movement) => {
+    const ingredient = ingredientById.get(movement.ingredientId);
+    return acc + Number(movement.quantity) * Number(ingredient?.purchasePrice ?? 0);
+  }, 0);
+
+  const currentNetProfit = totalSalesCurrent - manualExpenseCurrent - payrollAccruedCurrent - estimatedCostsTotal - totalLossValue;
+  const previousNetProfit = totalSalesPrevious - manualExpensePrevious - payrollAccruedPrevious - previousEstimatedCostsTotal - previousLossValue;
 
   return {
+    filters: {
+      period: range.period,
+      dateFrom: toIsoDate(range.start),
+      dateTo: toIsoDate(range.end)
+    },
     cards: {
-      totalSalesToday,
-      profitToday: totalSalesToday - totalExpensesToday,
-      activeOrders: toNumber(activeOrders[0]?.value),
+      totalSalesToday: totalSalesCurrent,
+      profitToday: currentNetProfit,
+      cashBenefitToday: cashBenefitCurrent,
+      activeOrders,
       lowStockAlerts: stockAlerts.length,
-      averageTicketToday: ordersCountToday > 0 ? totalSalesToday / ordersCountToday : 0,
-      lossesToday: toNumber(lossesToday[0]?.value)
+      averageTicketToday: averageTicketCurrent,
+      lossesToday: totalLossValue,
+      salesChangePct: percentChange(totalSalesCurrent, totalSalesPrevious),
+      profitChangePct: percentChange(currentNetProfit, previousNetProfit),
+      cashBenefitChangePct: percentChange(cashBenefitCurrent, cashBenefitPrevious)
     },
     charts: {
-      salesPerDay: dailySales.map((row) => ({
-        date: row.sale_date,
-        ordersCount: row.orders_count,
-        totalSales: toNumber(row.total_sales)
-      })),
-      topSellingProducts: topProducts.map((row) => ({
-        productId: row.product_id,
-        name: row.name,
-        totalQuantity: toNumber(row.total_quantity),
-        revenue: toNumber(row.revenue)
-      })),
-      salesByType: salesByType.map((row) => ({
-        type: row.type,
-        ordersCount: row.orders_count,
-        totalSales: toNumber(row.total_sales)
-      })),
-      salesByHour: salesByHour.map((row) => ({
-        hour: row.sale_hour,
-        ordersCount: row.orders_count,
-        totalSales: toNumber(row.total_sales)
-      }))
+      salesPerDay: [...salesPerDayMap.entries()].map(([date, value]) => ({ date, ...value })),
+      cashBenefitPerDay: [...cashBenefitPerDayMap.entries()]
+        .map(([date, value]) => ({
+          date,
+          ...value,
+          cashBenefit: value.cashIn - value.cashOut
+        }))
+        .sort((left, right) => left.date.localeCompare(right.date)),
+      topSellingProducts: [...topSellingMap.values()]
+        .sort((left, right) => right.totalQuantity - left.totalQuantity || right.revenue - left.revenue)
+        .slice(0, 8),
+      salesByType: [...salesByTypeMap.entries()].map(([type, value]) => ({ type, ...value })),
+      salesByHour: [...salesByHourMap.entries()].map(([hour, value]) => ({ hour, ...value }))
     },
-    stockAlerts: stockAlerts.map((row) => ({
-      ingredientId: row.ingredient_id,
-      name: row.name,
-      currentStock: toNumber(row.current_stock),
-      purchasePrice: toNumber(row.purchase_price)
-    })),
+    stockAlerts: stockAlerts.map(({ threshold: _threshold, ...item }) => item),
     operations: {
-      statusBreakdown: statusBreakdown.map((row) => ({
-        status: row.status,
-        count: row.count
-      })),
-      averagePreparationMinutes: toNumber(averagePreparationMinutes[0]?.value),
-      averagePaymentMinutes: toNumber(averagePaymentMinutes[0]?.value),
-      delayedOrders: toNumber(delayedOrders[0]?.value),
-      averageDeliveryMinutes: toNumber(averageDeliveryMinutes[0]?.value),
-      delayedDeliveries: toNumber(delayedDeliveries[0]?.value)
+      statusBreakdown: [...statusBreakdownMap.entries()].map(([status, count]) => ({ status, count })),
+      averagePreparationMinutes: averagePreparationCount > 0 ? averagePreparationMinutesAccumulator / averagePreparationCount : 0,
+      averagePaymentMinutes: averagePaymentCount > 0 ? averagePaymentMinutesAccumulator / averagePaymentCount : 0,
+      delayedOrders,
+      averageDeliveryMinutes: averageDeliveryCount > 0 ? averageDeliveryMinutesAccumulator / averageDeliveryCount : 0,
+      delayedDeliveries
     },
     stockInsights: {
-      stockValue: toNumber(stockValue[0]?.value),
-      totalLossValue: lossesByIngredient.reduce((sum, row) => sum + toNumber(row.total_value), 0),
-      lossesByIngredient: lossesByIngredient.map((row) => ({
-        ingredientId: row.ingredient_id,
-        name: row.name,
-        quantity: toNumber(row.total_quantity),
-        value: toNumber(row.total_value)
-      })),
-      topConsumedIngredients: topConsumedIngredients.map((row) => ({
-        ingredientId: row.ingredient_id,
-        name: row.name,
-        quantity: toNumber(row.total_quantity)
-      }))
+      stockValue,
+      totalLossValue,
+      lossesByIngredient: [...lossMap.values()].sort((left, right) => right.value - left.value).slice(0, 8),
+      topConsumedIngredients: [...consumptionMap.values()].sort((left, right) => right.quantity - left.quantity).slice(0, 8)
     },
     financials: {
-      expensesByCategory: expensesByCategory.map((row) => ({
-        category: row.category,
-        amount: toNumber(row.amount)
-      })),
-      expenseTotal: toNumber(expenseTotal[0]?.value),
-      estimatedCostsTotal: toNumber(estimatedCostsTotal[0]?.value)
+      expensesByCategory: [...expensesByCategoryMap.entries()]
+        .map(([category, amount]) => ({ category, amount }))
+        .sort((left, right) => right.amount - left.amount)
+        .slice(0, 8),
+      expenseTotal: expenseCurrent,
+      manualExpenseTotal: manualExpenseCurrent,
+      stockPurchaseTotal: stockPurchaseExpenseCurrent,
+      payrollAccruedTotal: payrollAccruedCurrent,
+      payrollPaidTotal: payrollPaidCurrent,
+      payrollPaymentExpenseTotal: payrollPaymentExpenseCurrent,
+      salaryAdvanceTotal: salaryAdvanceExpenseCurrent,
+      payrollOutstandingTotal: Math.max(payrollAccruedCurrent - payrollPaidCurrent, 0),
+      cashRevenueTotal: cashRevenueCurrent,
+      cashOutTotal: paidExpenseCurrent,
+      cashBenefitTotal: cashBenefitCurrent,
+      payrollByEmployee: [...payrollByEmployeeMap.values()]
+        .sort((left, right) => right.payrollTotal - left.payrollTotal)
+        .slice(0, 8),
+      estimatedCostsTotal
     },
     delivery: {
-      totalOrders: toNumber(deliveryOrders[0]?.value),
-      revenue: toNumber(deliveryRevenue[0]?.value),
-      averageFee: toNumber(averageDeliveryFee[0]?.value),
-      byStatus: deliveryByStatus.map((row) => ({
-        status: row.status,
-        count: row.count
-      }))
+      totalOrders: nonCancelledSales.filter((sale) => sale.type === 'delivery').length,
+      revenue: sum(nonCancelledSales.filter((sale) => sale.type === 'delivery').map((sale) => Number(sale.totalPrice))),
+      averageFee:
+        nonCancelledSales.filter((sale) => sale.type === 'delivery').length > 0
+          ? sum(nonCancelledSales.filter((sale) => sale.type === 'delivery').map((sale) => Number(sale.deliveryFee))) /
+            nonCancelledSales.filter((sale) => sale.type === 'delivery').length
+          : 0,
+      byStatus: [...deliveryStatusMap.entries()].map(([status, count]) => ({ status, count }))
     },
     tables: {
-      activeDineInOrders: toNumber(activeDineInOrders[0]?.value),
-      revenueByTable: revenueByTable.map((row) => ({
-        tableNumber: row.table_number,
-        ordersCount: row.orders_count,
-        totalSales: toNumber(row.total_sales)
-      }))
+      activeDineInOrders,
+      revenueByTable: [...revenueByTableMap.entries()]
+        .map(([tableNumber, value]) => ({ tableNumber, ...value }))
+        .sort((left, right) => right.totalSales - left.totalSales)
+        .slice(0, 8)
     }
   };
 }
 
-export async function getProfitReport() {
-  const [dashboard, productProfitability] = await Promise.all([
-    getDashboardData(),
-    prisma.$queryRaw<ProductProfitRow[]>(Prisma.sql`
-      SELECT
-        p.id AS product_id,
-        p.name,
-        COALESCE(SUM(si.quantity * si.unit_price), 0) AS revenue,
-        COALESCE(SUM(si.quantity * (si.unit_price - p.estimated_cost)), 0) AS estimated_profit,
-        CASE
-          WHEN COALESCE(SUM(si.quantity * si.unit_price), 0) = 0 THEN 0
-          ELSE ROUND(
-            (
-              COALESCE(SUM(si.quantity * (si.unit_price - p.estimated_cost)), 0)
-              / COALESCE(SUM(si.quantity * si.unit_price), 1)
-            ) * 100
-          , 2)
-        END AS margin_rate
-      FROM sale_items si
-      JOIN sales s ON s.id = si.sale_id
-      JOIN products p ON p.id = si.product_id
-      WHERE s.status != 'cancelled'
-      GROUP BY p.id
-      HAVING COALESCE(SUM(si.quantity), 0) > 0
-      ORDER BY estimated_profit DESC
-    `)
-  ]);
+export async function getProfitReport(filters?: Partial<ReportFilters>) {
+  const dashboard = await getDashboardData(filters);
+  const range = resolveRange(filters);
+  const sales = await prisma.sale.findMany({
+    where: {
+      createdAt: { gte: range.start, lte: range.end },
+      status: { not: 'cancelled' }
+    },
+    include: { saleItems: { include: { product: true } } }
+  });
 
-  const profitability = productProfitability.map((row) => ({
-    productId: row.product_id,
-    name: row.name,
-    revenue: toNumber(row.revenue),
-    estimatedProfit: toNumber(row.estimated_profit),
-    marginRate: toNumber(row.margin_rate)
-  }));
+  const byProduct = new Map<number, { productId: number; name: string; revenue: number; estimatedProfit: number; marginRate: number }>();
+  for (const sale of sales) {
+    for (const item of sale.saleItems) {
+      const existing = byProduct.get(item.productId) ?? {
+        productId: item.productId,
+        name: item.product.name,
+        revenue: 0,
+        estimatedProfit: 0,
+        marginRate: 0
+      };
+      const revenue = item.quantity * Number(item.unitPrice);
+      const profit = item.quantity * (Number(item.unitPrice) - Number(item.product.estimatedCost));
+      existing.revenue += revenue;
+      existing.estimatedProfit += profit;
+      existing.marginRate = existing.revenue > 0 ? (existing.estimatedProfit / existing.revenue) * 100 : 0;
+      byProduct.set(item.productId, existing);
+    }
+  }
+
+  const profitability = [...byProduct.values()].sort((left, right) => right.estimatedProfit - left.estimatedProfit);
+
   return {
     totals: {
       sales: dashboard.charts.salesPerDay.reduce((sum, row) => sum + row.totalSales, 0),
-      netProfit:
-        dashboard.charts.salesPerDay.reduce((sum, row) => sum + row.totalSales, 0) -
-        dashboard.financials.expenseTotal -
-        dashboard.financials.estimatedCostsTotal -
-        dashboard.stockInsights.totalLossValue,
+      netProfit: dashboard.cards.profitToday,
+      cashBenefit: dashboard.financials.cashBenefitTotal,
+      cashRevenue: dashboard.financials.cashRevenueTotal,
+      cashOut: dashboard.financials.cashOutTotal,
       activeOrders: dashboard.cards.activeOrders,
       estimatedCosts: dashboard.financials.estimatedCostsTotal,
-      expenses: dashboard.financials.expenseTotal,
+      expenses: dashboard.financials.manualExpenseTotal + dashboard.financials.payrollAccruedTotal,
+      payroll: dashboard.financials.payrollAccruedTotal,
       losses: dashboard.stockInsights.totalLossValue,
-      averageTicket:
-        dashboard.charts.salesPerDay.reduce((sum, row) => sum + row.ordersCount, 0) > 0
-          ? dashboard.charts.salesPerDay.reduce((sum, row) => sum + row.totalSales, 0) /
-            dashboard.charts.salesPerDay.reduce((sum, row) => sum + row.ordersCount, 0)
-          : 0
+      averageTicket: dashboard.cards.averageTicketToday,
+      previousSales:
+        dashboard.charts.salesPerDay.reduce((sum, row) => sum + row.totalSales, 0) /
+          (1 + dashboard.cards.salesChangePct / 100 || 1),
+      previousNetProfit:
+        dashboard.cards.profitToday / (1 + dashboard.cards.profitChangePct / 100 || 1)
     },
     margins: {
       bestProducts: profitability.slice(0, 6),
@@ -500,22 +587,19 @@ export async function getProfitReport() {
 }
 
 export async function listStock() {
-  const rows = await prisma.$queryRaw<StockAlertRow[]>(Prisma.sql`
-    SELECT
-      i.id AS ingredient_id,
-      i.name,
-      COALESCE(SUM(CASE WHEN sm.type = 'IN' THEN sm.quantity ELSE -sm.quantity END), 0) AS current_stock,
-      i.purchase_price
-    FROM ingredients i
-    LEFT JOIN stock_movements sm ON sm.ingredient_id = i.id
-    GROUP BY i.id
-    ORDER BY i.name
-  `);
+  const [ingredients, stockMovements] = await Promise.all([prisma.ingredient.findMany(), prisma.stockMovement.findMany()]);
+  const stockByIngredient = new Map<number, number>();
+  for (const movement of stockMovements) {
+    const signedQuantity = Number(movement.quantity) * (movement.type === 'IN' ? 1 : -1);
+    stockByIngredient.set(movement.ingredientId, (stockByIngredient.get(movement.ingredientId) ?? 0) + signedQuantity);
+  }
 
-  return rows.map((row) => ({
-    ingredientId: row.ingredient_id,
-    name: row.name,
-    currentStock: toNumber(row.current_stock),
-    purchasePrice: toNumber(row.purchase_price)
-  }));
+  return ingredients
+    .map((ingredient) => ({
+      ingredientId: ingredient.id,
+      name: ingredient.name,
+      currentStock: stockByIngredient.get(ingredient.id) ?? 0,
+      purchasePrice: Number(ingredient.purchasePrice)
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name));
 }

@@ -1,17 +1,12 @@
 import { useMemo } from 'react';
 import { usePosStore } from '../store/usePosStore';
-import { Order, OrderType } from '../types/pos';
-import { formatOrderStatus, formatOrderType } from '../lib/format';
+import { OrderType } from '../types/pos';
+import { formatOrderStatus } from '../lib/format';
+import { nextKitchenAction, OrderStatusBadge, OrderTypeBadge } from './posUi';
 
 function minutesSince(dateString: string) {
   const diff = Date.now() - new Date(dateString).getTime();
   return Math.max(0, Math.round(diff / 60000));
-}
-
-function statusStyle(order: Order) {
-  if (order.status === 'ready') return 'bg-emerald-500 text-white';
-  if (order.status === 'preparing') return 'bg-sky-500 text-white';
-  return 'bg-amber-400 text-zinc-950';
 }
 
 interface KitchenScreenProps {
@@ -39,91 +34,89 @@ export function KitchenScreen({ statusFilter, typeFilter, search, onSearchChange
   }, [kitchenOrders, search, statusFilter, typeFilter]);
 
   return (
-    <section className="space-y-4">
-      <div className="rounded-2xl border border-white/60 bg-white/90 p-4 shadow-soft backdrop-blur">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <section className="space-y-3">
+      <div className="rounded-2xl border border-white/60 bg-white/90 p-3 shadow-soft backdrop-blur">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.25em] text-brand">Ecran cuisine</div>
-            <div className="mt-1 text-lg font-semibold text-zinc-900">Tickets filtres par etat, type et urgence</div>
+            <div className="text-[9px] font-black uppercase tracking-[0.22em] text-brand">Cuisine</div>
+            <div className="text-sm font-black text-zinc-950">{filteredOrders.length} ticket(s)</div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-[260px_180px_auto]">
+          <div className="grid gap-2 sm:grid-cols-[230px_150px_auto]">
             <input
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Rechercher #, table ou client..."
-              className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none"
+              placeholder="#, table, client..."
+              className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm outline-none"
             />
-            <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-zinc-700">
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-bold text-zinc-700">
               {statusFilter === 'all' ? 'Tous les etats' : formatOrderStatus(statusFilter)}
             </div>
-            <button onClick={() => void onRefresh()} className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">
+            <button onClick={() => void onRefresh()} className="rounded-xl bg-ink px-3 py-2 text-xs font-black text-white">
               Rafraichir
             </button>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
         {filteredOrders.map((order) => {
           const age = minutesSince(order.createdAt);
           const urgent = age >= 15;
+          const action = nextKitchenAction(order.status);
 
           return (
             <article
               key={order.id}
-              className={`rounded-2xl border p-4 shadow-soft ${
+              className={`rounded-2xl border p-3 shadow-soft ${
                 urgent ? 'border-red-300 bg-red-50' : 'border-white/60 bg-white/85'
               }`}
             >
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">
-                    Commande #{order.id}
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
+                    #{order.id}
                   </div>
-                  <div className="mt-2 text-xl font-bold text-zinc-950">{formatOrderType(order.type)}</div>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <OrderTypeBadge type={order.type} />
+                    <OrderStatusBadge status={order.status} />
+                  </div>
                 </div>
-                <div className={`rounded-full px-3 py-1.5 text-xs font-bold ${statusStyle(order)}`}>
-                  {formatOrderStatus(order.status)}
-                </div>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${urgent ? 'bg-red-600 text-white' : 'bg-zinc-100 text-zinc-600'}`}>
+                  {age} min
+                </span>
               </div>
 
-              <div className="mt-4 text-base font-semibold text-zinc-900">
+              <div className="mt-3 text-sm font-black text-zinc-900">
                 {order.tableNumber ? `Table ${order.tableNumber}` : order.customerName ?? 'Client'}
               </div>
 
-              <div className="mt-5 space-y-3">
+              <div className="mt-3 space-y-2">
                 {order.items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between rounded-xl bg-zinc-50 px-3 py-2.5">
-                    <div className="text-sm font-semibold text-zinc-900">{item.productName}</div>
-                    <div className="text-lg font-bold text-zinc-950">x{item.quantity}</div>
+                  <div key={item.id} className="flex items-center justify-between rounded-xl bg-zinc-50 px-3 py-2">
+                    <div className="text-sm font-bold text-zinc-900">{item.productName}</div>
+                    <div className="text-base font-black text-zinc-950">x{item.quantity}</div>
                   </div>
                 ))}
               </div>
 
               {order.notes && (
-                <div className="mt-4 rounded-xl bg-zinc-950 px-4 py-3 text-sm font-medium text-white">
+                <div className="mt-3 rounded-xl bg-zinc-950 px-3 py-2 text-xs font-bold text-white">
                   Note : {order.notes}
                 </div>
               )}
 
-              <div className="mt-5 flex items-center justify-between text-xs font-semibold md:text-sm">
-                <span className={urgent ? 'text-red-600' : 'text-zinc-500'}>{age} min</span>
-                {urgent && <span className="rounded-full bg-red-600 px-3 py-1 text-white">Urgent</span>}
-              </div>
-
-              <div className="mt-5 grid gap-2 md:grid-cols-2">
-                <button
-                  onClick={() => setKitchenStatus(order.id, 'preparing')}
-                  className="rounded-xl bg-sky-500 px-4 py-3 text-sm font-semibold text-white"
-                >
-                  En preparation
-                </button>
-                <button
-                  onClick={() => setKitchenStatus(order.id, 'ready')}
-                  className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white"
-                >
-                  Pret
-                </button>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                {urgent ? <span className="rounded-full bg-red-600 px-3 py-1 text-xs font-black text-white">Urgent</span> : <span />}
+                {action ? (
+                  <button
+                    onClick={() => setKitchenStatus(order.id, action.status)}
+                    className={`rounded-xl px-4 py-2 text-sm font-black ${action.className}`}
+                  >
+                    {action.label}
+                  </button>
+                ) : (
+                  <span className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">En attente retrait</span>
+                )}
               </div>
             </article>
           );

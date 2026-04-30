@@ -62,6 +62,56 @@ enum UserStatus {
   @@map("user_status")
 }
 
+enum ExpenseType {
+  fixed
+  variable
+  exceptional
+
+  @@map("expense_type")
+}
+
+enum ExpenseStatus {
+  planned
+  partial
+  paid
+  cancelled
+
+  @@map("expense_status")
+}
+
+enum FinancePaymentMethod {
+  cash
+  card
+  transfer
+
+  @@map("finance_payment_method")
+}
+
+enum ExpenseSourceType {
+  manual
+  stock_purchase
+  payroll_payment
+  salary_advance
+
+  @@map("expense_source_type")
+}
+
+enum EmploymentType {
+  monthly
+  daily
+  hourly
+
+  @@map("employment_type")
+}
+
+enum PayrollPeriodStatus {
+  draft
+  validated
+  paid
+
+  @@map("payroll_period_status")
+}
+
 model Product {
   id        Int        @id @default(autoincrement())
   name      String     @unique @db.VarChar(150)
@@ -129,6 +179,7 @@ model User {
   lastLoginAt  DateTime?   @map("last_login_at")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
+  employeeProfile EmployeeProfile?
   role         Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
   @@index([roleId], map: "idx_users_role_id")
@@ -153,7 +204,26 @@ model RestaurantSettings {
   currency            String   @default("DZD") @db.VarChar(10)
   defaultDeliveryFee  Decimal  @default(0) @map("default_delivery_fee") @db.Decimal(10, 2)
   lowStockThreshold   Decimal  @default(1000) @map("low_stock_threshold") @db.Decimal(10, 2)
+  logoUrl             String?  @map("logo_url") @db.VarChar(255)
+  receiptTitle        String   @default("Facture client") @map("receipt_title") @db.VarChar(120)
+  receiptSubtitle     String?  @map("receipt_subtitle") @db.VarChar(180)
+  receiptAddress      String?  @map("receipt_address") @db.VarChar(255)
+  receiptPhone        String?  @map("receipt_phone") @db.VarChar(60)
+  receiptEmail        String?  @map("receipt_email") @db.VarChar(150)
+  receiptWebsite      String?  @map("receipt_website") @db.VarChar(150)
+  receiptFacebook     String?  @map("receipt_facebook") @db.VarChar(150)
+  receiptInstagram    String?  @map("receipt_instagram") @db.VarChar(150)
+  receiptTiktok       String?  @map("receipt_tiktok") @db.VarChar(150)
+  receiptWhatsapp     String?  @map("receipt_whatsapp") @db.VarChar(80)
   receiptFooter       String?  @map("receipt_footer") @db.VarChar(255)
+  receiptAdditionalNote String? @map("receipt_additional_note") @db.VarChar(255)
+  kitchenTicketHeader String?  @map("kitchen_ticket_header") @db.VarChar(180)
+  kitchenTicketFooter String?  @map("kitchen_ticket_footer") @db.VarChar(180)
+  showContactBlock    Boolean  @default(true) @map("show_contact_block")
+  showSocialLinks     Boolean  @default(true) @map("show_social_links")
+  showFooterNote      Boolean  @default(true) @map("show_footer_note")
+  showLogoInKitchenTicket Boolean @default(false) @map("show_logo_in_kitchen_ticket")
+  autoPrintKitchenTicket Boolean @default(true) @map("auto_print_kitchen_ticket")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
@@ -281,15 +351,42 @@ model Purchase {
 }
 
 model Expense {
-  id          Int      @id @default(autoincrement())
-  amount      Decimal  @db.Decimal(10, 2)
-  category    String   @db.VarChar(100)
-  description String?  @db.VarChar(255)
-  date        DateTime @default(now())
-  createdAt   DateTime @default(now()) @map("created_at")
+  id            Int                   @id @default(autoincrement())
+  amount        Decimal               @db.Decimal(10, 2)
+  category      String                @db.VarChar(100)
+  categoryId    Int?                  @map("category_id")
+  type          ExpenseType           @default(variable)
+  status        ExpenseStatus         @default(paid)
+  paymentMethod FinancePaymentMethod? @map("payment_method")
+  supplierName  String?               @map("supplier_name") @db.VarChar(120)
+  description   String?               @db.VarChar(255)
+  sourceType    ExpenseSourceType     @default(manual) @map("source_type")
+  sourceId      Int?                  @map("source_id")
+  sourceLabel   String?               @map("source_label") @db.VarChar(160)
+  dueDate       DateTime?             @map("due_date")
+  paidAt        DateTime?             @map("paid_at")
+  date          DateTime              @default(now())
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+  categoryRef   ExpenseCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   @@index([date], map: "idx_expenses_date")
+  @@index([categoryId], map: "idx_expenses_category_id")
+  @@index([sourceType, sourceId], map: "idx_expenses_source")
+  @@unique([sourceType, sourceId], map: "uq_expenses_source")
   @@map("expenses")
+}
+
+model ExpenseCategory {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique @db.VarChar(100)
+  description String?   @db.VarChar(255)
+  isSystem    Boolean   @default(false) @map("is_system")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  expenses    Expense[]
+
+  @@map("expense_categories")
 }
 
 model Payment {
@@ -301,4 +398,104 @@ model Payment {
   sale      Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@map("payments")
+}
+
+model EmployeeProfile {
+  id             Int             @id @default(autoincrement())
+  userId         Int             @unique @map("user_id")
+  position       String?         @db.VarChar(120)
+  employmentType EmploymentType  @default(monthly) @map("employment_type")
+  baseSalary     Decimal         @default(0) @map("base_salary") @db.Decimal(10, 2)
+  hireDate       DateTime?       @map("hire_date")
+  isActive       Boolean         @default(true) @map("is_active")
+  payrollNotes   String?         @map("payroll_notes") @db.VarChar(255)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  advances       SalaryAdvance[]
+  payrollEntries PayrollEntry[]
+
+  @@index([isActive], map: "idx_employee_profiles_active")
+  @@map("employee_profiles")
+}
+
+model SalaryAdvance {
+  id              Int             @id @default(autoincrement())
+  employeeId      Int             @map("employee_id")
+  amount          Decimal         @db.Decimal(10, 2)
+  remainingAmount Decimal         @map("remaining_amount") @db.Decimal(10, 2)
+  reason          String          @db.VarChar(160)
+  note            String?         @db.VarChar(255)
+  date            DateTime        @default(now())
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  employee        EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  settlements     SalaryAdvanceSettlement[]
+
+  @@index([employeeId, date], map: "idx_salary_advances_employee_date")
+  @@map("salary_advances")
+}
+
+model PayrollPeriod {
+  id        Int                 @id @default(autoincrement())
+  label     String              @db.VarChar(120)
+  startDate DateTime            @map("start_date")
+  endDate   DateTime            @map("end_date")
+  status    PayrollPeriodStatus @default(draft)
+  notes     String?             @db.VarChar(255)
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+  entries   PayrollEntry[]
+
+  @@index([startDate, endDate], map: "idx_payroll_periods_range")
+  @@map("payroll_periods")
+}
+
+model PayrollEntry {
+  id               Int             @id @default(autoincrement())
+  periodId         Int             @map("period_id")
+  employeeId       Int             @map("employee_id")
+  baseSalary       Decimal         @map("base_salary") @db.Decimal(10, 2)
+  bonuses          Decimal         @default(0) @db.Decimal(10, 2)
+  deductions       Decimal         @default(0) @db.Decimal(10, 2)
+  advanceDeduction Decimal         @default(0) @map("advance_deduction") @db.Decimal(10, 2)
+  netSalary        Decimal         @map("net_salary") @db.Decimal(10, 2)
+  notes            String?         @db.VarChar(255)
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  employee         EmployeeProfile @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  period           PayrollPeriod   @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  payments         PayrollPayment[]
+  advanceSettlements SalaryAdvanceSettlement[]
+
+  @@unique([periodId, employeeId], map: "uq_payroll_entry_period_employee")
+  @@index([employeeId], map: "idx_payroll_entries_employee")
+  @@map("payroll_entries")
+}
+
+model PayrollPayment {
+  id        Int                  @id @default(autoincrement())
+  entryId    Int                 @map("entry_id")
+  amount     Decimal             @db.Decimal(10, 2)
+  method     FinancePaymentMethod
+  paidAt     DateTime            @map("paid_at")
+  note       String?             @db.VarChar(255)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  entry      PayrollEntry        @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId, paidAt], map: "idx_payroll_payments_entry_paid_at")
+  @@map("payroll_payments")
+}
+
+model SalaryAdvanceSettlement {
+  advanceId Int          @map("advance_id")
+  entryId   Int          @map("entry_id")
+  amount    Decimal      @db.Decimal(10, 2)
+  createdAt DateTime     @default(now()) @map("created_at")
+  advance   SalaryAdvance @relation(fields: [advanceId], references: [id], onDelete: Cascade)
+  entry     PayrollEntry  @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@id([advanceId, entryId])
+  @@index([entryId], map: "idx_salary_advance_settlements_entry")
+  @@map("salary_advance_settlements")
 }

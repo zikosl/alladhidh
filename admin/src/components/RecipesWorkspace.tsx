@@ -2,6 +2,7 @@ import { ReactNode, useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
 import { MeasurementUnit, MenuCategory, MenuItem } from '../types/pos';
 import { usePosStore } from '../store/usePosStore';
+import { useFeedback } from './FeedbackProvider';
 import { WorkspaceShell } from './WorkspaceShell';
 
 type RecipesView = 'catalog' | 'categories' | 'margins';
@@ -28,6 +29,7 @@ function recipeUnitForInventory(unit: MeasurementUnit): MeasurementUnit {
 }
 
 export function RecipesWorkspace() {
+  const { confirm } = useFeedback();
   const {
     inventoryItems,
     menuItems,
@@ -188,7 +190,21 @@ export function RecipesWorkspace() {
 
           <div className="mt-4 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {filteredMenuItems.map((item) => (
-              <MenuCard key={item.id} item={item} onEdit={() => openRecipeModal(item)} onDelete={() => removeMenuItem(item.id)} />
+              <MenuCard
+                key={item.id}
+                item={item}
+                onEdit={() => openRecipeModal(item)}
+                onDelete={() => {
+                  void confirm({
+                    title: 'Supprimer la recette ?',
+                    message: `"${item.name}" sera retiree du menu.`,
+                    confirmLabel: 'Supprimer',
+                    tone: 'danger'
+                  }).then((confirmed) => {
+                    if (confirmed) void removeMenuItem(item.id);
+                  });
+                }}
+              />
             ))}
           </div>
         </section>
@@ -211,7 +227,16 @@ export function RecipesWorkspace() {
                 key={category.id}
                 category={category}
                 recipes={menuItems.filter((item) => item.categoryId === category.id)}
-                onDelete={() => removeMenuCategory(category.id)}
+                onDelete={() => {
+                  void confirm({
+                    title: 'Supprimer la categorie ?',
+                    message: `"${category.name}" sera supprimee si aucune recette ne la bloque.`,
+                    confirmLabel: 'Supprimer',
+                    tone: 'danger'
+                  }).then((confirmed) => {
+                    if (confirmed) void removeMenuCategory(category.id);
+                  });
+                }}
               />
             ))}
           </div>

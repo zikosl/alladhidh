@@ -5,10 +5,12 @@ import {
   createInventoryCategory,
   createInventoryItem,
   createStockEntry,
+  createStockLoss,
   deleteInventoryCategory,
   deleteInventoryItem,
   listInventoryCategories,
   listInventoryItems,
+  listStockMovements,
   updateInventoryItem
 } from '../services/inventoryService';
 
@@ -28,6 +30,15 @@ inventoryRouter.get(
   requirePermission('inventory.read', 'inventory.write'),
   asyncHandler(async (_req, res) => {
     const data = await listInventoryCategories();
+    res.json({ success: true, data });
+  })
+);
+
+inventoryRouter.get(
+  '/movements',
+  requirePermission('inventory.read', 'inventory.write'),
+  asyncHandler(async (req, res) => {
+    const data = await listStockMovements(Number(req.query.limit ?? 120));
     res.json({ success: true, data });
   })
 );
@@ -55,6 +66,15 @@ inventoryRouter.post(
   requirePermission('inventory.write'),
   asyncHandler(async (req, res) => {
     const data = await createStockEntry(req.body);
+    res.status(201).json({ success: true, data });
+  })
+);
+
+inventoryRouter.post(
+  '/losses',
+  requirePermission('inventory.write'),
+  asyncHandler(async (req, res) => {
+    const data = await createStockLoss(req.body);
     res.status(201).json({ success: true, data });
   })
 );

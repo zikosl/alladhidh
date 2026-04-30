@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { fetchDashboard, fetchProfitReport } from '../lib/api';
 import { formatMoney } from '../lib/format';
 import { usePosStore } from '../store/usePosStore';
-import { DeliveryStatus, OrderStatus, OrderType } from '../types/pos';
+import { DashboardData, DeliveryStatus, OrderStatus, OrderType, ProfitReport, ReportFilters } from '../types/pos';
 import { WorkspaceShell } from './WorkspaceShell';
 
 type ReportsView = 'overview' | 'sales' | 'operations' | 'profit' | 'stock';
@@ -9,17 +10,88 @@ type ReportsView = 'overview' | 'sales' | 'operations' | 'profit' | 'stock';
 export function ReportsWorkspace() {
   const { setCurrentModule, dashboard, profitReport, stockRows } = usePosStore();
   const [view, setView] = useState<ReportsView>('overview');
+  const [filters, setFilters] = useState<ReportFilters>({ period: '7d' });
+  const [reportDashboard, setReportDashboard] = useState<DashboardData | null>(dashboard);
+  const [reportProfit, setReportProfit] = useState<ProfitReport | null>(profitReport);
+  const [loading, setLoading] = useState(false);
 
-  const lowStockCount = dashboard?.stockAlerts.length ?? 0;
-  const totalSalesPeriod = profitReport?.totals.sales ?? 0;
-  const averageHourlySales = useMemo(() => {
-    if (!dashboard || dashboard.charts.salesByHour.length === 0) return 0;
-    return (
-      dashboard.charts.salesByHour.reduce((sum, row) => sum + row.totalSales, 0) / dashboard.charts.salesByHour.length
-    );
+  useEffect(() => {
+    setReportDashboard(dashboard);
   }, [dashboard]);
 
+  useEffect(() => {
+    setReportProfit(profitReport);
+  }, [profitReport]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const [nextDashboard, nextProfit] = await Promise.all([
+          fetchDashboard(filters),
+          fetchProfitReport(filters)
+        ]);
+        if (!cancelled) {
+          setReportDashboard(nextDashboard);
+          setReportProfit(nextProfit);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Impossible de charger les rapports', error);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [filters]);
+
+  const lowStockCount = reportDashboard?.stockAlerts.length ?? 0;
+  const totalSalesPeriod = reportProfit?.totals.sales ?? 0;
+  const averageHourlySales = useMemo(() => {
+    if (!reportDashboard || reportDashboard.charts.salesByHour.length === 0) return 0;
+    return (
+      reportDashboard.charts.salesByHour.reduce((sum, row) => sum + row.totalSales, 0) / reportDashboard.charts.salesByHour.length
+    );
+  }, [reportDashboard]);
+
   const totalTrackedStock = useMemo(() => stockRows.length, [stockRows.length]);
+
+  function exportCsv() {
+    if (!reportDashboard || !reportProfit) return;
+    const rows = [
+      ['Section', 'Libelle', 'Valeur'],
+      ['Synthese', 'CA periode', String(reportProfit.totals.sales)],
+      ['Synthese', 'Benefice net apres paie', String(reportProfit.totals.netProfit)],
+      ['Synthese', 'Benefice cash', String(reportProfit.totals.cashBenefit)],
+      ['Synthese', 'Encaissements', String(reportProfit.totals.cashRevenue)],
+      ['Synthese', 'Sorties cash', String(reportProfit.totals.cashOut)],
+      ['Synthese', 'Charges depenses + paie', String(reportProfit.totals.expenses)],
+      ['Synthese', 'Depenses operationnelles', String(reportDashboard.financials.expenseTotal)],
+      ['Synthese', 'Paie constatee', String(reportProfit.totals.payroll)],
+      ['Synthese', 'Pertes', String(reportProfit.totals.losses)],
+      ...reportDashboard.charts.salesPerDay.map((row) => ['Ventes par jour', row.date, String(row.totalSales)]),
+      ...reportDashboard.charts.topSellingProducts.map((row) => ['Top produit', row.name, String(row.revenue)]),
+      ...reportDashboard.stockAlerts.map((row) => ['Stock critique', row.name, String(row.currentStock)])
+    ];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `rapport-${filters.period}-${filters.dateFrom ?? ''}-${filters.dateTo ?? ''}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const activeDashboard = reportDashboard;
+  const activeProfit = reportProfit;
 
   return (
     <WorkspaceShell
@@ -39,33 +111,72 @@ export function ReportsWorkspace() {
       activeView={view}
       onChangeView={(id) => setView(id as ReportsView)}
     >
-      {!dashboard || !profitReport ? (
+      <section className="rounded-2xl bg-white/90 p-4 shadow-soft">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.25em] text-brand">Filtres rapports</div>
+            <div className="mt-1 text-sm text-zinc-500">Choisissez une periode de lecture et exportez le tableau de bord courant.</div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[180px_160px_160px_auto]">
+            <select
+              value={filters.period}
+              onChange={(event) => setFilters((current) => ({ ...current, period: event.target.value as ReportFilters['period'] }))}
+              className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none"
+            >
+              <option value="today">Aujourd'hui</option>
+              <option value="7d">7 jours</option>
+              <option value="30d">30 jours</option>
+              <option value="custom">Personnalise</option>
+            </select>
+            <input
+              type="date"
+              value={filters.dateFrom ?? ''}
+              disabled={filters.period !== 'custom'}
+              onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))}
+              className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none disabled:opacity-50"
+            />
+            <input
+              type="date"
+              value={filters.dateTo ?? ''}
+              disabled={filters.period !== 'custom'}
+              onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.target.value }))}
+              className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none disabled:opacity-50"
+            />
+            <button onClick={exportCsv} className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">
+              Export CSV
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {!activeDashboard || !activeProfit || loading ? (
         <div className="rounded-2xl bg-white/90 px-6 py-16 text-center text-sm font-semibold text-zinc-500 shadow-soft">
           Chargement des rapports...
         </div>
       ) : null}
 
-      {dashboard && profitReport && view === 'overview' && (
+      {activeDashboard && activeProfit && view === 'overview' && (
         <section className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-            <MetricCard label="CA aujourd'hui" value={formatMoney(dashboard.cards.totalSalesToday)} />
-            <MetricCard label="Benefice aujourd'hui" value={formatMoney(dashboard.cards.profitToday)} />
-            <MetricCard label="Ticket moyen" value={formatMoney(dashboard.cards.averageTicketToday)} />
-            <MetricCard label="Commandes actives" value={String(dashboard.cards.activeOrders)} />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
+            <MetricCard label="CA periode" value={formatMoney(activeDashboard.cards.totalSalesToday)} />
+            <MetricCard label="Benefice periode" value={formatMoney(activeDashboard.cards.profitToday)} />
+            <MetricCard label="Benefice cash" value={formatMoney(activeDashboard.cards.cashBenefitToday)} />
+            <MetricCard label="Ticket moyen" value={formatMoney(activeDashboard.cards.averageTicketToday)} />
+            <MetricCard label="Commandes actives" value={String(activeDashboard.cards.activeOrders)} />
             <MetricCard label="Stock critique" value={String(lowStockCount)} />
-            <MetricCard label="Pertes aujourd'hui" value={formatMoney(dashboard.cards.lossesToday)} />
+            <MetricCard label="Pertes periode" value={formatMoney(activeDashboard.cards.lossesToday)} />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
             <Panel title="Tendance des ventes" eyebrow="7 derniers jours">
               <div className="space-y-4">
-                {dashboard.charts.salesPerDay.map((day) => (
+                {activeDashboard.charts.salesPerDay.map((day) => (
                   <BarRow
                     key={day.date}
                     label={day.date}
                     value={formatMoney(day.totalSales)}
                     hint={`${day.ordersCount} commandes`}
-                    percent={(day.totalSales / Math.max(...dashboard.charts.salesPerDay.map((entry) => entry.totalSales), 1)) * 100}
+                    percent={(day.totalSales / Math.max(...activeDashboard.charts.salesPerDay.map((entry) => entry.totalSales), 1)) * 100}
                   />
                 ))}
               </div>
@@ -75,18 +186,15 @@ export function ReportsWorkspace() {
               <div className="space-y-3">
                 <InsightCard
                   label="Marge nette estimee"
-                  value={`${safePercent((profitReport.totals.netProfit / Math.max(totalSalesPeriod, 1)) * 100)}%`}
-                  tone={profitReport.totals.netProfit >= 0 ? 'good' : 'danger'}
+                  value={`${safePercent((activeProfit.totals.netProfit / Math.max(totalSalesPeriod, 1)) * 100)}%`}
+                  tone={activeProfit.totals.netProfit >= 0 ? 'good' : 'danger'}
                 />
+                <InsightCard label="Evolution CA" value={`${safePercent(activeDashboard.cards.salesChangePct)}%`} tone={activeDashboard.cards.salesChangePct >= 0 ? 'good' : 'danger'} />
+                <InsightCard label="Evolution profit" value={`${safePercent(activeDashboard.cards.profitChangePct)}%`} tone={activeDashboard.cards.profitChangePct >= 0 ? 'good' : 'danger'} />
                 <InsightCard
                   label="Retards cuisine"
-                  value={`${dashboard.operations.delayedOrders} ticket(s)`}
-                  tone={dashboard.operations.delayedOrders > 0 ? 'warn' : 'good'}
-                />
-                <InsightCard
-                  label="Retards livraison"
-                  value={`${dashboard.operations.delayedDeliveries} course(s)`}
-                  tone={dashboard.operations.delayedDeliveries > 0 ? 'warn' : 'good'}
+                  value={`${activeDashboard.operations.delayedOrders} ticket(s)`}
+                  tone={activeDashboard.operations.delayedOrders > 0 ? 'warn' : 'good'}
                 />
                 <InsightCard
                   label="Heure moyenne active"
@@ -97,10 +205,29 @@ export function ReportsWorkspace() {
             </Panel>
           </div>
 
+          <Panel title="Benefice cash par jour" eyebrow="Encaissements - sorties">
+            <div className="space-y-4">
+              {activeDashboard.charts.cashBenefitPerDay.map((day) => (
+                <BarRow
+                  key={day.date}
+                  label={day.date}
+                  value={formatMoney(day.cashBenefit)}
+                  hint={`In ${formatMoney(day.cashIn)} / Out ${formatMoney(day.cashOut)}`}
+                  percent={
+                    (Math.abs(day.cashBenefit) /
+                      Math.max(...activeDashboard.charts.cashBenefitPerDay.map((entry) => Math.abs(entry.cashBenefit)), 1)) *
+                    100
+                  }
+                />
+              ))}
+              {activeDashboard.charts.cashBenefitPerDay.length === 0 ? <EmptyState text="Aucun mouvement cash sur cette periode." /> : null}
+            </div>
+          </Panel>
+
           <div className="grid gap-4 xl:grid-cols-3">
             <Panel title="Ventes par canal" eyebrow="Mix de service">
               <div className="space-y-3">
-                {dashboard.charts.salesByType.map((row) => (
+                {activeDashboard.charts.salesByType.map((row) => (
                   <SummaryLine
                     key={row.type}
                     label={formatType(row.type)}
@@ -112,38 +239,38 @@ export function ReportsWorkspace() {
             </Panel>
             <Panel title="Statuts commandes" eyebrow="Charge en cours">
               <div className="space-y-3">
-                {dashboard.operations.statusBreakdown.map((row) => (
+                {activeDashboard.operations.statusBreakdown.map((row) => (
                   <SummaryLine key={row.status} label={formatStatus(row.status)} value={String(row.count)} />
                 ))}
               </div>
             </Panel>
             <Panel title="Livraison" eyebrow="Performance canal">
               <div className="space-y-3">
-                <SummaryLine label="CA livraison" value={formatMoney(dashboard.delivery.revenue)} />
-                <SummaryLine label="Nombre de courses" value={String(dashboard.delivery.totalOrders)} />
-                <SummaryLine label="Frais moyens" value={formatMoney(dashboard.delivery.averageFee)} />
+                <SummaryLine label="CA livraison" value={formatMoney(activeDashboard.delivery.revenue)} />
+                <SummaryLine label="Nombre de courses" value={String(activeDashboard.delivery.totalOrders)} />
+                <SummaryLine label="Frais moyens" value={formatMoney(activeDashboard.delivery.averageFee)} />
               </div>
             </Panel>
           </div>
         </section>
       )}
 
-      {dashboard && profitReport && view === 'sales' && (
+      {activeDashboard && activeProfit && view === 'sales' && (
         <section className="space-y-4">
           <div className="grid gap-4 md:grid-cols-4">
-            <MetricCard label="CA periode" value={formatMoney(profitReport.totals.sales)} />
-            <MetricCard label="Ticket moyen periode" value={formatMoney(profitReport.totals.averageTicket)} />
+            <MetricCard label="CA periode" value={formatMoney(activeProfit.totals.sales)} />
+            <MetricCard label="Ticket moyen periode" value={formatMoney(activeProfit.totals.averageTicket)} />
             <MetricCard
               label="Canal dominant"
-              value={formatType([...dashboard.charts.salesByType].sort((a, b) => b.totalSales - a.totalSales)[0]?.type ?? 'dine_in')}
+              value={formatType([...activeDashboard.charts.salesByType].sort((a, b) => b.totalSales - a.totalSales)[0]?.type ?? 'dine_in')}
             />
-            <MetricCard label="Table active" value={String(dashboard.tables.activeDineInOrders)} />
+            <MetricCard label="Table active" value={String(activeDashboard.tables.activeDineInOrders)} />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
             <Panel title="Meilleures ventes" eyebrow="Par produit">
               <div className="space-y-3">
-                {dashboard.charts.topSellingProducts.map((product) => (
+                {activeDashboard.charts.topSellingProducts.map((product) => (
                   <SummaryCard
                     key={product.productId}
                     title={product.name}
@@ -156,16 +283,16 @@ export function ReportsWorkspace() {
 
             <Panel title="Performance horaire" eyebrow="Aujourd'hui">
               <div className="space-y-4">
-                {dashboard.charts.salesByHour.length === 0 ? (
+                {activeDashboard.charts.salesByHour.length === 0 ? (
                   <EmptyState text="Aucune vente aujourd'hui pour l'instant." />
                 ) : (
-                  dashboard.charts.salesByHour.map((hour) => (
+                  activeDashboard.charts.salesByHour.map((hour) => (
                     <BarRow
                       key={hour.hour}
                       label={hour.hour}
                       value={formatMoney(hour.totalSales)}
                       hint={`${hour.ordersCount} commandes`}
-                      percent={(hour.totalSales / Math.max(...dashboard.charts.salesByHour.map((entry) => entry.totalSales), 1)) * 100}
+                      percent={(hour.totalSales / Math.max(...activeDashboard.charts.salesByHour.map((entry) => entry.totalSales), 1)) * 100}
                     />
                   ))
                 )}
@@ -176,7 +303,7 @@ export function ReportsWorkspace() {
           <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
             <Panel title="Canaux de vente" eyebrow="Sur place, emporter, livraison">
               <div className="space-y-3">
-                {dashboard.charts.salesByType.map((row) => (
+                {activeDashboard.charts.salesByType.map((row) => (
                   <SummaryLine
                     key={row.type}
                     label={formatType(row.type)}
@@ -189,10 +316,10 @@ export function ReportsWorkspace() {
 
             <Panel title="Tables les plus rentables" eyebrow="Sur place">
               <div className="space-y-3">
-                {dashboard.tables.revenueByTable.length === 0 ? (
+                {activeDashboard.tables.revenueByTable.length === 0 ? (
                   <EmptyState text="Aucune commande sur place encore enregistree." />
                 ) : (
-                  dashboard.tables.revenueByTable.map((table) => (
+                  activeDashboard.tables.revenueByTable.map((table) => (
                     <SummaryLine
                       key={table.tableNumber}
                       label={`Table ${table.tableNumber}`}
@@ -207,20 +334,20 @@ export function ReportsWorkspace() {
         </section>
       )}
 
-      {dashboard && profitReport && view === 'operations' && (
+      {activeDashboard && activeProfit && view === 'operations' && (
         <section className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard label="Prep. moyenne" value={`${dashboard.operations.averagePreparationMinutes.toFixed(1)} min`} />
-            <MetricCard label="Paiement moyen" value={`${dashboard.operations.averagePaymentMinutes.toFixed(1)} min`} />
-            <MetricCard label="Livraison moyenne" value={`${dashboard.operations.averageDeliveryMinutes.toFixed(1)} min`} />
-            <MetricCard label="Retards cuisine" value={String(dashboard.operations.delayedOrders)} />
-            <MetricCard label="Retards livraison" value={String(dashboard.operations.delayedDeliveries)} />
+            <MetricCard label="Prep. moyenne" value={`${activeDashboard.operations.averagePreparationMinutes.toFixed(1)} min`} />
+            <MetricCard label="Paiement moyen" value={`${activeDashboard.operations.averagePaymentMinutes.toFixed(1)} min`} />
+            <MetricCard label="Livraison moyenne" value={`${activeDashboard.operations.averageDeliveryMinutes.toFixed(1)} min`} />
+            <MetricCard label="Retards cuisine" value={String(activeDashboard.operations.delayedOrders)} />
+            <MetricCard label="Retards livraison" value={String(activeDashboard.operations.delayedDeliveries)} />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
             <Panel title="Charge par statut" eyebrow="Vision production">
               <div className="space-y-3">
-                {dashboard.operations.statusBreakdown.map((row) => (
+                {activeDashboard.operations.statusBreakdown.map((row) => (
                   <SummaryLine key={row.status} label={formatStatus(row.status)} value={String(row.count)} />
                 ))}
               </div>
@@ -228,7 +355,7 @@ export function ReportsWorkspace() {
 
             <Panel title="Suivi livraison" eyebrow="Statuts de course">
               <div className="space-y-3">
-                {dashboard.delivery.byStatus.map((row) => (
+                {activeDashboard.delivery.byStatus.map((row) => (
                   <SummaryLine key={row.status} label={formatDeliveryStatus(row.status)} value={String(row.count)} />
                 ))}
               </div>
@@ -237,20 +364,30 @@ export function ReportsWorkspace() {
         </section>
       )}
 
-      {dashboard && profitReport && view === 'profit' && (
+      {activeDashboard && activeProfit && view === 'profit' && (
         <section className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard label="CA periode" value={formatMoney(profitReport.totals.sales)} />
-            <MetricCard label="Cout matieres estime" value={formatMoney(profitReport.totals.estimatedCosts)} />
-            <MetricCard label="Depenses" value={formatMoney(profitReport.totals.expenses)} />
-            <MetricCard label="Pertes stock" value={formatMoney(profitReport.totals.losses)} />
-            <MetricCard label="Benefice net estime" value={formatMoney(profitReport.totals.netProfit)} />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+            <MetricCard label="CA periode" value={formatMoney(activeProfit.totals.sales)} />
+            <MetricCard label="Cout matieres estime" value={formatMoney(activeProfit.totals.estimatedCosts)} />
+            <MetricCard label="Charges dep. + paie" value={formatMoney(activeProfit.totals.expenses)} />
+            <MetricCard label="Pertes stock" value={formatMoney(activeProfit.totals.losses)} />
+            <MetricCard label="Benefice net apres paie" value={formatMoney(activeProfit.totals.netProfit)} />
+            <MetricCard label="Benefice cash" value={formatMoney(activeProfit.totals.cashBenefit)} />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+            <MetricCard label="Depenses operationnelles" value={formatMoney(activeDashboard.financials.manualExpenseTotal)} />
+            <MetricCard label="Achats stock" value={formatMoney(activeDashboard.financials.stockPurchaseTotal)} />
+            <MetricCard label="Paie constatee" value={formatMoney(activeProfit.totals.payroll)} />
+            <MetricCard label="Paie payee" value={formatMoney(activeDashboard.financials.payrollPaidTotal)} />
+            <MetricCard label="Avances payees" value={formatMoney(activeDashboard.financials.salaryAdvanceTotal)} />
+            <MetricCard label="Reste paie" value={formatMoney(activeDashboard.financials.payrollOutstandingTotal)} />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
             <Panel title="Produits les plus rentables" eyebrow="Profit estime">
               <div className="space-y-3">
-                {profitReport.margins.bestProducts.map((item) => (
+                {activeProfit.margins.bestProducts.map((item) => (
                   <SummaryCard
                     key={item.productId}
                     title={item.name}
@@ -263,7 +400,7 @@ export function ReportsWorkspace() {
 
             <Panel title="Produits a faible marge" eyebrow="A revoir">
               <div className="space-y-3">
-                {profitReport.margins.weakestProducts.map((item) => (
+                {activeProfit.margins.weakestProducts.map((item) => (
                   <SummaryCard
                     key={item.productId}
                     title={item.name}
@@ -277,7 +414,7 @@ export function ReportsWorkspace() {
 
           <Panel title="Depenses par categorie" eyebrow="Controle des couts">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {dashboard.financials.expensesByCategory.map((item) => (
+              {activeDashboard.financials.expensesByCategory.map((item) => (
                 <div key={item.category} className="rounded-xl bg-zinc-50 px-4 py-3">
                   <div className="text-sm font-semibold text-zinc-900">{item.category}</div>
                   <div className="mt-2 text-lg font-bold text-zinc-950">{formatMoney(item.amount)}</div>
@@ -285,26 +422,38 @@ export function ReportsWorkspace() {
               ))}
             </div>
           </Panel>
+
+          <Panel title="Masse salariale par employe" eyebrow="Visibilite equipe">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {activeDashboard.financials.payrollByEmployee.map((item) => (
+                <div key={item.employeeId} className="rounded-xl bg-zinc-50 px-4 py-3">
+                  <div className="text-sm font-semibold text-zinc-900">{item.employeeName}</div>
+                  <div className="mt-2 text-sm text-zinc-500">Total paie {formatMoney(item.payrollTotal)}</div>
+                  <div className="mt-1 text-lg font-bold text-zinc-950">Paye {formatMoney(item.paidTotal)}</div>
+                </div>
+              ))}
+            </div>
+          </Panel>
         </section>
       )}
 
-      {dashboard && profitReport && view === 'stock' && (
+      {activeDashboard && activeProfit && view === 'stock' && (
         <section className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             <MetricCard label="Articles suivis" value={String(totalTrackedStock)} />
             <MetricCard label="Stock critique" value={String(lowStockCount)} />
-            <MetricCard label="Valeur stock" value={formatMoney(dashboard.stockInsights.stockValue)} />
-            <MetricCard label="Pertes cumulees" value={formatMoney(dashboard.stockInsights.totalLossValue)} />
-            <MetricCard label="Alertes actives" value={String(dashboard.stockAlerts.length)} />
+            <MetricCard label="Valeur stock" value={formatMoney(activeDashboard.stockInsights.stockValue)} />
+            <MetricCard label="Pertes cumulees" value={formatMoney(activeDashboard.stockInsights.totalLossValue)} />
+            <MetricCard label="Alertes actives" value={String(activeDashboard.stockAlerts.length)} />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
             <Panel title="Ingredients en alerte" eyebrow="Rupture a prevenir">
               <div className="space-y-3">
-                {dashboard.stockAlerts.length === 0 ? (
+                {activeDashboard.stockAlerts.length === 0 ? (
                   <EmptyState text="Aucune alerte stock pour le moment." />
                 ) : (
-                  dashboard.stockAlerts.map((item) => (
+                  activeDashboard.stockAlerts.map((item) => (
                     <SummaryLine
                       key={item.ingredientId}
                       label={item.name}
@@ -318,10 +467,10 @@ export function ReportsWorkspace() {
 
             <Panel title="Pertes par ingredient" eyebrow="Valeur perdue">
               <div className="space-y-3">
-                {dashboard.stockInsights.lossesByIngredient.length === 0 ? (
+                {activeDashboard.stockInsights.lossesByIngredient.length === 0 ? (
                   <EmptyState text="Aucune perte enregistree pour le moment." />
                 ) : (
-                  dashboard.stockInsights.lossesByIngredient.map((item) => (
+                  activeDashboard.stockInsights.lossesByIngredient.map((item) => (
                     <SummaryCard
                       key={item.ingredientId}
                       title={item.name}
@@ -336,7 +485,7 @@ export function ReportsWorkspace() {
 
           <Panel title="Consommation des matieres premieres" eyebrow="Sorties liees aux ventes">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {dashboard.stockInsights.topConsumedIngredients.map((item) => (
+              {activeDashboard.stockInsights.topConsumedIngredients.map((item) => (
                 <div key={item.ingredientId} className="rounded-xl bg-zinc-50 px-4 py-3">
                   <div className="text-sm font-semibold text-zinc-900">{item.name}</div>
                   <div className="mt-2 text-lg font-bold text-zinc-950">{item.quantity.toFixed(2)}</div>

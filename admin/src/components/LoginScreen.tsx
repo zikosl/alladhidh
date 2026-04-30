@@ -1,5 +1,8 @@
 import { FormEvent, useState } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
+import { BRAND_NAME } from '../lib/brand';
+import { AlertBanner } from './FeedbackProvider';
+import { BrandLogo } from './BrandLogo';
 
 export function LoginScreen() {
   const { login, loading, error, clearError } = useAuthStore();
@@ -16,13 +19,12 @@ export function LoginScreen() {
     <div className="flex min-h-screen items-center justify-center px-4 py-8">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <section className="rounded-[2rem] border border-white/60 bg-white/85 p-8 shadow-soft backdrop-blur">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.32em] text-brand">Restaurant Suite</div>
-          <h1 className="mt-4 max-w-xl text-4xl font-black tracking-tight text-zinc-950 md:text-5xl">
-            Connexion securisee pour l’exploitation du restaurant
+          <BrandLogo size={74} showName />
+          <h1 className="mt-5 max-w-xl text-3xl font-black tracking-tight text-zinc-950 md:text-4xl">
+            Connexion simple pour gerer {BRAND_NAME}
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-600">
-            Authentifiez-vous pour acceder au stock, au point de vente, aux recettes, a la caisse et aux parametres
-            selon votre role.
+            Chaque membre voit seulement ses modules utiles: caisse, cuisine, stock, recettes, rapports ou administration.
           </p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -67,7 +69,7 @@ export function LoginScreen() {
             </label>
           </div>
 
-          {error ? <div className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div> : null}
+          {error ? <div className="mt-4"><AlertBanner title="Connexion refusee" message={error} tone="error" onClose={clearError} /></div> : null}
 
           <button
             type="submit"

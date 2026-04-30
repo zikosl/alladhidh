@@ -16,6 +16,24 @@ import {
   updateRolePermissions,
   updateStaffUser
 } from '../services/adminService';
+import {
+  upsertEmployeeProfile,
+  createExpense,
+  createExpenseCategory,
+  createPayrollPayment,
+  createPayrollPeriod,
+  createSalaryAdvance,
+  deleteExpense,
+  deleteExpenseCategory,
+  listEmployeeProfiles,
+  listExpenseCategories,
+  listExpenses,
+  listPayrollPeriods,
+  listSalaryAdvances,
+  updateExpense,
+  updatePayrollEntry,
+  updatePayrollPeriodStatus
+} from '../services/financeService';
 
 export const adminRouter = Router();
 
@@ -133,5 +151,149 @@ adminRouter.put(
   asyncHandler(async (req, res) => {
     const data = await updateRestaurantSettings(req.body);
     res.json({ success: true, data });
+  })
+);
+
+adminRouter.get(
+  '/finance/categories',
+  requirePermission('finance.read', 'finance.write'),
+  asyncHandler(async (_req, res) => {
+    const data = await listExpenseCategories();
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.post(
+  '/finance/categories',
+  requirePermission('finance.write'),
+  asyncHandler(async (req, res) => {
+    const data = await createExpenseCategory(req.body);
+    res.status(201).json({ success: true, data });
+  })
+);
+
+adminRouter.delete(
+  '/finance/categories/:id',
+  requirePermission('finance.write'),
+  asyncHandler(async (req, res) => {
+    await deleteExpenseCategory(Number(req.params.id));
+    res.json({ success: true });
+  })
+);
+
+adminRouter.get(
+  '/finance/expenses',
+  requirePermission('finance.read', 'finance.write'),
+  asyncHandler(async (_req, res) => {
+    const data = await listExpenses();
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.post(
+  '/finance/expenses',
+  requirePermission('finance.write'),
+  asyncHandler(async (req, res) => {
+    const data = await createExpense(req.body);
+    res.status(201).json({ success: true, data });
+  })
+);
+
+adminRouter.put(
+  '/finance/expenses/:id',
+  requirePermission('finance.write'),
+  asyncHandler(async (req, res) => {
+    const data = await updateExpense(Number(req.params.id), req.body);
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.delete(
+  '/finance/expenses/:id',
+  requirePermission('finance.write'),
+  asyncHandler(async (req, res) => {
+    await deleteExpense(Number(req.params.id));
+    res.json({ success: true });
+  })
+);
+
+adminRouter.get(
+  '/payroll/employees',
+  requirePermission('payroll.read', 'payroll.write'),
+  asyncHandler(async (_req, res) => {
+    const data = await listEmployeeProfiles();
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.put(
+  '/payroll/employees',
+  requirePermission('payroll.write'),
+  asyncHandler(async (req, res) => {
+    const data = await upsertEmployeeProfile(req.body);
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.get(
+  '/payroll/advances',
+  requirePermission('payroll.read', 'payroll.write'),
+  asyncHandler(async (_req, res) => {
+    const data = await listSalaryAdvances();
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.post(
+  '/payroll/advances',
+  requirePermission('payroll.write'),
+  asyncHandler(async (req, res) => {
+    const data = await createSalaryAdvance(req.body);
+    res.status(201).json({ success: true, data });
+  })
+);
+
+adminRouter.get(
+  '/payroll/periods',
+  requirePermission('payroll.read', 'payroll.write'),
+  asyncHandler(async (_req, res) => {
+    const data = await listPayrollPeriods();
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.post(
+  '/payroll/periods',
+  requirePermission('payroll.write'),
+  asyncHandler(async (req, res) => {
+    const data = await createPayrollPeriod(req.body);
+    res.status(201).json({ success: true, data });
+  })
+);
+
+adminRouter.patch(
+  '/payroll/periods/:id/status',
+  requirePermission('payroll.write'),
+  asyncHandler(async (req, res) => {
+    const data = await updatePayrollPeriodStatus(Number(req.params.id), req.body.status);
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.put(
+  '/payroll/entries/:id',
+  requirePermission('payroll.write'),
+  asyncHandler(async (req, res) => {
+    const data = await updatePayrollEntry(Number(req.params.id), req.body);
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.post(
+  '/payroll/entries/:id/payments',
+  requirePermission('payroll.write'),
+  asyncHandler(async (req, res) => {
+    const data = await createPayrollPayment(Number(req.params.id), req.body);
+    res.status(201).json({ success: true, data });
   })
 );

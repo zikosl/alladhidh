@@ -108,6 +108,18 @@ async function main() {
   await prisma.$transaction(async (tx) => {
     await tx.menuCategory.createMany({ data: menuCategorySeed, skipDuplicates: true });
     await tx.ingredientCategory.createMany({ data: ingredientCategorySeed, skipDuplicates: true });
+    await tx.expenseCategory.createMany({
+      data: [
+        { name: 'Loyer', description: 'Charges fixes du local', isSystem: true },
+        { name: 'Services', description: 'Electricite, eau, internet', isSystem: true },
+        { name: 'Personnel', description: 'Salaires, primes et paie', isSystem: true },
+        { name: 'Achats', description: 'Achats non stockes et consommables', isSystem: true },
+        { name: 'Achat stock', description: 'Achats de matieres premieres lies aux entrees stock', isSystem: true },
+        { name: 'Salaires', description: 'Paiements des salaires du personnel', isSystem: true },
+        { name: 'Avances salaires', description: 'Avances versees au personnel', isSystem: true }
+      ],
+      skipDuplicates: true
+    });
     await tx.ingredient.createMany({ data: ingredientSeed });
 
     const menuCategories = await tx.menuCategory.findMany({ select: { id: true, name: true } });
@@ -145,8 +157,10 @@ async function main() {
             totalPrice: item.totalPrice
           },
           select: {
+            id: true,
             ingredientId: true,
             quantity: true,
+            totalPrice: true,
             date: true
           }
         })
@@ -163,11 +177,77 @@ async function main() {
       }))
     });
 
+    await tx.stockMovement.createMany({
+      data: [
+        {
+          ingredientId: ingredientByName.get('Laitue')!,
+          type: StockMovementType.OUT,
+          quantity: 250,
+          reason: StockMovementReason.loss,
+          date: new Date()
+        },
+        {
+          ingredientId: ingredientByName.get('Pain burger')!,
+          type: StockMovementType.OUT,
+          quantity: 2,
+          reason: StockMovementReason.loss,
+          date: new Date()
+        }
+      ]
+    });
+
+    const expenseCategories = await tx.expenseCategory.findMany({ select: { id: true, name: true } });
+    const expenseCategoryByName = new Map(expenseCategories.map((item) => [item.name, item.id]));
+    const ingredientNameById = new Map(ingredients.map((item) => [item.id, item.name]));
+
+    await tx.expense.createMany({
+      data: purchases.map((purchase) => ({
+        amount: purchase.totalPrice,
+        category: 'Achat stock',
+        categoryId: expenseCategoryByName.get('Achat stock') ?? null,
+        type: 'variable',
+        status: 'paid',
+        paymentMethod: 'cash',
+        supplierName: 'Fournisseur demo',
+        description: `Achat stock seed - ${ingredientNameById.get(purchase.ingredientId) ?? 'Matiere'}`,
+        sourceType: 'stock_purchase',
+        sourceId: purchase.id,
+        sourceLabel: ingredientNameById.get(purchase.ingredientId) ?? 'Matiere',
+        paidAt: purchase.date,
+        date: purchase.date
+      })),
+      skipDuplicates: true
+    });
+
     await tx.expense.createMany({
       data: [
-        { amount: 8500, category: 'loyer', description: 'Quote-part journaliere du local' },
-        { amount: 2400, category: 'services', description: 'Electricite, eau et internet' },
-        { amount: 3200, category: 'personnel', description: 'Prime d equipe et caisse' }
+        {
+          amount: 8500,
+          category: 'Loyer',
+          categoryId: expenseCategoryByName.get('Loyer') ?? null,
+          type: 'fixed',
+          status: 'paid',
+          paymentMethod: 'transfer',
+          description: 'Quote-part journaliere du local'
+        },
+        {
+          amount: 2400,
+          category: 'Services',
+          categoryId: expenseCategoryByName.get('Services') ?? null,
+          type: 'variable',
+          status: 'paid',
+          paymentMethod: 'cash',
+          description: 'Electricite, eau et internet'
+        },
+        {
+          amount: 3200,
+          category: 'Personnel',
+          categoryId: expenseCategoryByName.get('Personnel') ?? null,
+          type: 'variable',
+          status: 'planned',
+          paymentMethod: 'cash',
+          description: 'Prime d equipe et caisse'
+        }
       ]
     });
 
@@ -309,6 +389,125 @@ async function main() {
             saleId: createdSale.id,
             method: order.paymentMethod,
             amount: createdSale.totalPrice
+          }
+        });
+      }
+    }
+
+    const employees = await tx.employeeProfile.findMany({
+      include: {
+        user: true
+      },
+      take: 2
+    });
+
+    if (employees.length > 0) {
+      for (const [index, employee] of employees.entries()) {
+        await tx.employeeProfile.update({
+          where: { id: employee.id },
+          data: {
+            position: index === 0 ? 'Gerant' : 'Caissier',
+            employmentType: 'monthly',
+            baseSalary: index === 0 ? 68000 : 42000,
+            hireDate: new Date('2026-01-15T00:00:00.000Z'),
+            isActive: true
+          }
+        });
+      }
+
+      const payrollPeriod = await tx.payrollPeriod.create({
+        data: {
+          label: 'Paie Avril 2026',
+          startDate: new Date('2026-04-01T00:00:00.000Z'),
+          endDate: new Date('2026-04-30T23:59:59.000Z'),
+          status: 'validated',
+          notes: 'Periode de demonstration'
+        }
+      });
+
+      for (const [index, employee] of employees.entries()) {
+        const baseSalary = index === 0 ? 68000 : 42000;
+        const bonuses = index === 0 ? 6000 : 2500;
+        const deductions = index === 0 ? 0 : 1200;
+
+        const advance = await tx.salaryAdvance.create({
+          data: {
+            employeeId: employee.id,
+            amount: index === 0 ? 5000 : 3000,
+            remainingAmount: index === 0 ? 1000 : 0,
+            reason: 'Avance exceptionnelle',
+            note: 'Exemple seed',
+            date: new Date('2026-04-10T00:00:00.000Z')
+          }
+        });
+
+        await tx.expense.create({
+          data: {
+            amount: advance.amount,
+            category: 'Avances salaires',
+            categoryId: expenseCategoryByName.get('Avances salaires') ?? null,
+            type: 'variable',
+            status: 'paid',
+            paymentMethod: 'cash',
+            supplierName: employee.user.fullName,
+            description: `Avance salaire seed - ${employee.user.fullName}`,
+            sourceType: 'salary_advance',
+            sourceId: advance.id,
+            sourceLabel: employee.user.fullName,
+            paidAt: advance.date,
+            date: advance.date
+          }
+        });
+
+        const advanceDeduction = index === 0 ? 4000 : 3000;
+        const netSalary = baseSalary + bonuses - deductions - advanceDeduction;
+
+        const entry = await tx.payrollEntry.create({
+          data: {
+            periodId: payrollPeriod.id,
+            employeeId: employee.id,
+            baseSalary,
+            bonuses,
+            deductions,
+            advanceDeduction,
+            netSalary,
+            notes: 'Ligne de paie seed'
+          }
+        });
+
+        await tx.salaryAdvanceSettlement.create({
+          data: {
+            advanceId: advance.id,
+            entryId: entry.id,
+            amount: advanceDeduction
+          }
+        });
+
+        const payment = await tx.payrollPayment.create({
+          data: {
+            entryId: entry.id,
+            amount: index === 0 ? netSalary - 5000 : netSalary,
+            method: index === 0 ? 'transfer' : 'cash',
+            paidAt: new Date('2026-04-28T10:00:00.000Z'),
+            note: 'Paiement de demonstration'
+          }
+        });
+
+        await tx.expense.create({
+          data: {
+            amount: payment.amount,
+            category: 'Salaires',
+            categoryId: expenseCategoryByName.get('Salaires') ?? null,
+            type: 'variable',
+            status: 'paid',
+            paymentMethod: payment.method,
+            supplierName: employee.user.fullName,
+            description: `Paiement salaire seed - ${employee.user.fullName}`,
+            sourceType: 'payroll_payment',
+            sourceId: payment.id,
+            sourceLabel: employee.user.fullName,
+            paidAt: payment.paidAt,
+            date: payment.paidAt
           }
         });
       }
