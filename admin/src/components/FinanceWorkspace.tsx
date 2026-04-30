@@ -207,7 +207,7 @@ export function FinanceWorkspace() {
 
       {view === 'journal' ? (
         <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Depenses</div>
             <h2 className="mt-1 text-xl font-bold text-zinc-950">{editingExpenseId ? 'Modifier une depense' : 'Nouvelle depense'}</h2>
             <div className="mt-4 space-y-3">
@@ -236,7 +236,7 @@ export function FinanceWorkspace() {
               </div>
               <label className="block">
                 <span className="text-xs font-semibold text-zinc-600">Description</span>
-                <textarea value={expenseForm.description ?? ''} onChange={(event) => setExpenseForm((current) => ({ ...current, description: event.target.value }))} placeholder="Ex: Achat emballage semaine 18" className="mt-1 min-h-24 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none" />
+                <textarea value={expenseForm.description ?? ''} onChange={(event) => setExpenseForm((current) => ({ ...current, description: event.target.value }))} placeholder="Ex: Achat emballage semaine 18" className="mt-1 min-h-24 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none" />
               </label>
             </div>
             <div className="mt-4 flex gap-2">
@@ -246,15 +246,15 @@ export function FinanceWorkspace() {
                   await upsertExpense(expenseForm);
                   resetExpenseForm();
                 }}
-                className="rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+                className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
                 {editingExpenseId ? 'Mettre a jour' : 'Ajouter depense'}
               </button>
-              <button onClick={resetExpenseForm} className="rounded-xl bg-zinc-100 px-4 py-3 text-sm font-semibold text-zinc-700">Reinitialiser</button>
+              <button onClick={resetExpenseForm} className="rounded-2xl bg-zinc-100 px-4 py-3 text-sm font-black text-zinc-700">Reinitialiser</button>
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Journal</div>
             <h2 className="mt-1 text-xl font-bold text-zinc-950">Depenses & suivi</h2>
             <div className="mt-4 rounded-2xl border border-zinc-100 bg-zinc-50 p-3">
@@ -310,11 +310,11 @@ export function FinanceWorkspace() {
               </div>
             </div>
             {financeDashboard?.charts.cashBenefitPerDay.length ? (
-              <div className="mt-4 rounded-2xl border border-zinc-100 bg-white p-3">
+              <div className="mt-4 rounded-2xl border border-zinc-100 bg-white/80 p-3">
                 <div className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">Benefice cash par jour</div>
                 <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                   {financeDashboard.charts.cashBenefitPerDay.slice(-6).map((day) => (
-                    <div key={day.date} className="rounded-xl bg-zinc-50 px-3 py-2">
+                    <div key={day.date} className="rounded-2xl bg-zinc-50 px-3 py-2 ring-1 ring-zinc-100">
                       <div className="text-xs font-semibold text-zinc-500">{day.date}</div>
                       <div className={`mt-1 text-sm font-black ${day.cashBenefit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                         {formatMoney(day.cashBenefit)}
@@ -329,7 +329,7 @@ export function FinanceWorkspace() {
             ) : null}
             <div className="mt-4 space-y-3">
               {filteredExpenses.map((expense) => (
-                <article key={expense.id} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                <article key={expense.id} className="premium-card rounded-2xl p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <div className="text-sm font-semibold text-zinc-950">{expense.category}</div>
@@ -351,7 +351,7 @@ export function FinanceWorkspace() {
                         </div>
                       ) : (
                         <div className="mt-2 flex justify-end gap-2">
-                          <button onClick={() => editExpense(expense.id)} className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">Modifier</button>
+                          <button onClick={() => editExpense(expense.id)} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-zinc-700">Modifier</button>
                           <button
                             onClick={() => {
                               void confirm({
@@ -363,7 +363,7 @@ export function FinanceWorkspace() {
                                 if (confirmed) void removeExpense(expense.id);
                               });
                             }}
-                            className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600"
+                            className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-600"
                           >
                             Supprimer
                           </button>
@@ -374,7 +374,7 @@ export function FinanceWorkspace() {
                 </article>
               ))}
               {filteredExpenses.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center text-sm text-zinc-500">
+                <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500">
                   Aucune depense ne correspond aux filtres.
                 </div>
               ) : null}
@@ -383,7 +383,7 @@ export function FinanceWorkspace() {
         </section>
       ) : (
         <section className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Categories</div>
             <h2 className="mt-1 text-xl font-bold text-zinc-950">Nouvelle categorie</h2>
             <div className="mt-4 space-y-3">
@@ -395,19 +395,19 @@ export function FinanceWorkspace() {
                   void addExpenseCategory(expenseCategoryForm);
                   setExpenseCategoryForm({ name: '', description: '' });
                 }}
-                className="rounded-xl bg-zinc-950 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+                className="rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
                 Ajouter categorie
               </button>
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Referentiel</div>
             <h2 className="mt-1 text-xl font-bold text-zinc-950">Structure des charges</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {expenseCategories.map((category) => (
-                <article key={category.id} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                <article key={category.id} className="premium-card rounded-2xl p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-zinc-950">{category.name}</div>
@@ -425,7 +425,7 @@ export function FinanceWorkspace() {
                             if (confirmed) void removeExpenseCategory(category.id);
                           });
                         }}
-                        className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700"
+                        className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-zinc-700"
                       >
                         Supprimer
                       </button>
@@ -435,7 +435,7 @@ export function FinanceWorkspace() {
                 </article>
               ))}
               {expenseCategories.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center text-sm text-zinc-500 md:col-span-2">
+                <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500 md:col-span-2">
                   Creez une premiere categorie pour classer vos charges.
                 </div>
               ) : null}
@@ -485,7 +485,7 @@ function Field({ label, value, onChange, placeholder, type = 'text' }: { label: 
   return (
     <label className="block">
       <span className="text-xs font-semibold text-zinc-600">{label}</span>
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none" />
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none" />
     </label>
   );
 }
@@ -494,7 +494,7 @@ function SelectField({ label, value, onChange, options }: { label: string; value
   return (
     <label className="block">
       <span className="text-xs font-semibold text-zinc-600">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none">
         {options.map(([optionValue, optionLabel]) => (
           <option key={optionValue} value={optionValue}>
             {optionLabel}
@@ -507,8 +507,8 @@ function SelectField({ label, value, onChange, options }: { label: string; value
 
 function MetricPanel({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <article className="rounded-2xl bg-white/90 p-4 shadow-soft">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">{label}</div>
+    <article className="premium-card rounded-2xl p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand">{label}</div>
       <div className="mt-3 text-2xl font-black text-zinc-950">{value}</div>
       <div className="mt-2 text-sm text-zinc-500">{hint}</div>
     </article>

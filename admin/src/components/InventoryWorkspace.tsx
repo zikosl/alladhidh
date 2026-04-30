@@ -219,7 +219,7 @@ export function InventoryWorkspace() {
       </section>
 
       {(view === 'overview' || view === 'materials' || view === 'alerts') && (
-        <section className="rounded-2xl bg-white/90 p-4 shadow-soft">
+        <section className="premium-panel rounded-[1.6rem] p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">
@@ -235,12 +235,12 @@ export function InventoryWorkspace() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Rechercher une matiere..."
-                className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm outline-none"
+                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold outline-none"
               />
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
-                className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm outline-none"
+                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold outline-none"
               >
                 <option value="all">Tous les statuts</option>
                 <option value="in_stock">En stock</option>
@@ -249,22 +249,22 @@ export function InventoryWorkspace() {
               </select>
               <button
                 onClick={() => openEntryModal()}
-                className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white"
+                className="rounded-2xl bg-emerald-600 px-3 py-2 text-sm font-black text-white shadow-soft"
               >
                 Entree stock
               </button>
               <button
                 onClick={() => openMaterialModal()}
-                className="rounded-xl bg-ink px-3 py-2 text-sm font-semibold text-white"
+                className="rounded-2xl bg-ink px-3 py-2 text-sm font-black text-white shadow-soft"
               >
                 Nouvelle matiere
               </button>
             </div>
           </div>
 
-          <div className="mt-4 overflow-hidden rounded-xl border border-zinc-100">
+          <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-100 bg-white/70">
             <table className="min-w-full divide-y divide-zinc-100">
-              <thead className="bg-zinc-50">
+              <thead className="bg-brand/5">
                 <tr className="text-left text-xs uppercase tracking-[0.14em] text-zinc-500">
                   <th className="px-4 py-3">Matiere</th>
                   <th className="px-4 py-3">Unite</th>
@@ -274,9 +274,9 @@ export function InventoryWorkspace() {
                   <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 bg-white">
+              <tbody className="divide-y divide-zinc-100 bg-white/80">
                 {visibleItems.map((item) => (
-                  <tr key={item.id} className="text-sm text-zinc-700">
+                  <tr key={item.id} className="text-sm text-zinc-700 transition hover:bg-orange-50/45">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-zinc-950">{item.name}</div>
                       <div className="mt-0.5 text-xs text-zinc-500">{item.category}</div>
@@ -294,19 +294,19 @@ export function InventoryWorkspace() {
                       <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => openMaterialModal(item)}
-                          className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700"
+                          className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-700"
                         >
                           Modifier
                         </button>
                         <button
                           onClick={() => openEntryModal(item)}
-                          className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+                          className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700"
                         >
                           Entree
                         </button>
                         <button
                           onClick={() => openLossModal(item)}
-                          className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700"
+                          className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700"
                         >
                           Perte
                         </button>
@@ -321,7 +321,7 @@ export function InventoryWorkspace() {
                               if (confirmed) void removeInventoryItem(item.id);
                             });
                           }}
-                          className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600"
+                          className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600"
                         >
                           Supprimer
                         </button>
@@ -340,7 +340,7 @@ export function InventoryWorkspace() {
       )}
 
       {view === 'movements' && (
-        <section className="rounded-2xl bg-white/90 p-4 shadow-soft">
+        <section className="premium-panel rounded-[1.6rem] p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Audit stock</div>
@@ -349,7 +349,7 @@ export function InventoryWorkspace() {
                 Chaque entree, vente et perte reste tracee. Le stock affiche est derive de cette liste.
               </p>
             </div>
-            <button onClick={() => openEntryModal()} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white">
+            <button onClick={() => openEntryModal()} className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white shadow-soft">
               Entree stock
             </button>
           </div>
@@ -359,7 +359,7 @@ export function InventoryWorkspace() {
               <MovementRow key={movement.id} movement={movement} />
             ))}
             {stockMovements.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center text-sm text-zinc-500">
+              <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500">
                 Aucun mouvement stock trouve.
               </div>
             ) : null}
@@ -368,13 +368,13 @@ export function InventoryWorkspace() {
       )}
 
       {view === 'categories' && (
-        <section className="rounded-2xl bg-white/90 p-4 shadow-soft">
+        <section className="premium-panel rounded-[1.6rem] p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Categories stock</div>
               <h2 className="mt-1 text-xl font-bold text-zinc-950">Organisation des matieres</h2>
             </div>
-            <button onClick={openCategoryModal} className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">
+            <button onClick={openCategoryModal} className="rounded-2xl bg-ink px-4 py-2.5 text-sm font-black text-white shadow-soft">
               Ajouter categorie
             </button>
           </div>
@@ -409,7 +409,7 @@ export function InventoryWorkspace() {
                 value={materialForm.name}
                 onChange={(event) => setMaterialForm((current) => ({ ...current, name: event.target.value }))}
                 placeholder="Ex: Tomate, viande hachee, fromage tranche"
-                className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
               />
             </label>
 
@@ -418,7 +418,7 @@ export function InventoryWorkspace() {
               <select
                 value={materialForm.category}
                 onChange={(event) => setMaterialForm((current) => ({ ...current, category: event.target.value }))}
-                className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
               >
                 <option value="">Choisir une categorie</option>
                 {derivedCategories.map((category) => (
@@ -436,7 +436,7 @@ export function InventoryWorkspace() {
                   <button
                     key={unit.value}
                     onClick={() => setMaterialForm((current) => ({ ...current, unit: unit.value }))}
-                    className={`rounded-xl border px-3 py-3 text-left transition ${
+                    className={`rounded-2xl border px-3 py-3 text-left transition ${
                       materialForm.unit === unit.value
                         ? 'border-zinc-950 bg-zinc-950 text-white'
                         : 'border-zinc-200 bg-zinc-50 text-zinc-700'
@@ -468,7 +468,7 @@ export function InventoryWorkspace() {
                         setMaterialForm((current) => ({ ...current, initialQuantity: Number(event.target.value) }))
                       }
                       placeholder={selectedUnit.placeholder}
-                      className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
+                      className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
                     />
                   </label>
                   <label className="block">
@@ -481,11 +481,11 @@ export function InventoryWorkspace() {
                         setMaterialForm((current) => ({ ...current, initialTotalPrice: Number(event.target.value) }))
                       }
                       placeholder="Ex: 4500"
-                      className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
+                      className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
                     />
                   </label>
                 </div>
-                <div className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-zinc-600">
+                <div className="mt-3 rounded-2xl bg-white px-3 py-2 text-xs text-zinc-600">
                   Cout unitaire calcule:{' '}
                   <span className="font-semibold text-zinc-950">
                     {materialForm.initialQuantity > 0
@@ -499,7 +499,7 @@ export function InventoryWorkspace() {
             <button
               disabled={!materialForm.name.trim() || !materialForm.category}
               onClick={saveMaterial}
-              className="w-full rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+              className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
             >
               {editingId ? 'Mettre a jour' : 'Creer la matiere'}
             </button>
@@ -513,7 +513,7 @@ export function InventoryWorkspace() {
             <select
               value={entryForm.ingredientId}
               onChange={(event) => setEntryForm((current) => ({ ...current, ingredientId: Number(event.target.value) }))}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+              className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
             >
               <option value={0}>Choisir une matiere premiere</option>
               {inventoryItems.map((item) => (
@@ -538,7 +538,7 @@ export function InventoryWorkspace() {
                   value={entryForm.quantity}
                   onChange={(event) => setEntryForm((current) => ({ ...current, quantity: Number(event.target.value) }))}
                   placeholder="Ex: 20"
-                  className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                  className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
                 />
               </label>
               <label className="block">
@@ -549,7 +549,7 @@ export function InventoryWorkspace() {
                   value={entryForm.totalPrice}
                   onChange={(event) => setEntryForm((current) => ({ ...current, totalPrice: Number(event.target.value) }))}
                   placeholder="Ex: 4500"
-                  className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                  className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
                 />
               </label>
             </div>
@@ -562,7 +562,7 @@ export function InventoryWorkspace() {
                   onChange={(event) =>
                     setEntryForm((current) => ({ ...current, expenseStatus: event.target.value as ExpenseStatus }))
                   }
-                  className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                  className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
                 >
                   <option value="paid">Payee</option>
                   <option value="planned">A payer</option>
@@ -576,7 +576,7 @@ export function InventoryWorkspace() {
                   onChange={(event) =>
                     setEntryForm((current) => ({ ...current, paymentMethod: event.target.value as FinancePaymentMethod }))
                   }
-                  className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                  className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
                 >
                   <option value="cash">Especes</option>
                   <option value="card">Carte</option>
@@ -589,12 +589,12 @@ export function InventoryWorkspace() {
                   value={entryForm.supplierName ?? ''}
                   onChange={(event) => setEntryForm((current) => ({ ...current, supplierName: event.target.value }))}
                   placeholder="Ex: Grossiste centre"
-                  className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                  className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
                 />
               </label>
             </div>
 
-            <div className="rounded-xl bg-zinc-50 p-3 text-sm text-zinc-600">
+            <div className="rounded-2xl bg-zinc-50 p-3 text-sm text-zinc-600 ring-1 ring-zinc-100">
               <Summary label="Matiere" value={selectedEntryItem?.name ?? '-'} />
               <Summary label="Unite" value={selectedEntryItem ? displayUnit(selectedEntryItem.unit) : '-'} />
               <Summary
@@ -610,7 +610,7 @@ export function InventoryWorkspace() {
                 await addStockEntry(entryForm);
                 closeModal();
               }}
-              className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+              className="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
             >
               Valider l'entree stock
             </button>
@@ -621,14 +621,14 @@ export function InventoryWorkspace() {
       {modalMode === 'loss' && (
         <Modal title="Declarer une perte" onClose={closeModal}>
           <div className="space-y-3">
-            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
               Cette action cree un mouvement <span className="font-semibold">OUT / perte</span>. Le stock reste calcule uniquement depuis les mouvements.
             </div>
 
             <select
               value={lossForm.ingredientId}
               onChange={(event) => setLossForm((current) => ({ ...current, ingredientId: Number(event.target.value) }))}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+              className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
             >
               <option value={0}>Choisir une matiere premiere</option>
               {inventoryItems.map((item) => (
@@ -652,11 +652,11 @@ export function InventoryWorkspace() {
                 value={lossForm.quantity}
                 onChange={(event) => setLossForm((current) => ({ ...current, quantity: Number(event.target.value) }))}
                 placeholder="Ex: 2"
-                className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
               />
             </label>
 
-            <div className="rounded-xl bg-zinc-50 p-3 text-sm text-zinc-600">
+            <div className="rounded-2xl bg-zinc-50 p-3 text-sm text-zinc-600 ring-1 ring-zinc-100">
               <Summary label="Matiere" value={selectedLossItem?.name ?? '-'} />
               <Summary label="Stock actuel" value={selectedLossItem ? formatQuantity(selectedLossItem) : '-'} />
               <Summary
@@ -677,12 +677,12 @@ export function InventoryWorkspace() {
                 await addStockLoss(lossForm);
                 closeModal();
               }}
-              className="w-full rounded-xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+              className="w-full rounded-2xl bg-amber-600 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
             >
               Valider la perte
             </button>
             {selectedLossItem && lossForm.quantity > selectedLossItem.quantity ? (
-              <div className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">
+              <div className="rounded-2xl bg-red-50 px-3 py-2 text-xs font-black text-red-600">
                 La perte ne peut pas depasser le stock disponible.
               </div>
             ) : null}
@@ -699,7 +699,7 @@ export function InventoryWorkspace() {
                 value={categoryForm.name}
                 onChange={(event) => setCategoryForm((current) => ({ ...current, name: event.target.value }))}
                 placeholder="Ex: Legumes, Viandes, Boissons, Emballages"
-                className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
               />
             </label>
             <label className="block">
@@ -708,13 +708,13 @@ export function InventoryWorkspace() {
                 value={categoryForm.description}
                 onChange={(event) => setCategoryForm((current) => ({ ...current, description: event.target.value }))}
                 placeholder="Ex: Matieres utilisees dans les recettes chaudes"
-                className="mt-1 min-h-24 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                className="mt-1 min-h-24 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
               />
             </label>
             <button
               disabled={!categoryForm.name.trim()}
               onClick={saveCategory}
-              className="w-full rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+              className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
             >
               Creer la categorie
             </button>
@@ -727,8 +727,8 @@ export function InventoryWorkspace() {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/90 p-4 shadow-soft">
-      <div className="text-xs text-zinc-500">{label}</div>
+    <div className="premium-card rounded-2xl p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</div>
       <div className="mt-1 text-2xl font-black text-zinc-950">{value}</div>
     </div>
   );
@@ -746,7 +746,7 @@ function Summary({ label, value }: { label: string; value: string }) {
 function MovementRow({ movement }: { movement: StockMovement }) {
   const isIn = movement.type === 'IN';
   return (
-    <article className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+    <article className="premium-card rounded-2xl p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -780,7 +780,7 @@ function formatMovementReason(reason: StockMovement['reason']) {
 
 function CategoryCard({ category, onDelete }: { category: InventoryCategory; onDelete: () => void }) {
   return (
-    <article className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+    <article className="premium-card rounded-2xl p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-lg font-bold text-zinc-950">{category.name}</div>
@@ -820,10 +820,10 @@ function StatusBadge({ status }: { status: InventoryItem['status'] }) {
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-zinc-950/35 px-3 backdrop-blur-sm">
-      <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+      <div className="dialog-panel-motion premium-panel max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[1.7rem] bg-white p-5 shadow-2xl">
         <div className="mb-4 flex items-center justify-between gap-4">
           <h3 className="text-lg font-bold text-zinc-950">{title}</h3>
-          <button onClick={onClose} className="rounded-xl bg-zinc-100 px-3 py-2 text-sm font-semibold text-zinc-700">
+          <button onClick={onClose} className="rounded-2xl bg-zinc-100 px-3 py-2 text-sm font-black text-zinc-700">
             Fermer
           </button>
         </div>

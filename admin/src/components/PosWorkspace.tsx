@@ -31,6 +31,16 @@ export function PosWorkspace() {
     () => orders.filter((order) => ['pending', 'preparing', 'ready'].includes(order.status)).length,
     [orders]
   );
+  const readyToPayTotal = useMemo(
+    () => orders.filter((order) => order.status === 'ready').reduce((sum, order) => sum + order.totalPrice, 0),
+    [orders]
+  );
+  const urgentKitchenCount = useMemo(
+    () =>
+      orders.filter((order) => ['pending', 'preparing'].includes(order.status) && Date.now() - new Date(order.createdAt).getTime() >= 15 * 60000)
+        .length,
+    [orders]
+  );
   const tabCounters = useMemo(
     () => ({
       order: activeOrdersCount,
@@ -68,11 +78,14 @@ export function PosWorkspace() {
               <button
                 key={category}
                 onClick={() => setSelectedCategory(category)}
-                className={`w-full rounded-lg px-2.5 py-2 text-left text-xs font-bold transition ${
-                  selectedCategory === category ? 'bg-ink text-white' : 'bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
+                className={`w-full rounded-2xl px-3 py-2 text-left text-xs font-black transition ${
+                  selectedCategory === category ? 'bg-zinc-950 text-white shadow-lg shadow-zinc-950/10' : 'mesh-chip text-zinc-700 hover:bg-white'
                 }`}
               >
-                {category}
+                <span className="flex items-center justify-between gap-2">
+                  <span>{category}</span>
+                  {selectedCategory === category ? <span className="h-1.5 w-1.5 rounded-full bg-brand" /> : null}
+                </span>
               </button>
             ))}
           </div>
@@ -97,8 +110,8 @@ export function PosWorkspace() {
                 <button
                   key={state.id}
                   onClick={() => setKitchenStatus(state.id)}
-                  className={`w-full rounded-lg px-2.5 py-2 text-left text-xs font-bold transition ${
-                    kitchenStatus === state.id ? 'bg-ink text-white' : 'bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
+                  className={`w-full rounded-2xl px-3 py-2 text-left text-xs font-black transition ${
+                    kitchenStatus === state.id ? 'bg-zinc-950 text-white shadow-lg shadow-zinc-950/10' : 'mesh-chip text-zinc-700 hover:bg-white'
                   }`}
                 >
                   {state.label}
@@ -119,8 +132,8 @@ export function PosWorkspace() {
                 <button
                   key={type.id}
                   onClick={() => setKitchenType(type.id as 'all' | OrderType)}
-                  className={`rounded-lg px-2.5 py-2 text-left text-xs font-bold transition ${
-                    kitchenType === type.id ? 'bg-brand text-white' : 'bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
+                  className={`rounded-2xl px-3 py-2 text-left text-xs font-black transition ${
+                    kitchenType === type.id ? 'bg-brand text-white shadow-lg shadow-brand/15' : 'mesh-chip text-zinc-700 hover:bg-white'
                   }`}
                 >
                   {type.label}
@@ -148,8 +161,8 @@ export function PosWorkspace() {
                 <button
                   key={state.id}
                   onClick={() => setCashierStatus(state.id as 'all' | 'pending' | 'preparing' | 'ready' | 'paid')}
-                  className={`w-full rounded-lg px-2.5 py-2 text-left text-xs font-bold transition ${
-                    cashierStatus === state.id ? 'bg-ink text-white' : 'bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
+                  className={`w-full rounded-2xl px-3 py-2 text-left text-xs font-black transition ${
+                    cashierStatus === state.id ? 'bg-zinc-950 text-white shadow-lg shadow-zinc-950/10' : 'mesh-chip text-zinc-700 hover:bg-white'
                   }`}
                 >
                   {state.label}
@@ -170,8 +183,8 @@ export function PosWorkspace() {
                 <button
                   key={type.id}
                   onClick={() => setCashierType(type.id as 'all' | OrderType)}
-                  className={`w-full rounded-lg px-2.5 py-2 text-left text-xs font-bold transition ${
-                    cashierType === type.id ? 'bg-brand text-white' : 'bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
+                  className={`w-full rounded-2xl px-3 py-2 text-left text-xs font-black transition ${
+                    cashierType === type.id ? 'bg-brand text-white shadow-lg shadow-brand/15' : 'mesh-chip text-zinc-700 hover:bg-white'
                   }`}
                 >
                   {type.label}
@@ -196,8 +209,8 @@ export function PosWorkspace() {
             <button
               key={state.id}
               onClick={() => setDeliveryStatus(state.id as 'all' | DeliveryStatus)}
-              className={`w-full rounded-lg px-2.5 py-2 text-left text-xs font-bold transition ${
-                deliveryStatus === state.id ? 'bg-ink text-white' : 'bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
+              className={`w-full rounded-2xl px-3 py-2 text-left text-xs font-black transition ${
+                deliveryStatus === state.id ? 'bg-zinc-950 text-white shadow-lg shadow-zinc-950/10' : 'mesh-chip text-zinc-700 hover:bg-white'
               }`}
             >
               {state.label}
@@ -209,21 +222,31 @@ export function PosWorkspace() {
   }
 
   return (
-    <section className="grid gap-3 xl:grid-cols-[230px_minmax(0,1fr)]">
-      <aside className="rounded-2xl border border-white/60 bg-white/90 p-2.5 shadow-soft backdrop-blur xl:sticky xl:top-4 xl:self-start">
+    <section className="grid gap-3 xl:grid-cols-[255px_minmax(0,1fr)]">
+      <aside className="premium-panel rounded-[1.7rem] p-2.5 xl:sticky xl:top-4 xl:self-start">
         <button
           onClick={() => setCurrentModule('apps')}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-100 px-3 py-2 text-xs font-black text-zinc-700"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-zinc-950 px-3 py-2.5 text-xs font-black text-white shadow-sm"
         >
           ← Retour aux modules
         </button>
 
-        <div className="mt-2.5 rounded-xl bg-[linear-gradient(135deg,#dc2626,#f97316)] p-3 text-white">
+        <div className="mt-2.5 overflow-hidden rounded-[1.35rem] bg-[linear-gradient(135deg,#dc2626,#f97316)] p-3 text-white shadow-lg shadow-orange-900/10">
           <div className="flex items-center gap-3">
-            <div className="text-xl">🧾</div>
+            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/18 text-xl ring-1 ring-white/20">🧾</div>
             <div>
               <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/70">Module POS</div>
               <div className="mt-0.5 text-base font-black">Point de vente</div>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-black">
+            <div className="rounded-xl bg-white/14 px-2.5 py-2 ring-1 ring-white/15">
+              <div className="text-white/55">Actives</div>
+              <div className="mt-0.5">{activeOrdersCount}</div>
+            </div>
+            <div className="rounded-xl bg-white/14 px-2.5 py-2 ring-1 ring-white/15">
+              <div className="text-white/55">Urgentes</div>
+              <div className="mt-0.5">{urgentKitchenCount}</div>
             </div>
           </div>
         </div>
@@ -232,7 +255,7 @@ export function PosWorkspace() {
       </aside>
 
       <div className="space-y-3">
-        <section className="rounded-2xl border border-white/60 bg-white/90 p-2.5 shadow-soft backdrop-blur">
+        <section className="premium-panel rounded-[1.7rem] p-3">
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="text-[9px] font-black uppercase tracking-[0.2em] text-brand">Poste actif</div>
@@ -245,8 +268,8 @@ export function PosWorkspace() {
                 <button
                   key={tab.id}
                   onClick={() => setPosScreen(tab.id)}
-                  className={`min-w-fit rounded-xl px-3 py-2 text-left transition ${
-                    posScreen === tab.id ? 'bg-ink text-white' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                  className={`min-w-fit rounded-2xl px-3 py-2 text-left transition ${
+                    posScreen === tab.id ? 'bg-zinc-950 text-white shadow-lg shadow-zinc-950/10' : 'mesh-chip text-zinc-700 hover:bg-white'
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -261,6 +284,11 @@ export function PosWorkspace() {
                 </button>
               ))}
             </div>
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            <PosMetric label="Commandes actives" value={String(activeOrdersCount)} />
+            <PosMetric label="Cuisine urgente" value={String(urgentKitchenCount)} danger={urgentKitchenCount > 0} />
+            <PosMetric label="A encaisser" value={`${Math.round(readyToPayTotal).toLocaleString('fr-DZ')} DZD`} />
           </div>
         </section>
 
@@ -291,5 +319,14 @@ export function PosWorkspace() {
         )}
       </div>
     </section>
+  );
+}
+
+function PosMetric({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) {
+  return (
+    <div className={`rounded-2xl border px-3 py-2 ${danger ? 'border-red-100 bg-red-50 text-red-700' : 'border-zinc-100 bg-white/65 text-zinc-900'}`}>
+      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-400">{label}</div>
+      <div className="mt-1 text-sm font-black">{value}</div>
+    </div>
   );
 }

@@ -29,23 +29,39 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
       }),
     [orders, search, statusFilter, typeFilter]
   );
+  const cashierStats = useMemo(
+    () => ({
+      ready: activeOrders.filter((order) => order.status === 'ready').length,
+      waiting: activeOrders.filter((order) => order.status !== 'ready' && order.status !== 'paid').length,
+      paid: activeOrders.filter((order) => order.status === 'paid').length,
+      total: activeOrders.reduce((sum, order) => sum + Number(order.totalPrice), 0)
+    }),
+    [activeOrders]
+  );
 
   return (
     <section className="space-y-3">
-      <div className="rounded-2xl border border-white/60 bg-white/90 p-3 shadow-soft backdrop-blur">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+      <div className="premium-panel p-3">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <div className="text-[9px] font-black uppercase tracking-[0.22em] text-brand">Caisse</div>
-            <div className="text-sm font-black text-zinc-950">{activeOrders.length} commande(s)</div>
+            <div className="text-base font-black text-zinc-950">{activeOrders.length} commande(s)</div>
+            <p className="mt-0.5 text-[11px] font-bold text-zinc-500">Paiement rapide, uniquement quand la cuisine a valide.</p>
+          </div>
+          <div className="grid grid-cols-4 gap-1.5 rounded-2xl bg-zinc-50 p-1.5 ring-1 ring-zinc-100">
+            <CashierMetric label="Pretes" value={cashierStats.ready} tone="emerald" />
+            <CashierMetric label="Attente" value={cashierStats.waiting} tone="amber" />
+            <CashierMetric label="Payees" value={cashierStats.paid} tone="ink" />
+            <CashierMetric label="Total" value={formatMoney(cashierStats.total)} tone="brand" />
           </div>
           <div className="grid gap-2 sm:grid-cols-[230px_150px]">
             <input
               value={search}
               onChange={(event) => onSearchChange(event.target.value)}
               placeholder="#, table, client..."
-              className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm outline-none"
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10"
             />
-            <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-bold text-zinc-700">
+            <div className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs font-black text-zinc-700">
               {typeFilter === 'all' ? 'Tous les types' : formatOrderType(typeFilter)}
             </div>
           </div>
@@ -54,7 +70,7 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
 
       <div className="grid gap-3 xl:grid-cols-2">
         {activeOrders.map((order) => (
-          <article key={order.id} className="rounded-2xl border border-white/60 bg-white/90 p-3 shadow-soft">
+          <article key={order.id} className="premium-card p-3 transition hover:-translate-y-0.5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">
@@ -67,16 +83,16 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
               </div>
               <div className="text-right">
                 <div className="text-[10px] font-bold text-zinc-500">{order.tableNumber ? `Table ${order.tableNumber}` : order.customerName ?? 'Client'}</div>
-                <div className="mt-1 text-lg font-black text-zinc-950">{formatMoney(order.totalPrice)}</div>
+                <div className="mt-1 text-xl font-black text-zinc-950">{formatMoney(order.totalPrice)}</div>
               </div>
             </div>
 
-            <div className="mt-3 rounded-2xl bg-zinc-50 p-3">
+            <div className="mt-3 rounded-2xl bg-zinc-50 p-3 ring-1 ring-zinc-100">
               <div className="space-y-1.5">
                 {order.items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between text-xs font-semibold text-zinc-600">
+                  <div key={item.id} className="flex items-center justify-between gap-3 text-xs font-semibold text-zinc-600">
                     <span className="truncate">{item.productName}</span>
-                    <span className="font-black text-zinc-900">x{item.quantity}</span>
+                    <span className="shrink-0 font-black text-zinc-900">x{item.quantity}</span>
                   </div>
                 ))}
               </div>
@@ -94,13 +110,13 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button
                   onClick={() => payOrder(order.id, 'cash')}
-                  className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white"
+                  className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 active:translate-y-0"
                 >
                   Espece
                 </button>
                 <button
                   onClick={() => payOrder(order.id, 'card')}
-                  className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white"
+                  className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 active:translate-y-0"
                 >
                   Carte
                 </button>
@@ -109,11 +125,35 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
           </article>
         ))}
         {activeOrders.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-zinc-200 bg-white/80 p-8 text-sm text-zinc-500 xl:col-span-2">
+          <div className="premium-panel border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500 xl:col-span-2">
             Aucune commande a encaisser ne correspond aux filtres actifs.
           </div>
         )}
       </div>
     </section>
+  );
+}
+
+function CashierMetric({
+  label,
+  value,
+  tone
+}: {
+  label: string;
+  value: number | string;
+  tone: 'emerald' | 'amber' | 'ink' | 'brand';
+}) {
+  const toneClasses = {
+    emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+    amber: 'bg-amber-50 text-amber-700 ring-amber-100',
+    ink: 'bg-zinc-950 text-white ring-zinc-950',
+    brand: 'bg-brand/10 text-brand ring-brand/15'
+  }[tone];
+
+  return (
+    <div className={`rounded-xl px-2 py-1.5 text-center ring-1 ${toneClasses}`}>
+      <div className="truncate text-sm font-black leading-none">{value}</div>
+      <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.14em]">{label}</div>
+    </div>
   );
 }

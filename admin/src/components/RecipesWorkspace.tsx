@@ -154,7 +154,7 @@ export function RecipesWorkspace() {
       </section>
 
       {view === 'catalog' && (
-        <section className="rounded-2xl bg-white/90 p-4 shadow-soft">
+        <section className="premium-panel rounded-[1.6rem] p-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Catalogue</div>
@@ -165,12 +165,12 @@ export function RecipesWorkspace() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Rechercher une recette..."
-                className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm outline-none"
+                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold outline-none"
               />
               <select
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value === 'all' ? 'all' : Number(event.target.value))}
-                className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm outline-none"
+                className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold outline-none"
               >
                 <option value="all">Toutes categories</option>
                 {menuCategories.map((category) => (
@@ -181,7 +181,7 @@ export function RecipesWorkspace() {
               </select>
               <button
                 onClick={() => openRecipeModal()}
-                className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white"
+                className="rounded-2xl bg-ink px-4 py-2.5 text-sm font-black text-white shadow-soft"
               >
                 Nouvelle recette
               </button>
@@ -211,13 +211,13 @@ export function RecipesWorkspace() {
       )}
 
       {view === 'categories' && (
-        <section className="rounded-2xl bg-white/90 p-4 shadow-soft">
+        <section className="premium-panel rounded-[1.6rem] p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Categories menu</div>
               <h2 className="mt-1 text-xl font-bold text-zinc-950">Chaque categorie contient ses recettes</h2>
             </div>
-            <button onClick={() => setModalMode('category')} className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">
+            <button onClick={() => setModalMode('category')} className="rounded-2xl bg-ink px-4 py-2.5 text-sm font-black text-white shadow-soft">
               Ajouter categorie
             </button>
           </div>
@@ -244,12 +244,12 @@ export function RecipesWorkspace() {
       )}
 
       {view === 'margins' && (
-        <section className="rounded-2xl bg-white/90 p-4 shadow-soft">
+        <section className="premium-panel rounded-[1.6rem] p-4">
           <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Rentabilite</div>
           <h2 className="mt-1 text-xl font-bold text-zinc-950">Marges par recette</h2>
-          <div className="mt-4 overflow-hidden rounded-xl border border-zinc-100">
+          <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-100 bg-white/70">
             <table className="min-w-full divide-y divide-zinc-100">
-              <thead className="bg-zinc-50">
+              <thead className="bg-brand/5">
                 <tr className="text-left text-xs uppercase tracking-[0.14em] text-zinc-500">
                   <th className="px-4 py-3">Recette</th>
                   <th className="px-4 py-3">Categorie</th>
@@ -259,9 +259,9 @@ export function RecipesWorkspace() {
                   <th className="px-4 py-3">Marge</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100 bg-white">
+              <tbody className="divide-y divide-zinc-100 bg-white/80">
                 {sortedByMargin.map((item) => (
-                  <tr key={item.id} className="text-sm text-zinc-700">
+                  <tr key={item.id} className="text-sm text-zinc-700 transition hover:bg-orange-50/45">
                     <td className="px-4 py-3 font-semibold text-zinc-950">{item.name}</td>
                     <td className="px-4 py-3">{item.category}</td>
                     <td className="px-4 py-3">{formatMoney(item.estimatedCost)}</td>
@@ -284,7 +284,7 @@ export function RecipesWorkspace() {
         <Modal title={editingId ? 'Modifier la recette' : 'Nouvelle recette'} onClose={closeModal}>
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
             <div className="space-y-3">
-              <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4">
                 <div className="text-sm font-semibold text-zinc-950">Identite de la recette</div>
                 <div className="mt-3 grid gap-3">
                   <label className="block">
@@ -293,7 +293,7 @@ export function RecipesWorkspace() {
                       value={form.name}
                       onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
                       placeholder="Ex: Pizza viande, Burger maison, Jus citron"
-                      className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
+                      className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
                     />
                   </label>
 
@@ -302,7 +302,7 @@ export function RecipesWorkspace() {
                     <select
                       value={form.categoryId}
                       onChange={(event) => setForm((current) => ({ ...current, categoryId: Number(event.target.value) }))}
-                      className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
+                      className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
                     >
                       <option value={0}>Choisir une categorie</option>
                       {menuCategories.map((category) => (
@@ -315,7 +315,7 @@ export function RecipesWorkspace() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4">
                 <div className="text-sm font-semibold text-zinc-950">Valeurs commerciales</div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <label className="block">
@@ -326,7 +326,7 @@ export function RecipesWorkspace() {
                       value={form.estimatedCost}
                       onChange={(event) => setForm((current) => ({ ...current, estimatedCost: Number(event.target.value) }))}
                       placeholder="Ex: 420"
-                      className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
+                      className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
                     />
                   </label>
                   <label className="block">
@@ -337,7 +337,7 @@ export function RecipesWorkspace() {
                       value={form.sellingPrice}
                       onChange={(event) => setForm((current) => ({ ...current, sellingPrice: Number(event.target.value) }))}
                       placeholder="Ex: 1200"
-                      className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
+                      className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
                     />
                   </label>
                   <label className="block sm:col-span-2">
@@ -346,13 +346,13 @@ export function RecipesWorkspace() {
                       value={form.image}
                       onChange={(event) => setForm((current) => ({ ...current, image: event.target.value }))}
                       placeholder="Collez une URL image ou laissez vide"
-                      className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
+                      className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
                     />
                   </label>
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-zinc-900">Ingredients depuis le stock</div>
@@ -367,7 +367,7 @@ export function RecipesWorkspace() {
                         ingredients: [...current.ingredients, { inventoryItemId: 0, amountUsed: 0, unit: 'g' }]
                       }))
                     }
-                    className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white"
+                    className="rounded-2xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white shadow-soft"
                   >
                     Ajouter
                   </button>
@@ -379,7 +379,7 @@ export function RecipesWorkspace() {
                     return (
                       <div
                         key={`${ingredient.inventoryItemId}-${index}`}
-                        className="grid gap-2 rounded-2xl border border-zinc-200 bg-white p-3 md:grid-cols-[1.3fr_0.55fr_0.35fr_auto]"
+                        className="grid gap-2 rounded-2xl border border-zinc-200 bg-white/90 p-3 md:grid-cols-[1.3fr_0.55fr_0.35fr_auto]"
                       >
                         <select
                           value={ingredient.inventoryItemId}
@@ -401,7 +401,7 @@ export function RecipesWorkspace() {
                               )
                             }))
                           }
-                          className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none"
+                          className="rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none"
                         >
                           <option value={0}>Choisir une matiere premiere</option>
                           {inventoryItems.map((item) => (
@@ -429,9 +429,9 @@ export function RecipesWorkspace() {
                                 ? 'Ex: 80'
                                 : 'Ex: 1'
                           }
-                          className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none"
+                          className="rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none"
                         />
-                        <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-center text-sm font-semibold text-zinc-600">
+                        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-center text-sm font-black text-zinc-600">
                           {ingredient.unit}
                         </div>
                         <button
@@ -441,7 +441,7 @@ export function RecipesWorkspace() {
                               ingredients: current.ingredients.filter((_, entryIndex) => entryIndex !== index)
                             }))
                           }
-                          className="rounded-xl bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-600"
+                          className="rounded-2xl bg-red-50 px-3 py-2.5 text-xs font-black text-red-600"
                         >
                           Retirer
                         </button>
@@ -460,7 +460,7 @@ export function RecipesWorkspace() {
               <button
                 disabled={!form.name.trim() || !form.categoryId || form.sellingPrice < 0 || form.estimatedCost < 0}
                 onClick={saveRecipe}
-                className="w-full rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+                className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
                 {editingId ? 'Mettre a jour' : 'Enregistrer'}
               </button>
@@ -502,7 +502,7 @@ export function RecipesWorkspace() {
           <button
             disabled={!categoryForm.name.trim()}
             onClick={saveCategory}
-            className="mt-3 w-full rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:bg-zinc-300"
+            className="mt-3 w-full rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white disabled:bg-zinc-300"
           >
             Creer la categorie
           </button>
@@ -514,7 +514,7 @@ export function RecipesWorkspace() {
 
 function MenuCard({ item, onEdit, onDelete }: { item: MenuItem; onEdit: () => void; onDelete: () => void }) {
   return (
-    <article className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+    <article className="premium-card rounded-2xl p-4 transition hover:-translate-y-0.5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{item.category}</div>
@@ -533,10 +533,10 @@ function MenuCard({ item, onEdit, onDelete }: { item: MenuItem; onEdit: () => vo
       </div>
 
       <div className="mt-4 flex gap-2">
-        <button onClick={onEdit} className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700">
+        <button onClick={onEdit} className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-700">
           Modifier
         </button>
-        <button onClick={onDelete} className="rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600">
+        <button onClick={onDelete} className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">
           Supprimer
         </button>
       </div>
@@ -554,7 +554,7 @@ function CategoryCard({
   onDelete: () => void;
 }) {
   return (
-    <article className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+    <article className="premium-card rounded-2xl p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-lg font-bold text-zinc-950">{category.name}</div>
@@ -566,10 +566,10 @@ function CategoryCard({
       </div>
       <div className="mt-4 space-y-2">
         {recipes.length === 0 ? (
-          <div className="rounded-xl bg-white px-3 py-3 text-xs text-zinc-500">Aucune recette dans cette categorie.</div>
+          <div className="rounded-2xl bg-white px-3 py-3 text-xs text-zinc-500">Aucune recette dans cette categorie.</div>
         ) : (
           recipes.slice(0, 4).map((recipe) => (
-            <div key={recipe.id} className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm">
+            <div key={recipe.id} className="flex items-center justify-between rounded-2xl bg-white px-3 py-2 text-sm">
               <span className="font-semibold text-zinc-800">{recipe.name}</span>
               <span className="text-xs text-zinc-500">{formatMoney(recipe.sellingPrice)}</span>
             </div>
@@ -579,7 +579,7 @@ function CategoryCard({
       <button
         disabled={recipes.length > 0}
         onClick={onDelete}
-        className="mt-4 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+        className="mt-4 rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
       >
         Supprimer
       </button>
@@ -589,8 +589,8 @@ function CategoryCard({
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/90 p-4 shadow-soft">
-      <div className="text-xs text-zinc-500">{label}</div>
+    <div className="premium-card rounded-2xl p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</div>
       <div className="mt-1 text-2xl font-black text-zinc-950">{value}</div>
     </div>
   );
@@ -623,7 +623,7 @@ function FormField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+        className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
       />
     </label>
   );
@@ -647,7 +647,7 @@ function TextAreaField({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="mt-1 min-h-24 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+        className="mt-1 min-h-24 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
       />
     </label>
   );
@@ -656,10 +656,10 @@ function TextAreaField({
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-zinc-950/35 px-3 backdrop-blur-sm">
-      <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+      <div className="dialog-panel-motion premium-panel max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[1.7rem] bg-white p-5 shadow-2xl">
         <div className="mb-4 flex items-center justify-between gap-4">
           <h3 className="text-lg font-bold text-zinc-950">{title}</h3>
-          <button onClick={onClose} className="rounded-xl bg-zinc-100 px-3 py-2 text-sm font-semibold text-zinc-700">
+          <button onClick={onClose} className="rounded-2xl bg-zinc-100 px-3 py-2 text-sm font-black text-zinc-700">
             Fermer
           </button>
         </div>

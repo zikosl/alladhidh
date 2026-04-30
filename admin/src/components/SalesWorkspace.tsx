@@ -76,7 +76,7 @@ export function SalesWorkspace() {
         <Metric label="CA paye" value={formatMoney(totals.revenue)} />
       </section>
 
-      <section className="rounded-2xl bg-white/90 p-4 shadow-soft">
+      <section className="premium-panel rounded-[1.6rem] p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.25em] text-brand">Commandes</div>
@@ -88,12 +88,12 @@ export function SalesWorkspace() {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Rechercher #, table, client..."
-              className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none"
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
             />
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-              className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none"
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
             >
               {statusOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -104,7 +104,7 @@ export function SalesWorkspace() {
             <select
               value={typeFilter}
               onChange={(event) => setTypeFilter(event.target.value as TypeFilter)}
-              className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none"
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
             >
               {typeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -117,7 +117,7 @@ export function SalesWorkspace() {
 
         <div className="mt-4 grid gap-3">
           {filteredOrders.map((order) => (
-            <article key={order.id} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+            <article key={order.id} className="premium-card rounded-2xl p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
@@ -161,7 +161,7 @@ export function SalesWorkspace() {
                           if (confirmed) void cancelOrder(order.id);
                         });
                       }}
-                      className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600"
+                      className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-600"
                     >
                       Annuler
                     </button>
@@ -171,7 +171,7 @@ export function SalesWorkspace() {
                       printKitchenTicket(order, restaurantSettings);
                       toast({ title: 'Ticket cuisine pret', message: `Commande #${order.id}`, tone: 'success' });
                     }}
-                    className="rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-700"
+                    className="rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-black text-zinc-700"
                   >
                     Ticket cuisine
                   </button>
@@ -180,7 +180,7 @@ export function SalesWorkspace() {
                       printCustomerInvoice(order, restaurantSettings);
                       toast({ title: 'Facture prete', message: `Commande #${order.id}`, tone: 'success' });
                     }}
-                    className="rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-white"
+                    className="rounded-full bg-ink px-3 py-1.5 text-xs font-black text-white"
                   >
                     Facture
                   </button>
@@ -190,7 +190,7 @@ export function SalesWorkspace() {
           ))}
 
           {filteredOrders.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center text-sm text-zinc-500">
+            <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500">
               Aucune commande ne correspond aux filtres actifs.
             </div>
           ) : null}
@@ -202,8 +202,8 @@ export function SalesWorkspace() {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <article className="rounded-xl bg-white/90 p-4 shadow-soft">
-      <div className="text-xs text-zinc-500">{label}</div>
+    <article className="premium-card rounded-2xl p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</div>
       <div className="mt-1 text-xl font-black text-zinc-950">{value}</div>
     </article>
   );

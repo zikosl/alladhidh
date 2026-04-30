@@ -122,7 +122,7 @@ export function PayrollWorkspace() {
 
       {view === 'employees' ? (
         <section className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Employes</div>
             <h2 className="mt-1 text-xl font-bold text-zinc-950">Profil paie</h2>
             <div className="mt-4 space-y-3">
@@ -142,39 +142,39 @@ export function PayrollWorkspace() {
               <Toggle label="Employe actif pour la paie" checked={employeeProfileForm.isActive} onChange={(checked) => setEmployeeProfileForm((current) => ({ ...current, isActive: checked }))} />
               <label className="block">
                 <span className="text-xs font-semibold text-zinc-600">Notes paie</span>
-                <textarea value={employeeProfileForm.payrollNotes ?? ''} onChange={(event) => setEmployeeProfileForm((current) => ({ ...current, payrollNotes: event.target.value }))} placeholder="Ex: prime weekend, contrat saisonnier..." className="mt-1 min-h-20 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none" />
+                <textarea value={employeeProfileForm.payrollNotes ?? ''} onChange={(event) => setEmployeeProfileForm((current) => ({ ...current, payrollNotes: event.target.value }))} placeholder="Ex: prime weekend, contrat saisonnier..." className="mt-1 min-h-20 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none" />
               </label>
             </div>
             <div className="mt-4 flex gap-2">
               <button
                 disabled={!canSaveEmployee}
                 onClick={() => void upsertEmployeePayrollProfile(employeeProfileForm)}
-                className="rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+                className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
                 Sauver profil
               </button>
-              <button onClick={() => setEmployeeProfileForm(emptyEmployeeProfileForm)} className="rounded-xl bg-zinc-100 px-4 py-3 text-sm font-semibold text-zinc-700">Reinitialiser</button>
+              <button onClick={() => setEmployeeProfileForm(emptyEmployeeProfileForm)} className="rounded-2xl bg-zinc-100 px-4 py-3 text-sm font-black text-zinc-700">Reinitialiser</button>
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Equipe paie</div>
             <h2 className="mt-1 text-xl font-bold text-zinc-950">Profils employes</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {employeeProfiles.map((profile) => (
-                <article key={profile.id} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                <article key={profile.id} className="premium-card rounded-2xl p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-zinc-950">{profile.fullName}</div>
                       <div className="mt-1 text-xs text-zinc-500">{profile.position || profile.roleName} • {profile.employmentType}</div>
                     </div>
-                    <button onClick={() => editEmployeeProfile(profile.userId)} className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">Editer</button>
+                    <button onClick={() => editEmployeeProfile(profile.userId)} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-zinc-700">Editer</button>
                   </div>
                   <div className="mt-3 text-sm text-zinc-700">{formatMoney(profile.baseSalary)}</div>
                 </article>
               ))}
               {employeeProfiles.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center text-sm text-zinc-500 md:col-span-2">
+                <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500 md:col-span-2">
                   Aucun profil paie. Selectionnez un compte staff pour creer le premier profil.
                 </div>
               ) : null}
@@ -185,7 +185,7 @@ export function PayrollWorkspace() {
 
       {view === 'periods' ? (
         <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Periodes</div>
             <h2 className="mt-1 text-xl font-bold text-zinc-950">Creer une periode de paie</h2>
             <div className="mt-4 space-y-3">
@@ -201,7 +201,7 @@ export function PayrollWorkspace() {
                   void addPayrollPeriod(payrollPeriodForm);
                   setPayrollPeriodForm(emptyPayrollPeriodForm);
                 }}
-                className="rounded-xl bg-zinc-950 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+                className="rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
                 Generer la periode
               </button>
@@ -209,7 +209,7 @@ export function PayrollWorkspace() {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+            <div className="premium-panel rounded-[1.6rem] p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Suivi periodes</div>
@@ -236,7 +236,7 @@ export function PayrollWorkspace() {
             </div>
 
             {filteredPayrollPeriods.map((period) => (
-              <article key={period.id} className="rounded-3xl bg-white/90 p-4 shadow-soft">
+              <article key={period.id} className="premium-panel rounded-[1.7rem] p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -279,7 +279,7 @@ export function PayrollWorkspace() {
                     const canPayEntry = entry.remainingAmount > 0 && paymentDraft.amount > 0 && paymentDraft.amount <= entry.remainingAmount;
 
                     return (
-                      <div key={entry.id} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                      <div key={entry.id} className="rounded-2xl border border-zinc-100 bg-zinc-50/85 p-4">
                         <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                           <div>
                             <div className="text-sm font-semibold text-zinc-950">{entry.employeeName}</div>
@@ -303,7 +303,7 @@ export function PayrollWorkspace() {
                           <Field label="Note ligne" value={draft.notes ?? ''} onChange={(value) => setPayrollEntryDrafts((current) => ({ ...current, [entry.id]: { ...draft, notes: value } }))} placeholder="Optionnel" />
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <button onClick={() => void savePayrollEntry(entry.id, draft)} className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">Mettre a jour ligne</button>
+                          <button onClick={() => void savePayrollEntry(entry.id, draft)} className="rounded-2xl bg-ink px-4 py-2.5 text-sm font-black text-white shadow-soft">Mettre a jour ligne</button>
                         </div>
                         <div className="mt-4 rounded-2xl bg-white p-3">
                           <div className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Paiement</div>
@@ -314,11 +314,11 @@ export function PayrollWorkspace() {
                             <Field label="Note" value={paymentDraft.note ?? ''} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, note: value } }))} placeholder="Optionnel" />
                           </div>
                           {paymentDraft.amount > entry.remainingAmount ? (
-                            <div className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">
+                            <div className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-xs font-black text-red-600">
                               Le montant depasse le reste a payer.
                             </div>
                           ) : null}
-                          <div className="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
+                          <div className="mt-3 rounded-2xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">
                             Impact finance: le paiement sera visible automatiquement dans Finance / Salaires.
                           </div>
                           <button
@@ -331,7 +331,7 @@ export function PayrollWorkspace() {
                                 return next;
                               });
                             }}
-                            className="mt-3 rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+                            className="mt-3 rounded-2xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
                           >
                             Enregistrer paiement
                           </button>
@@ -343,7 +343,7 @@ export function PayrollWorkspace() {
               </article>
             ))}
             {filteredPayrollPeriods.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-zinc-200 bg-white/80 p-8 text-center text-sm text-zinc-500">
+              <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500">
                 Aucune periode ne correspond aux filtres.
               </div>
             ) : null}
@@ -353,7 +353,7 @@ export function PayrollWorkspace() {
 
       {view === 'advances' ? (
         <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Avances</div>
             <h2 className="mt-1 text-xl font-bold text-zinc-950">Enregistrer une avance</h2>
             <div className="mt-4 space-y-3">
@@ -373,7 +373,7 @@ export function PayrollWorkspace() {
                 <Field label="Date" type="date" value={advanceForm.date ?? ''} onChange={(value) => setAdvanceForm((current) => ({ ...current, date: value }))} placeholder="" />
               </div>
               <Field label="Note" value={advanceForm.note ?? ''} onChange={(value) => setAdvanceForm((current) => ({ ...current, note: value }))} placeholder="Optionnel" />
-              <div className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+              <div className="rounded-2xl bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
                 Impact finance: une depense automatique "Avances salaires" sera ajoutee.
               </div>
               <button
@@ -382,19 +382,19 @@ export function PayrollWorkspace() {
                   void addSalaryAdvance(advanceForm);
                   setAdvanceForm(emptyAdvanceForm);
                 }}
-                className="rounded-xl bg-zinc-950 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+                className="rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
                 Ajouter avance
               </button>
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Suivi</div>
             <h2 className="mt-1 text-xl font-bold text-zinc-950">Avances actives</h2>
             <div className="mt-4 space-y-3">
               {salaryAdvances.map((advance) => (
-                <article key={advance.id} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                <article key={advance.id} className="premium-card rounded-2xl p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-zinc-950">{advance.employeeName}</div>
@@ -408,7 +408,7 @@ export function PayrollWorkspace() {
                 </article>
               ))}
               {salaryAdvances.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center text-sm text-zinc-500">
+                <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500">
                   Aucune avance active.
                 </div>
               ) : null}
@@ -424,7 +424,7 @@ function Field({ label, value, onChange, placeholder, type = 'text' }: { label: 
   return (
     <label className="block">
       <span className="text-xs font-semibold text-zinc-600">{label}</span>
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none" />
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none" />
     </label>
   );
 }
@@ -433,7 +433,7 @@ function SelectField({ label, value, onChange, options }: { label: string; value
   return (
     <label className="block">
       <span className="text-xs font-semibold text-zinc-600">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none">
         {options.map(([optionValue, optionLabel]) => (
           <option key={optionValue} value={optionValue}>
             {optionLabel}
@@ -446,7 +446,7 @@ function SelectField({ label, value, onChange, options }: { label: string; value
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="flex items-center gap-3 rounded-xl bg-zinc-50 px-3 py-3 text-sm text-zinc-700">
+    <label className="flex items-center gap-3 rounded-2xl bg-zinc-50 px-3 py-3 text-sm text-zinc-700 ring-1 ring-zinc-100">
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
       <span>{label}</span>
     </label>
@@ -494,15 +494,15 @@ function PaymentBadge({ status }: { status: 'unpaid' | 'partial' | 'paid' }) {
 }
 
 function statusActionClass(active: boolean) {
-  return `rounded-full px-3 py-1.5 text-xs font-semibold ${
+  return `rounded-full px-3 py-1.5 text-xs font-black ${
     active ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-700'
   }`;
 }
 
 function MetricPanel({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <article className="rounded-2xl bg-white/90 p-4 shadow-soft">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">{label}</div>
+    <article className="premium-card rounded-2xl p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-brand">{label}</div>
       <div className="mt-3 text-2xl font-black text-zinc-950">{value}</div>
       <div className="mt-2 text-sm text-zinc-500">{hint}</div>
     </article>
@@ -512,7 +512,7 @@ function MetricPanel({ label, value, hint }: { label: string; value: string; hin
 function MetricMini({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">{label}</div>
+      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-2 text-sm font-bold text-zinc-950">{value}</div>
     </div>
   );

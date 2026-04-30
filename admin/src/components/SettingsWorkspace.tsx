@@ -196,7 +196,7 @@ export function SettingsWorkspace() {
     >
       {view === 'general' && (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <SectionTitle label="Restaurant" title="Informations principales" />
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label="Nom du restaurant" value={settingsForm.restaurantName} onChange={(value) => setSettingsForm((current) => ({ ...current, restaurantName: value }))} placeholder="Ex: اللذيذ" />
@@ -216,9 +216,9 @@ export function SettingsWorkspace() {
             ) : null}
           </div>
 
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <SectionTitle label="Apercu" title="Marque active" />
-            <div className="mt-5 rounded-2xl border border-zinc-100 bg-zinc-50 p-5 text-center">
+            <div className="mt-5 rounded-2xl border border-zinc-100 bg-zinc-50/80 p-5 text-center">
               <img src={resolveBrandLogoUrl(settingsForm.logoUrl)} alt={settingsForm.restaurantName} className="mx-auto h-20 w-20 object-contain" />
               <div className="mt-3 text-xl font-black text-zinc-950">{settingsForm.restaurantName}</div>
               <div className="mt-1 text-sm font-semibold text-brand">{settingsForm.currency}</div>
@@ -233,7 +233,7 @@ export function SettingsWorkspace() {
       {view === 'tickets' && (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-4">
-            <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+            <div className="premium-panel rounded-[1.6rem] p-4">
               <SectionTitle label="Branding" title="Facture client" />
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <Field label="Logo URL" value={settingsForm.logoUrl ?? ''} onChange={(value) => setSettingsForm((current) => ({ ...current, logoUrl: value || null }))} placeholder="Optionnel, sinon /logo.png" />
@@ -251,7 +251,7 @@ export function SettingsWorkspace() {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+            <div className="premium-panel rounded-[1.6rem] p-4">
               <SectionTitle label="Messages" title="Textes imprimes" />
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <TextArea label="Pied de facture" value={settingsForm.receiptFooter ?? ''} onChange={(value) => setSettingsForm((current) => ({ ...current, receiptFooter: value || null }))} placeholder="Merci pour votre visite." />
@@ -262,7 +262,7 @@ export function SettingsWorkspace() {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+            <div className="premium-panel rounded-[1.6rem] p-4">
               <SectionTitle label="Options" title="Ce qui apparait sur le ticket" />
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <Toggle label="Contacts sur facture" checked={settingsForm.showContactBlock} onChange={(checked) => setSettingsForm((current) => ({ ...current, showContactBlock: checked }))} />
@@ -277,7 +277,7 @@ export function SettingsWorkspace() {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+            <div className="premium-panel rounded-[1.6rem] p-4">
               <SectionTitle label="Apercu" title="Ticket minimal" />
               <div className="mt-3 grid gap-2">
                 <button
@@ -285,7 +285,7 @@ export function SettingsWorkspace() {
                     printCustomerInvoice(previewOrder, settingsForm);
                     toast({ title: 'Apercu facture lance', tone: 'success' });
                   }}
-                  className="rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white"
+                  className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-soft"
                 >
                   Tester facture
                 </button>
@@ -294,7 +294,7 @@ export function SettingsWorkspace() {
                     printKitchenTicket(previewOrder, settingsForm);
                     toast({ title: 'Apercu cuisine lance', tone: 'success' });
                   }}
-                  className="rounded-xl bg-zinc-100 px-4 py-3 text-sm font-semibold text-zinc-700"
+                  className="rounded-2xl bg-zinc-100 px-4 py-3 text-sm font-black text-zinc-700"
                 >
                   Tester cuisine
                 </button>
@@ -328,7 +328,7 @@ export function SettingsWorkspace() {
 
       {view === 'staff' && (
         <section className="grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <SectionTitle label="Equipe" title={editingStaffId ? 'Modifier un compte' : 'Nouveau compte'} />
             <div className="mt-4 space-y-3">
               <Field label="Nom complet" value={staffForm.fullName} onChange={(value) => setStaffForm((current) => ({ ...current, fullName: value }))} placeholder="Ex: Nadia Bensaid" />
@@ -354,20 +354,20 @@ export function SettingsWorkspace() {
               />
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
-              <button onClick={() => void upsertStaffUser(staffForm)} className="rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white">
+              <button onClick={() => void upsertStaffUser(staffForm)} className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-soft">
                 {editingStaffId ? 'Mettre a jour' : 'Creer le compte'}
               </button>
-              <button onClick={resetStaffForm} className="rounded-xl bg-zinc-100 px-4 py-3 text-sm font-semibold text-zinc-700">
+              <button onClick={resetStaffForm} className="rounded-2xl bg-zinc-100 px-4 py-3 text-sm font-black text-zinc-700">
                 Reinitialiser
               </button>
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <SectionTitle label="Comptes" title="Utilisateurs et acces" />
             <div className="mt-4 grid gap-3 lg:grid-cols-2">
               {staffUsers.map((user) => (
-                <article key={user.id} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                <article key={user.id} className="premium-card rounded-2xl p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-zinc-950">{user.fullName}</div>
@@ -383,10 +383,10 @@ export function SettingsWorkspace() {
                     Derniere connexion: {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('fr-DZ') : 'Jamais'}
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button onClick={() => editStaffUser(user.id)} className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
+                    <button onClick={() => editStaffUser(user.id)} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-zinc-700">
                       Modifier
                     </button>
-                    <button onClick={() => setPasswordReset({ userId: user.id, value: '' })} className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
+                    <button onClick={() => setPasswordReset({ userId: user.id, value: '' })} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-zinc-700">
                       Reinit. mdp
                     </button>
                   </div>
@@ -397,14 +397,14 @@ export function SettingsWorkspace() {
                         value={passwordReset.value}
                         onChange={(event) => setPasswordReset({ userId: user.id, value: event.target.value })}
                         placeholder="Nouveau mot de passe"
-                        className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none"
+                        className="flex-1 rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none"
                       />
                       <button
                         onClick={() => {
                           void resetStaffPasswordForUser(user.id, passwordReset.value);
                           setPasswordReset({ userId: null, value: '' });
                         }}
-                        className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white"
+                        className="rounded-2xl bg-ink px-4 py-2.5 text-sm font-black text-white shadow-soft"
                       >
                         Confirmer
                       </button>
@@ -419,7 +419,7 @@ export function SettingsWorkspace() {
 
       {view === 'roles' && (
         <section className="space-y-4">
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <SectionTitle label="Privileges" title="Roles et permissions" />
             <p className="mt-2 max-w-2xl text-sm text-zinc-500">
               Active seulement ce dont chaque equipe a besoin. Moins d'acces visibles signifie moins d'erreurs en service.
@@ -430,17 +430,17 @@ export function SettingsWorkspace() {
             {roles.map((role) => {
               const selectedCodes = new Set(role.permissions.map((permission) => permission.code));
               return (
-                <article key={role.id} className="rounded-2xl bg-white/90 p-4 shadow-soft">
+                <article key={role.id} className="premium-panel rounded-[1.6rem] p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-lg font-bold text-zinc-950">{role.name}</div>
                       <div className="mt-1 text-xs text-zinc-500">{role.usersCount} utilisateur(s)</div>
                     </div>
-                    {role.isSystem ? <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">Systeme</span> : null}
+                    {role.isSystem ? <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-600">Systeme</span> : null}
                   </div>
                   <div className="mt-4 grid gap-2">
                     {permissions.map((permission) => (
-                      <label key={permission.code} className="flex items-start gap-3 rounded-xl bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+                      <label key={permission.code} className="flex items-start gap-3 rounded-2xl bg-zinc-50 px-3 py-2 text-sm text-zinc-700 ring-1 ring-zinc-100">
                         <input
                           type="checkbox"
                           checked={selectedCodes.has(permission.code)}
@@ -467,7 +467,7 @@ export function SettingsWorkspace() {
 
       {view === 'tables' && (
         <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <SectionTitle label="Salle" title={editingTableId ? 'Modifier une table' : 'Nouvelle table'} />
             <div className="mt-4 space-y-3">
               <Field label="Nom / numero" value={tableForm.name} onChange={(value) => setTableForm((current) => ({ ...current, name: value }))} placeholder="Ex: A1, Terrasse 4" />
@@ -476,20 +476,20 @@ export function SettingsWorkspace() {
               <Toggle label="Table active" checked={tableForm.isActive} onChange={(checked) => setTableForm((current) => ({ ...current, isActive: checked }))} />
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
-              <button onClick={() => void upsertRestaurantTable(tableForm)} className="rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white">
+              <button onClick={() => void upsertRestaurantTable(tableForm)} className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-soft">
                 {editingTableId ? 'Mettre a jour' : 'Ajouter'}
               </button>
-              <button onClick={resetTableForm} className="rounded-xl bg-zinc-100 px-4 py-3 text-sm font-semibold text-zinc-700">
+              <button onClick={resetTableForm} className="rounded-2xl bg-zinc-100 px-4 py-3 text-sm font-black text-zinc-700">
                 Reinitialiser
               </button>
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
+          <div className="premium-panel rounded-[1.6rem] p-4">
             <SectionTitle label="Plan" title="Tables disponibles" />
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {restaurantTables.map((table) => (
-                <article key={table.id} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                <article key={table.id} className="premium-card rounded-2xl p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-lg font-bold text-zinc-950">{table.name}</div>
@@ -501,7 +501,7 @@ export function SettingsWorkspace() {
                   </div>
                   <div className="mt-4 text-sm text-zinc-700">{table.capacity} places</div>
                   <div className="mt-4 flex gap-2">
-                    <button onClick={() => editTable(table.id)} className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700">
+                    <button onClick={() => editTable(table.id)} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-zinc-700">
                       Modifier
                     </button>
                     <button
@@ -515,7 +515,7 @@ export function SettingsWorkspace() {
                           if (confirmed) void removeRestaurantTable(table.id);
                         });
                       }}
-                      className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600"
+                      className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-600"
                     >
                       Supprimer
                     </button>
@@ -560,7 +560,7 @@ function Field({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none transition focus:border-brand/50 focus:bg-white"
+        className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none transition focus:border-brand/50 focus:bg-white"
       />
     </label>
   );
@@ -586,7 +586,7 @@ function TextArea({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className={`mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none transition focus:border-brand/50 focus:bg-white ${compact ? 'min-h-20' : 'min-h-24'}`}
+        className={`mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none transition focus:border-brand/50 focus:bg-white ${compact ? 'min-h-20' : 'min-h-24'}`}
       />
     </label>
   );
@@ -606,7 +606,7 @@ function Select({
   return (
     <label className="block">
       <span className="text-xs font-semibold text-zinc-600">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none transition focus:border-brand/50 focus:bg-white">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none transition focus:border-brand/50 focus:bg-white">
         {options.map(([optionValue, optionLabel]) => (
           <option key={optionValue} value={optionValue}>
             {optionLabel}
@@ -627,7 +627,7 @@ function Toggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 rounded-xl bg-zinc-50 px-3 py-3 text-sm text-zinc-700">
+    <label className="flex items-center justify-between gap-3 rounded-2xl bg-zinc-50 px-3 py-3 text-sm text-zinc-700 ring-1 ring-zinc-100">
       <span>{label}</span>
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
     </label>
@@ -636,7 +636,7 @@ function Toggle({
 
 function PrimaryButton({ children, onClick }: { children: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="mt-4 rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white">
+    <button onClick={onClick} className="mt-4 rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-soft">
       {children}
     </button>
   );

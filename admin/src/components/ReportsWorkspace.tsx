@@ -111,7 +111,7 @@ export function ReportsWorkspace() {
       activeView={view}
       onChangeView={(id) => setView(id as ReportsView)}
     >
-      <section className="rounded-2xl bg-white/90 p-4 shadow-soft">
+      <section className="premium-panel rounded-[1.6rem] p-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.25em] text-brand">Filtres rapports</div>
@@ -121,7 +121,7 @@ export function ReportsWorkspace() {
             <select
               value={filters.period}
               onChange={(event) => setFilters((current) => ({ ...current, period: event.target.value as ReportFilters['period'] }))}
-              className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none"
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
             >
               <option value="today">Aujourd'hui</option>
               <option value="7d">7 jours</option>
@@ -133,16 +133,16 @@ export function ReportsWorkspace() {
               value={filters.dateFrom ?? ''}
               disabled={filters.period !== 'custom'}
               onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))}
-              className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none disabled:opacity-50"
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none disabled:opacity-50"
             />
             <input
               type="date"
               value={filters.dateTo ?? ''}
               disabled={filters.period !== 'custom'}
               onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.target.value }))}
-              className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none disabled:opacity-50"
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none disabled:opacity-50"
             />
-            <button onClick={exportCsv} className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">
+            <button onClick={exportCsv} className="rounded-2xl bg-ink px-4 py-2.5 text-sm font-black text-white shadow-soft">
               Export CSV
             </button>
           </div>
@@ -150,7 +150,7 @@ export function ReportsWorkspace() {
       </section>
 
       {!activeDashboard || !activeProfit || loading ? (
-        <div className="rounded-2xl bg-white/90 px-6 py-16 text-center text-sm font-semibold text-zinc-500 shadow-soft">
+        <div className="premium-panel rounded-[1.6rem] px-6 py-16 text-center text-sm font-semibold text-zinc-500">
           Chargement des rapports...
         </div>
       ) : null}
@@ -415,7 +415,7 @@ export function ReportsWorkspace() {
           <Panel title="Depenses par categorie" eyebrow="Controle des couts">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {activeDashboard.financials.expensesByCategory.map((item) => (
-                <div key={item.category} className="rounded-xl bg-zinc-50 px-4 py-3">
+                <div key={item.category} className="rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-100">
                   <div className="text-sm font-semibold text-zinc-900">{item.category}</div>
                   <div className="mt-2 text-lg font-bold text-zinc-950">{formatMoney(item.amount)}</div>
                 </div>
@@ -426,7 +426,7 @@ export function ReportsWorkspace() {
           <Panel title="Masse salariale par employe" eyebrow="Visibilite equipe">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {activeDashboard.financials.payrollByEmployee.map((item) => (
-                <div key={item.employeeId} className="rounded-xl bg-zinc-50 px-4 py-3">
+                <div key={item.employeeId} className="rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-100">
                   <div className="text-sm font-semibold text-zinc-900">{item.employeeName}</div>
                   <div className="mt-2 text-sm text-zinc-500">Total paie {formatMoney(item.payrollTotal)}</div>
                   <div className="mt-1 text-lg font-bold text-zinc-950">Paye {formatMoney(item.paidTotal)}</div>
@@ -486,7 +486,7 @@ export function ReportsWorkspace() {
           <Panel title="Consommation des matieres premieres" eyebrow="Sorties liees aux ventes">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               {activeDashboard.stockInsights.topConsumedIngredients.map((item) => (
-                <div key={item.ingredientId} className="rounded-xl bg-zinc-50 px-4 py-3">
+                <div key={item.ingredientId} className="rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-100">
                   <div className="text-sm font-semibold text-zinc-900">{item.name}</div>
                   <div className="mt-2 text-lg font-bold text-zinc-950">{item.quantity.toFixed(2)}</div>
                 </div>
@@ -501,8 +501,8 @@ export function ReportsWorkspace() {
 
 function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-white/90 p-4 shadow-soft">
-      <div className="text-xs text-zinc-500">{label}</div>
+    <div className="premium-card rounded-2xl p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</div>
       <div className="mt-1 text-2xl font-black text-zinc-950">{value}</div>
     </div>
   );
@@ -510,8 +510,8 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 
 function Panel({ eyebrow, title, children }: { eyebrow: string; title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl bg-white/90 p-4 shadow-soft">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.25em] text-brand">{eyebrow}</div>
+    <div className="premium-panel rounded-[1.6rem] p-4">
+      <div className="text-[10px] font-black uppercase tracking-[0.25em] text-brand">{eyebrow}</div>
       <div className="mt-1 text-lg font-semibold text-zinc-950">{title}</div>
       <div className="mt-4">{children}</div>
     </div>
@@ -528,7 +528,7 @@ function SummaryLine({
   hint?: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-xl bg-zinc-50 px-4 py-3">
+    <div className="flex items-center justify-between gap-4 rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-100">
       <div>
         <div className="text-sm font-semibold text-zinc-900">{label}</div>
         {hint ? <div className="mt-1 text-xs text-zinc-500">{hint}</div> : null}
@@ -540,7 +540,7 @@ function SummaryLine({
 
 function SummaryCard({ title, meta, value }: { title: string; meta: string; value: string }) {
   return (
-    <div className="rounded-xl bg-zinc-50 px-4 py-3">
+    <div className="rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-100">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-zinc-900">{title}</div>
@@ -569,8 +569,8 @@ function BarRow({
         <span>{label}</span>
         <span>{value}</span>
       </div>
-      <div className="h-3 rounded-full bg-zinc-100">
-        <div className="h-3 rounded-full bg-brand" style={{ width: `${Math.max(8, percent)}%` }} />
+      <div className="h-3 rounded-full bg-zinc-100 ring-1 ring-zinc-100">
+        <div className="h-3 rounded-full bg-gradient-to-r from-brand to-orange-400" style={{ width: `${Math.max(8, percent)}%` }} />
       </div>
       <div className="mt-1 text-[11px] text-zinc-500">{hint}</div>
     </div>
@@ -595,7 +595,7 @@ function InsightCard({
           ? 'bg-red-50 text-red-700'
           : 'bg-zinc-50 text-zinc-700';
   return (
-    <div className={`rounded-xl px-4 py-3 ${toneClass}`}>
+    <div className={`rounded-2xl px-4 py-3 ring-1 ring-black/5 ${toneClass}`}>
       <div className="text-xs uppercase tracking-[0.16em] opacity-80">{label}</div>
       <div className="mt-2 text-lg font-bold">{value}</div>
     </div>
@@ -603,7 +603,7 @@ function InsightCard({
 }
 
 function EmptyState({ text }: { text: string }) {
-  return <div className="rounded-xl bg-zinc-50 px-4 py-8 text-sm text-zinc-500">{text}</div>;
+  return <div className="rounded-2xl bg-zinc-50 px-4 py-8 text-sm font-semibold text-zinc-500 ring-1 ring-zinc-100">{text}</div>;
 }
 
 function safePercent(value: number) {

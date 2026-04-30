@@ -110,7 +110,7 @@ function AppContent() {
   }
 
   return (
-    <div className="compact-app min-h-screen px-3 py-3 text-ink md:px-4 md:py-4">
+    <div className="compact-app app-chrome min-h-screen px-3 py-3 text-ink md:px-4 md:py-4">
       <div className="mx-auto max-w-[1700px] space-y-3">
         {lastError && (
           <AlertBanner title="Attention" message={lastError} tone="error" />
