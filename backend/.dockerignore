@@ -1,5 +1,9 @@
 node_modules
-npm-debug.log
-# .env
 dist
-src-legacy
+npm-debug.log
+yarn-error.log
+.env
+.env.*
+.DS_Store
+coverage
+*.local
