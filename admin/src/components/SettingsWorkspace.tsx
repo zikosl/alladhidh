@@ -236,7 +236,7 @@ export function SettingsWorkspace() {
             <div className="premium-panel rounded-[1.6rem] p-4">
               <SectionTitle label="Branding" title="Facture client" />
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <Field label="Logo URL" value={settingsForm.logoUrl ?? ''} onChange={(value) => setSettingsForm((current) => ({ ...current, logoUrl: value || null }))} placeholder="Optionnel, sinon /logo.png" />
+                <Field label="Lien logo" value={settingsForm.logoUrl ?? ''} onChange={(value) => setSettingsForm((current) => ({ ...current, logoUrl: value || null }))} placeholder="Optionnel, sinon /logo.png" />
                 <Field label="Titre facture" value={settingsForm.receiptTitle} onChange={(value) => setSettingsForm((current) => ({ ...current, receiptTitle: value }))} placeholder="Facture client" />
                 <Field label="Sous-titre" value={settingsForm.receiptSubtitle ?? ''} onChange={(value) => setSettingsForm((current) => ({ ...current, receiptSubtitle: value || null }))} placeholder="Cuisine rapide & service moderne" />
                 <Field label="Adresse" value={settingsForm.receiptAddress ?? ''} onChange={(value) => setSettingsForm((current) => ({ ...current, receiptAddress: value || null }))} placeholder="Alger, Algerie" />

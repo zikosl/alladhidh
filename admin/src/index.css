@@ -442,3 +442,100 @@ textarea {
     transition-duration: 0.001ms !important;
   }
 }
+
+:root[data-theme='dark'] {
+  --surface: rgba(24, 20, 17, 0.78);
+  --surface-strong: rgba(18, 15, 13, 0.94);
+  --line: rgba(255, 255, 255, 0.1);
+  color: #f8f3e8;
+  background:
+    radial-gradient(circle at 10% 8%, rgba(233, 50, 24, 0.18), transparent 28%),
+    radial-gradient(circle at 88% 6%, rgba(247, 201, 40, 0.12), transparent 28%),
+    radial-gradient(circle at 82% 82%, rgba(22, 163, 74, 0.06), transparent 30%),
+    linear-gradient(140deg, #0f0d0b 0%, #17120f 48%, #211611 100%);
+}
+
+:root[data-theme='dark'] body {
+  color: #f8f3e8;
+}
+
+:root[data-theme='dark'] body::before {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+}
+
+:root[data-theme='dark'] body::after {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 1px rgba(247, 201, 40, 0.04);
+}
+
+:root[data-theme='dark'] .premium-panel {
+  border-color: rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(247, 201, 40, 0.035)),
+    rgba(18, 15, 13, 0.78);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme='dark'] .premium-card {
+  border-color: rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.075), rgba(247, 201, 40, 0.035)),
+    rgba(18, 15, 13, 0.72);
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+:root[data-theme='dark'] .mesh-chip {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+:root[data-theme='dark'] .compact-app :is(.text-zinc-950, .text-zinc-900, .text-zinc-800) {
+  color: #f8f3e8 !important;
+}
+
+:root[data-theme='dark'] .compact-app :is(.text-zinc-700, .text-zinc-600) {
+  color: rgba(248, 243, 232, 0.74) !important;
+}
+
+:root[data-theme='dark'] .compact-app :is(.text-zinc-500, .text-zinc-400) {
+  color: rgba(248, 243, 232, 0.5) !important;
+}
+
+:root[data-theme='dark'] .compact-app :is(.border-zinc-100, .border-zinc-200, .border-white\/60) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+:root[data-theme='dark'] .compact-app :is(.divide-zinc-100) > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+:root[data-theme='dark'] .compact-app :is(.ring-zinc-100, .ring-zinc-200) {
+  --tw-ring-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+:root[data-theme='dark'] .compact-app :is(.bg-white, .bg-zinc-50, .bg-zinc-100, .bg-white\/80, .bg-white\/85, .bg-white\/90, .bg-white\/95) {
+  background-color: rgba(255, 255, 255, 0.065) !important;
+}
+
+:root[data-theme='dark'] .compact-app :is(.bg-white\/70, .bg-white\/45) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+:root[data-theme='dark'] .compact-app :is(input, select, textarea) {
+  color: #f8f3e8;
+  background-color: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+:root[data-theme='dark'] .compact-app :is(input, select, textarea)::placeholder {
+  color: rgba(248, 243, 232, 0.38);
+}

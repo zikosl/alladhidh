@@ -10,14 +10,17 @@ import { RecipesWorkspace } from './components/RecipesWorkspace';
 import { ReportsWorkspace } from './components/ReportsWorkspace';
 import { SalesWorkspace } from './components/SalesWorkspace';
 import { SettingsWorkspace } from './components/SettingsWorkspace';
+import { ThemeProvider } from './components/ThemeProvider';
 import { usePosStore } from './store/usePosStore';
 import { useAuthStore } from './store/useAuthStore';
 
 export default function App() {
   return (
-    <FeedbackProvider>
-      <AppContent />
-    </FeedbackProvider>
+    <ThemeProvider>
+      <FeedbackProvider>
+        <AppContent />
+      </FeedbackProvider>
+    </ThemeProvider>
   );
 }
 

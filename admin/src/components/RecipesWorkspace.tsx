@@ -345,7 +345,7 @@ export function RecipesWorkspace() {
                     <input
                       value={form.image}
                       onChange={(event) => setForm((current) => ({ ...current, image: event.target.value }))}
-                      placeholder="Collez une URL image ou laissez vide"
+                      placeholder="Collez un lien image ou laissez vide"
                       className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
                     />
                   </label>

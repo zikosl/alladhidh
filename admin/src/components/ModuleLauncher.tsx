@@ -4,6 +4,7 @@ import { formatMoney } from '../lib/format';
 import { useAuthStore } from '../store/useAuthStore';
 import { usePosStore } from '../store/usePosStore';
 import { ModuleId } from '../types/pos';
+import { useTheme } from './ThemeProvider';
 
 const moduleCards: Array<{
   id: ModuleId;
@@ -84,6 +85,7 @@ const moduleCards: Array<{
 export function ModuleLauncher() {
   const { setCurrentModule, inventoryItems, menuItems, orders, dashboard } = usePosStore();
   const { user, logout, hasPermission } = useAuthStore();
+  const { theme, toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -92,6 +94,7 @@ export function ModuleLauncher() {
   const totalSales = dashboard?.cards.totalSalesToday ?? 0;
   const profit = dashboard?.cards.profitToday ?? 0;
   const stockValue = dashboard?.stockInsights.stockValue ?? 0;
+
   const visibleCards = useMemo(
     () =>
       moduleCards.filter((card) => {
@@ -118,6 +121,7 @@ export function ModuleLauncher() {
       }),
     [hasPermission]
   );
+
   const filteredCards = useMemo(() => {
     const needle = search.trim().toLowerCase();
     if (!needle) return visibleCards;
@@ -129,7 +133,7 @@ export function ModuleLauncher() {
   function moduleStat(moduleId: ModuleId) {
     switch (moduleId) {
       case 'inventory':
-        return lowStockCount > 0 ? `${lowStockCount} alertes` : 'OK';
+        return lowStockCount > 0 ? `${lowStockCount} alertes` : 'Stable';
       case 'pos':
         return activeOrders > 0 ? `${activeOrders} actives` : 'Ouvrir';
       case 'recipes':
@@ -137,32 +141,44 @@ export function ModuleLauncher() {
       case 'sales':
         return `${orders.length} tickets`;
       case 'reports':
-        return 'Live';
+        return 'Direct';
       case 'finance':
-        return 'Cash';
+        return 'Tresorerie';
       case 'payroll':
         return 'Equipe';
       case 'settings':
-        return 'Config';
+        return 'Reglages';
       default:
-        return 'OK';
+        return 'Stable';
     }
   }
 
+  const shellClass =
+    theme === 'dark'
+      ? 'border-white/10 bg-[#0f0d0b] text-white shadow-[0_28px_80px_rgba(16,11,8,0.28)]'
+      : 'border-zinc-200/80 bg-white/78 text-zinc-950 shadow-[0_28px_80px_rgba(52,27,13,0.12)]';
+  const panelClass =
+    theme === 'dark'
+      ? 'border-white/10 bg-white/[0.045] backdrop-blur-xl'
+      : 'border-white/80 bg-white/78 backdrop-blur-xl';
+  const mutedText = theme === 'dark' ? 'text-white/45' : 'text-zinc-500';
+
   return (
-    <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#0f0d0b] p-2.5 text-white shadow-[0_28px_80px_rgba(16,11,8,0.28)]">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_10%_0%,rgba(233,50,24,0.22),transparent_30%),radial-gradient(circle_at_90%_10%,rgba(247,201,40,0.16),transparent_28%)]" />
+    <section className={`relative overflow-hidden rounded-[2rem] border p-2.5 ${shellClass}`}>
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_10%_0%,rgba(233,50,24,0.18),transparent_30%),radial-gradient(circle_at_90%_10%,rgba(247,201,40,0.14),transparent_28%)]" />
       <div className={collapsed ? 'grid gap-2 lg:grid-cols-[82px_minmax(0,1fr)]' : 'grid gap-2 lg:grid-cols-[260px_minmax(0,1fr)]'}>
-        <aside className="rounded-[1.55rem] border border-white/10 bg-white/[0.045] p-2.5 backdrop-blur-xl lg:sticky lg:top-4 lg:self-start">
+        <aside className={`rounded-[1.55rem] border p-2.5 lg:sticky lg:top-4 lg:self-start ${panelClass}`}>
           <div className="flex items-center justify-between gap-2">
             <BrandLogo
               size={collapsed ? 42 : 50}
               showName={!collapsed}
-              className="[&_div_div:first-child]:text-white [&_div_div:last-child]:text-amber-200"
+              className={theme === 'dark' ? '[&_div_div:first-child]:text-white [&_div_div:last-child]:text-amber-200' : ''}
             />
             <button
               onClick={() => setCollapsed((current) => !current)}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-white/10 text-sm font-black text-white ring-1 ring-white/10"
+              className={`grid h-9 w-9 shrink-0 place-items-center rounded-2xl text-sm font-black ring-1 transition ${
+                theme === 'dark' ? 'bg-white/10 text-white ring-white/10' : 'bg-zinc-950 text-white ring-zinc-950'
+              }`}
               title={collapsed ? 'Elargir' : 'Reduire'}
             >
               {collapsed ? '→' : '←'}
@@ -174,8 +190,10 @@ export function ModuleLauncher() {
               <button
                 key={card.id}
                 onClick={() => setCurrentModule(card.id)}
-                className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition hover:scale-[1.015] hover:bg-white/10 ${
-                  card.priority ? 'bg-white/10 ring-1 ring-amber-300/20' : 'bg-transparent'
+                className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition hover:scale-[1.015] ${
+                  theme === 'dark'
+                    ? `hover:bg-white/10 ${card.priority ? 'bg-white/10 ring-1 ring-amber-300/20' : 'bg-transparent'}`
+                    : `hover:bg-zinc-950/5 ${card.priority ? 'bg-amber-50 ring-1 ring-amber-200' : 'bg-transparent'}`
                 }`}
               >
                 <span
@@ -186,26 +204,26 @@ export function ModuleLauncher() {
                 </span>
                 {!collapsed ? (
                   <span className="min-w-0">
-                    <span className="block truncate text-xs font-black text-white">{card.title}</span>
-                    <span className="block truncate text-[11px] font-semibold text-white/45">{card.hint}</span>
+                    <span className={`block truncate text-xs font-black ${theme === 'dark' ? 'text-white' : 'text-zinc-950'}`}>{card.title}</span>
+                    <span className={`block truncate text-[11px] font-semibold ${mutedText}`}>{card.hint}</span>
                   </span>
                 ) : null}
               </button>
             ))}
           </div>
 
-          <div className={`mt-4 rounded-2xl bg-white/5 p-3 ring-1 ring-white/10 ${collapsed ? 'hidden lg:block' : ''}`}>
+          <div className={`mt-4 rounded-2xl p-3 ring-1 ${theme === 'dark' ? 'bg-white/5 ring-white/10' : 'bg-white/70 ring-zinc-200/70'} ${collapsed ? 'hidden lg:block' : ''}`}>
             {!collapsed ? (
               <>
-                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/35">Profil</div>
-                <div className="mt-1 truncate text-xs font-black text-white">{user?.fullName}</div>
-                <div className="truncate text-[11px] font-semibold text-white/45">{user?.roleName}</div>
-                <button onClick={logout} className="mt-3 w-full rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-white ring-1 ring-white/10">
+                <div className={`text-[10px] font-black uppercase tracking-[0.2em] ${theme === 'dark' ? 'text-white/35' : 'text-zinc-400'}`}>Profil</div>
+                <div className={`mt-1 truncate text-xs font-black ${theme === 'dark' ? 'text-white' : 'text-zinc-950'}`}>{user?.fullName}</div>
+                <div className={`truncate text-[11px] font-semibold ${mutedText}`}>{user?.roleName}</div>
+                <button onClick={logout} className={`mt-3 w-full rounded-xl px-3 py-2 text-xs font-black ring-1 ${theme === 'dark' ? 'bg-white/10 text-white ring-white/10' : 'bg-zinc-950 text-white ring-zinc-950'}`}>
                   Deconnexion
                 </button>
               </>
             ) : (
-              <button onClick={logout} className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-xs font-black text-white ring-1 ring-white/10">
+              <button onClick={logout} className={`grid h-9 w-9 place-items-center rounded-xl text-xs font-black ring-1 ${theme === 'dark' ? 'bg-white/10 text-white ring-white/10' : 'bg-zinc-950 text-white ring-zinc-950'}`}>
                 ⏻
               </button>
             )}
@@ -219,12 +237,14 @@ export function ModuleLauncher() {
             alerts={lowStockCount + activeOrders}
             userName={user?.fullName ?? 'Admin'}
             roleName={user?.roleName ?? 'Admin'}
+            theme={theme}
+            onToggleTheme={toggleTheme}
           />
 
           <div className="grid gap-2.5 xl:grid-cols-[minmax(0,1.35fr)_380px]">
             <section className="brand-hero relative overflow-hidden rounded-[1.7rem] p-5 text-white">
               <div className="relative max-w-3xl">
-                <div className="text-[10px] font-black uppercase tracking-[0.32em] text-amber-200">Restaurant command center</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.32em] text-amber-200">Centre de commande restaurant</div>
                 <h1 className="mt-2 text-4xl font-black tracking-[-0.06em] text-white">Piloter le restaurant sans bruit</h1>
                 <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-white/68">
                   Trois actions rapides, modules clairs, decisions visibles. Pense pour le rush, pas pour les menus caches.
@@ -245,20 +265,20 @@ export function ModuleLauncher() {
             </section>
 
             <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-              <KpiCard label="CA periode" value={formatMoney(totalSales)} tone="green" hint="Ventes du jour" />
-              <KpiCard label="Benefice" value={formatMoney(profit)} tone={profit >= 0 ? 'green' : 'red'} hint="Profit estime" />
-              <KpiCard label="Valeur stock" value={formatMoney(stockValue)} tone="blue" hint="Stock valorise" />
-              <KpiCard label="Alertes" value={String(lowStockCount)} tone={lowStockCount > 0 ? 'red' : 'green'} hint="Ruptures & stock bas" />
+              <KpiCard label="CA periode" value={formatMoney(totalSales)} tone="green" hint="Ventes du jour" theme={theme} />
+              <KpiCard label="Benefice" value={formatMoney(profit)} tone={profit >= 0 ? 'green' : 'red'} hint="Profit estime" theme={theme} />
+              <KpiCard label="Valeur stock" value={formatMoney(stockValue)} tone="blue" hint="Stock valorise" theme={theme} />
+              <KpiCard label="Alertes" value={String(lowStockCount)} tone={lowStockCount > 0 ? 'red' : 'green'} hint="Ruptures & stock bas" theme={theme} />
             </section>
           </div>
 
-          <section className="rounded-[1.7rem] border border-white/10 bg-white/[0.045] p-3 backdrop-blur-xl">
+          <section className={`rounded-[1.7rem] border p-3 backdrop-blur-xl ${panelClass}`}>
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-200/70">Modules</div>
-                <div className="mt-0.5 text-lg font-black tracking-[-0.03em] text-white">Acces rapide</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-500">Modules</div>
+                <div className={`mt-0.5 text-lg font-black tracking-[-0.03em] ${theme === 'dark' ? 'text-white' : 'text-zinc-950'}`}>Acces rapide</div>
               </div>
-              <div className="rounded-full bg-white/5 px-3 py-1.5 text-xs font-black text-white/55 ring-1 ring-white/10">
+              <div className={`rounded-full px-3 py-1.5 text-xs font-black ring-1 ${theme === 'dark' ? 'bg-white/5 text-white/55 ring-white/10' : 'bg-white/70 text-zinc-500 ring-zinc-200/70'}`}>
                 {filteredCards.length} module(s)
               </div>
             </div>
@@ -269,11 +289,12 @@ export function ModuleLauncher() {
                   key={card.id}
                   card={card}
                   status={moduleStat(card.id)}
+                  theme={theme}
                   onOpen={() => setCurrentModule(card.id)}
                 />
               ))}
               {filteredCards.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-8 text-center text-sm font-semibold text-white/45 sm:col-span-2 2xl:col-span-4">
+                <div className={`rounded-3xl border border-dashed p-8 text-center text-sm font-semibold sm:col-span-2 2xl:col-span-4 ${theme === 'dark' ? 'border-white/15 bg-white/[0.03] text-white/45' : 'border-zinc-200 bg-white/70 text-zinc-500'}`}>
                   Aucun module ne correspond a la recherche.
                 </div>
               ) : null}
@@ -290,38 +311,51 @@ function TopBar({
   onSearchChange,
   alerts,
   userName,
-  roleName
+  roleName,
+  theme,
+  onToggleTheme
 }: {
   search: string;
   onSearchChange: (value: string) => void;
   alerts: number;
   userName: string;
   roleName: string;
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }) {
+  const isDark = theme === 'dark';
+
   return (
-    <header className="flex flex-col gap-2 rounded-[1.55rem] border border-white/10 bg-white/[0.045] p-2.5 backdrop-blur-xl md:flex-row md:items-center md:justify-between">
-      <label className="flex min-h-11 flex-1 items-center gap-2 rounded-2xl bg-black/25 px-3 ring-1 ring-white/10 focus-within:ring-amber-300/40">
-        <span className="text-white/35">⌕</span>
+    <header className={`flex flex-col gap-2 rounded-[1.55rem] border p-2.5 backdrop-blur-xl md:flex-row md:items-center md:justify-between ${isDark ? 'border-white/10 bg-white/[0.045]' : 'border-white/80 bg-white/78'}`}>
+      <label className={`flex min-h-11 flex-1 items-center gap-2 rounded-2xl px-3 ring-1 focus-within:ring-amber-300/50 ${isDark ? 'bg-black/25 ring-white/10' : 'bg-white ring-zinc-200'}`}>
+        <span className={isDark ? 'text-white/35' : 'text-zinc-400'}>⌕</span>
         <input
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Rechercher un module..."
-          className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-white/30"
+          className={`w-full bg-transparent text-sm font-semibold outline-none ${isDark ? 'text-white placeholder:text-white/30' : 'text-zinc-950 placeholder:text-zinc-400'}`}
         />
       </label>
 
       <div className="flex items-center gap-2">
-        <button className="relative grid h-11 w-11 place-items-center rounded-2xl bg-white/8 text-lg ring-1 ring-white/10 transition hover:scale-105 hover:bg-white/12">
+        <button
+          onClick={onToggleTheme}
+          className={`grid h-11 min-w-11 place-items-center rounded-2xl px-3 text-xs font-black ring-1 transition hover:scale-105 ${isDark ? 'bg-white/8 text-white ring-white/10 hover:bg-white/12' : 'bg-zinc-950 text-white ring-zinc-950 hover:bg-zinc-800'}`}
+          title={isDark ? 'Passer au mode clair' : 'Passer au mode sombre'}
+        >
+          {isDark ? 'Clair' : 'Sombre'}
+        </button>
+        <button className={`relative grid h-11 w-11 place-items-center rounded-2xl text-lg ring-1 transition hover:scale-105 ${isDark ? 'bg-white/8 ring-white/10 hover:bg-white/12' : 'bg-white text-zinc-950 ring-zinc-200 hover:bg-zinc-50'}`}>
           🔔
           {alerts > 0 ? <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-brand px-1 text-[10px] font-black text-white">{alerts}</span> : null}
         </button>
-        <div className="flex items-center gap-2 rounded-2xl bg-white/8 px-3 py-2 ring-1 ring-white/10">
+        <div className={`flex items-center gap-2 rounded-2xl px-3 py-2 ring-1 ${isDark ? 'bg-white/8 ring-white/10' : 'bg-white ring-zinc-200'}`}>
           <div className="grid h-8 w-8 place-items-center rounded-xl bg-amber-300 text-xs font-black text-zinc-950">
             {userName.slice(0, 1).toUpperCase()}
           </div>
           <div className="hidden sm:block">
-            <div className="max-w-[150px] truncate text-xs font-black text-white">{userName}</div>
-            <div className="max-w-[150px] truncate text-[11px] font-semibold text-white/45">{roleName}</div>
+            <div className={`max-w-[150px] truncate text-xs font-black ${isDark ? 'text-white' : 'text-zinc-950'}`}>{userName}</div>
+            <div className={`max-w-[150px] truncate text-[11px] font-semibold ${isDark ? 'text-white/45' : 'text-zinc-500'}`}>{roleName}</div>
           </div>
         </div>
       </div>
@@ -333,13 +367,16 @@ function KpiCard({
   label,
   value,
   hint,
-  tone
+  tone,
+  theme
 }: {
   label: string;
   value: string;
   hint: string;
   tone: 'green' | 'red' | 'blue';
+  theme: 'light' | 'dark';
 }) {
+  const isDark = theme === 'dark';
   const toneClasses = {
     green: 'bg-emerald-400 shadow-emerald-500/20',
     red: 'bg-red-500 shadow-red-500/20',
@@ -347,12 +384,12 @@ function KpiCard({
   }[tone];
 
   return (
-    <article className="rounded-[1.45rem] border border-white/10 bg-white/[0.07] p-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:bg-white/[0.09]">
+    <article className={`rounded-[1.45rem] border p-3.5 backdrop-blur-xl transition hover:-translate-y-0.5 ${isDark ? 'border-white/10 bg-white/[0.07] shadow-[0_16px_40px_rgba(0,0,0,0.18)] hover:bg-white/[0.09]' : 'border-white/80 bg-white/78 shadow-soft hover:bg-white'}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">{label}</div>
-          <div className="mt-1 text-xl font-black tracking-[-0.04em] text-white">{value}</div>
-          <div className="mt-1 text-[11px] font-semibold text-white/45">{hint}</div>
+          <div className={`text-[10px] font-black uppercase tracking-[0.22em] ${isDark ? 'text-white/35' : 'text-zinc-400'}`}>{label}</div>
+          <div className={`mt-1 text-xl font-black tracking-[-0.04em] ${isDark ? 'text-white' : 'text-zinc-950'}`}>{value}</div>
+          <div className={`mt-1 text-[11px] font-semibold ${isDark ? 'text-white/45' : 'text-zinc-500'}`}>{hint}</div>
         </div>
         <span className={`mt-1 h-2.5 w-2.5 rounded-full shadow-lg ${toneClasses}`} />
       </div>
@@ -363,18 +400,24 @@ function KpiCard({
 function ModuleCard({
   card,
   status,
+  theme,
   onOpen
 }: {
   card: (typeof moduleCards)[number];
   status: string;
+  theme: 'light' | 'dark';
   onOpen: () => void;
 }) {
+  const isDark = theme === 'dark';
+
   return (
     <button
       onClick={onOpen}
-      className={`group min-h-[168px] rounded-[1.45rem] border border-white/10 bg-white/[0.07] p-3.5 text-left shadow-[0_16px_40px_rgba(0,0,0,0.16)] backdrop-blur-xl transition hover:-translate-y-1 hover:scale-[1.01] hover:bg-white/[0.1] hover:shadow-[0_20px_52px_rgba(0,0,0,0.24)] ${
-        card.priority ? 'ring-1 ring-amber-300/25' : ''
-      }`}
+      className={`group min-h-[168px] rounded-[1.45rem] border p-3.5 text-left backdrop-blur-xl transition hover:-translate-y-1 hover:scale-[1.01] ${
+        isDark
+          ? 'border-white/10 bg-white/[0.07] shadow-[0_16px_40px_rgba(0,0,0,0.16)] hover:bg-white/[0.1] hover:shadow-[0_20px_52px_rgba(0,0,0,0.24)]'
+          : 'border-white/80 bg-white/78 shadow-soft hover:bg-white'
+      } ${card.priority ? 'ring-1 ring-amber-300/25' : ''}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div
@@ -383,20 +426,20 @@ function ModuleCard({
         >
           {card.icon}
         </div>
-        <span className="rounded-full bg-white/8 px-3 py-1 text-[11px] font-black text-white/65 ring-1 ring-white/10">
+        <span className={`rounded-full px-3 py-1 text-[11px] font-black ring-1 ${isDark ? 'bg-white/8 text-white/65 ring-white/10' : 'bg-zinc-50 text-zinc-600 ring-zinc-200'}`}>
           {status}
         </span>
       </div>
 
       <div className="mt-4">
-        <div className="text-base font-black tracking-[-0.03em] text-white">{card.title}</div>
-        <div className="mt-0.5 text-[11px] font-black uppercase tracking-[0.16em] text-amber-200/70">{card.hint}</div>
-        <p className="mt-2 line-clamp-2 text-xs font-medium leading-5 text-white/45">{card.description}</p>
+        <div className={`text-base font-black tracking-[-0.03em] ${isDark ? 'text-white' : 'text-zinc-950'}`}>{card.title}</div>
+        <div className="mt-0.5 text-[11px] font-black uppercase tracking-[0.16em] text-amber-500">{card.hint}</div>
+        <p className={`mt-2 line-clamp-2 text-xs font-medium leading-5 ${isDark ? 'text-white/45' : 'text-zinc-500'}`}>{card.description}</p>
       </div>
 
-      <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
-        <span className="text-xs font-bold text-white/35">Ouvrir</span>
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-white text-xs font-black text-zinc-950 transition group-hover:translate-x-0.5">→</span>
+      <div className={`mt-4 flex items-center justify-between border-t pt-3 ${isDark ? 'border-white/10' : 'border-zinc-100'}`}>
+        <span className={`text-xs font-bold ${isDark ? 'text-white/35' : 'text-zinc-400'}`}>Ouvrir</span>
+        <span className={`grid h-8 w-8 place-items-center rounded-full text-xs font-black transition group-hover:translate-x-0.5 ${isDark ? 'bg-white text-zinc-950' : 'bg-zinc-950 text-white'}`}>→</span>
       </div>
     </button>
   );

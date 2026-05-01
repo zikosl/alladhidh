@@ -15,7 +15,7 @@ export function BrandLogo({
       {showName ? (
         <div>
           <div className="text-2xl font-black leading-none text-zinc-950">{BRAND_NAME}</div>
-          <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-brand">Restaurant POS</div>
+          <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-brand">Caisse restaurant</div>
         </div>
       ) : null}
     </div>

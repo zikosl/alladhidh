@@ -235,7 +235,7 @@ export function PosWorkspace() {
           <div className="flex items-center gap-3">
             <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/18 text-xl ring-1 ring-white/20">🧾</div>
             <div>
-              <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/70">Module POS</div>
+              <div className="text-[9px] font-black uppercase tracking-[0.18em] text-white/70">Module caisse</div>
               <div className="mt-0.5 text-base font-black">Point de vente</div>
             </div>
           </div>

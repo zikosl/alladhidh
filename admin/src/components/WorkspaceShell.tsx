@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { useTheme } from './ThemeProvider';
 
 interface WorkspaceShellProps {
   title: string;
@@ -26,6 +27,7 @@ export function WorkspaceShell({
   children
 }: WorkspaceShellProps) {
   const activeItem = navigation.find((item) => item.id === activeView);
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <section className="grid gap-3 xl:grid-cols-[255px_minmax(0,1fr)]">
@@ -84,8 +86,8 @@ export function WorkspaceShell({
 
         <div className="mt-3 rounded-2xl border border-dashed border-zinc-200/80 bg-white/45 px-3 py-2.5">
           <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-zinc-500">
-            <span>Navigation URL</span>
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">active</span>
+            <span>Navigation liens</span>
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">Active</span>
           </div>
           <div className="mt-1 text-[11px] leading-4 text-zinc-500">
             Retour navigateur et liens directs restent synchronises.
@@ -103,6 +105,9 @@ export function WorkspaceShell({
             <div className="flex flex-wrap items-center gap-2">
               <span className="mesh-chip rounded-full px-3 py-1.5 text-xs font-bold text-zinc-600">{activeItem?.label ?? 'Vue active'}</span>
               <span className="mesh-chip rounded-full px-3 py-1.5 text-xs font-bold text-zinc-600">Mode production</span>
+              <button onClick={toggleTheme} className="mesh-chip rounded-full px-3 py-1.5 text-xs font-bold text-zinc-600">
+                {theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
+              </button>
             </div>
           </div>
         </div>

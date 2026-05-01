@@ -201,7 +201,7 @@ export function FinanceWorkspace() {
         <MetricPanel label="Paye" value={formatMoney(financeStats.paid)} hint="Regle dans la selection active" />
         <MetricPanel label="En attente" value={formatMoney(financeStats.pending)} hint={`${financeStats.pendingCount} depense(s) a suivre`} />
         <MetricPanel label="Ce mois" value={formatMoney(currentMonthExpenses)} hint="Total depenses du mois courant" />
-        <MetricPanel label="Cash net" value={formatMoney(financeDashboard?.financials.cashBenefitTotal ?? 0)} hint="Encaissements - sorties sur la periode" />
+        <MetricPanel label="Tresorerie nette" value={formatMoney(financeDashboard?.financials.cashBenefitTotal ?? 0)} hint="Encaissements - sorties sur la periode" />
         <MetricPanel label="Achats stock" value={formatMoney(financeDashboard?.financials.stockPurchaseTotal ?? 0)} hint="Entrees stock liees a la finance" />
       </div>
 
