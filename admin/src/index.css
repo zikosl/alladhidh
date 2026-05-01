@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Zain:wght@300;400;700;800;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -22,7 +21,7 @@
     radial-gradient(circle at 96% 58%, rgba(255, 106, 0, 0.22), transparent 30%),
     radial-gradient(circle at 28% 96%, rgba(81, 39, 17, 0.16), transparent 35%),
     linear-gradient(140deg, #fff4cf 0%, #ffe3b1 34%, #f9c98d 68%, #f1b277 100%);
-  font-family: "Zain", "Avenir Next", "SF Pro Display", "Segoe UI", sans-serif;
+  font-family: "Zain", sans-serif;
   font-synthesis-weight: none;
   text-rendering: optimizeLegibility;
 }
@@ -147,6 +146,7 @@ textarea {
 }
 
 @keyframes emberFloat {
+
   0%,
   100% {
     transform: translate3d(0, 0, 0) rotate(0deg);
