@@ -18,7 +18,7 @@ const moduleCards: Array<{
     title: 'Stock',
     hint: 'Matieres & alertes',
     description: 'Entrees, pertes, valeur stock et ruptures critiques.',
-    accent: 'linear-gradient(135deg, #512711, #f59e0b)'
+    accent: 'linear-gradient(135deg, #155e75, #16a34a)'
   },
   {
     id: 'pos',
@@ -26,7 +26,7 @@ const moduleCards: Array<{
     title: 'Point de vente',
     hint: 'Commande rapide',
     description: 'Caisse, cuisine, paiement et livraison en flux court.',
-    accent: 'linear-gradient(135deg, #ff3218, #ff7a18 58%, #ffd733)',
+    accent: 'linear-gradient(135deg, #d9481c, #fb923c)',
     priority: true
   },
   {
@@ -35,7 +35,7 @@ const moduleCards: Array<{
     title: 'Recettes',
     hint: 'Menu & marges',
     description: 'Produits vendables, couts recettes et prix de vente.',
-    accent: 'linear-gradient(135deg, #7c1d12, #ff4b1f 58%, #ffcc2c)'
+    accent: 'linear-gradient(135deg, #0f766e, #14b8a6)'
   },
   {
     id: 'sales',
@@ -43,7 +43,7 @@ const moduleCards: Array<{
     title: 'Commandes',
     hint: 'Tickets & factures',
     description: 'Historique, annulations, suivi client et impression.',
-    accent: 'linear-gradient(135deg, #35170b, #bd3b17 62%, #f59e0b)'
+    accent: 'linear-gradient(135deg, #7c3aed, #8b5cf6)'
   },
   {
     id: 'reports',
@@ -51,7 +51,7 @@ const moduleCards: Array<{
     title: 'Rapports',
     hint: 'Ventes & profit',
     description: 'CA, benefice cash, marges, pertes et decisions.',
-    accent: 'linear-gradient(135deg, #110b07, #3b1c0d 58%, #b45309)'
+    accent: 'linear-gradient(135deg, #111827, #334155)'
   },
   {
     id: 'finance',
@@ -59,7 +59,7 @@ const moduleCards: Array<{
     title: 'Finance',
     hint: 'Depenses',
     description: 'Journal cash, achats stock, salaires et charges.',
-    accent: 'linear-gradient(135deg, #78350f, #f59e0b 62%, #ffd733)'
+    accent: 'linear-gradient(135deg, #0f766e, #14b8a6)'
   },
   {
     id: 'payroll',
@@ -67,7 +67,7 @@ const moduleCards: Array<{
     title: 'Paie',
     hint: 'Personnel',
     description: 'Profils, avances, periodes et paiements staff.',
-    accent: 'linear-gradient(135deg, #1c1008, #a33116 58%, #ff7a18)'
+    accent: 'linear-gradient(135deg, #1d4ed8, #38bdf8)'
   },
   {
     id: 'settings',
@@ -75,7 +75,7 @@ const moduleCards: Array<{
     title: 'Parametres',
     hint: 'Acces & systeme',
     description: 'Roles, tables, ticket, branding et securite.',
-    accent: 'linear-gradient(135deg, #3b2415, #7c2d12 58%, #facc15)'
+    accent: 'linear-gradient(135deg, #64748b, #94a3b8)'
   }
 ];
 

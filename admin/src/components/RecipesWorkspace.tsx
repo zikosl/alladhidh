@@ -134,7 +134,7 @@ export function RecipesWorkspace() {
     <WorkspaceShell
       title="Recettes / Menu"
       subtitle="Creez des articles vendables a partir du stock avec cout estime, prix de vente et marge."
-      accent="linear-gradient(135deg, #7c1d12, #ff4b1f 58%, #ffcc2c)"
+      accent="linear-gradient(135deg, #0f766e, #14b8a6)"
       icon="🍔"
       sectionLabel="Module recettes"
       onBack={() => setCurrentModule('apps')}

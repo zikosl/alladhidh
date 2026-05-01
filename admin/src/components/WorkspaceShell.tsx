@@ -66,7 +66,7 @@ export function WorkspaceShell({
               key={item.id}
               onClick={() => onChangeView(item.id)}
               className={`group relative w-full overflow-hidden rounded-2xl px-3 py-2.5 text-left transition ${
-                activeView === item.id ? 'flame-button text-white' : 'mesh-chip text-zinc-700 hover:bg-white'
+                activeView === item.id ? 'bg-zinc-950 text-white shadow-lg shadow-zinc-950/10 ring-1 ring-amber-300/25' : 'mesh-chip text-zinc-700 hover:bg-white'
               }`}
             >
               <div className="flex items-center justify-between gap-2">

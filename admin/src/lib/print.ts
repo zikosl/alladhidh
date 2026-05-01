@@ -34,8 +34,9 @@ function contactLines(settings?: RestaurantSettings | null) {
 
 function baseStyles() {
   return `
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap');
     * { box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #fff; color: #111; }
+    body { font-family: "Poppins", sans-serif; margin: 0; background: #fff; color: #111; }
     .ticket { width: 80mm; padding: 12px 10px 18px; margin: 0 auto; }
     .logo-wrap { text-align: center; margin-bottom: 6px; }
     .logo { max-width: 112px; max-height: 58px; object-fit: contain; }

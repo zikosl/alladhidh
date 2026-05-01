@@ -197,7 +197,7 @@ export function InventoryWorkspace() {
     <WorkspaceShell
       title="Stock"
       subtitle="Matieres premieres, entrees et alertes."
-      accent="linear-gradient(135deg, #512711, #f59e0b)"
+      accent="linear-gradient(135deg, #155e75, #16a34a)"
       icon="📦"
       sectionLabel="Module stock"
       onBack={() => setCurrentModule('apps')}
