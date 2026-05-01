@@ -18,7 +18,7 @@ export function LoginScreen() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section className="rounded-[2rem] border border-white/60 bg-white/85 p-8 shadow-soft backdrop-blur">
+        <section className="premium-panel rounded-[2rem] p-8">
           <BrandLogo size={74} showName />
           <h1 className="mt-5 max-w-xl text-3xl font-black tracking-tight text-zinc-950 md:text-4xl">
             Connexion simple pour gerer {BRAND_NAME}
@@ -33,7 +33,7 @@ export function LoginScreen() {
               ['POS rapide', 'Caisse, cuisine, livraison et encaissement.'],
               ['Acces controle', 'Roles, privileges et comptes equipe.']
             ].map(([title, description]) => (
-              <div key={title} className="rounded-2xl bg-zinc-50 p-4">
+              <div key={title} className="premium-card rounded-2xl p-4">
                 <div className="text-sm font-semibold text-zinc-900">{title}</div>
                 <div className="mt-2 text-xs leading-6 text-zinc-500">{description}</div>
               </div>
@@ -41,7 +41,7 @@ export function LoginScreen() {
           </div>
         </section>
 
-        <form onSubmit={handleSubmit} className="rounded-[2rem] border border-white/60 bg-white/90 p-8 shadow-soft backdrop-blur">
+        <form onSubmit={handleSubmit} className="premium-panel rounded-[2rem] p-8">
           <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-brand">Connexion</div>
           <h2 className="mt-3 text-2xl font-bold text-zinc-950">Acces equipe</h2>
           <p className="mt-2 text-sm text-zinc-500">Utilisez votre identifiant ou votre email et votre mot de passe.</p>
@@ -53,7 +53,7 @@ export function LoginScreen() {
                 value={loginValue}
                 onChange={(event) => setLoginValue(event.target.value)}
                 placeholder="admin ou nom.utilisateur"
-                className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
               />
             </label>
 
@@ -64,7 +64,7 @@ export function LoginScreen() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="Votre mot de passe"
-                className="mt-1 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
+                className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
               />
             </label>
           </div>
@@ -74,7 +74,7 @@ export function LoginScreen() {
           <button
             type="submit"
             disabled={loading}
-            className="mt-6 w-full rounded-2xl bg-ink px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+            className="flame-button mt-6 w-full rounded-2xl px-5 py-3 text-sm font-black text-white disabled:opacity-60"
           >
             {loading ? 'Connexion...' : 'Se connecter'}
           </button>

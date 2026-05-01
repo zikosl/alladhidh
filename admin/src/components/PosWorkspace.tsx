@@ -231,7 +231,7 @@ export function PosWorkspace() {
           ← Retour aux modules
         </button>
 
-        <div className="mt-2.5 overflow-hidden rounded-[1.35rem] bg-[linear-gradient(135deg,#dc2626,#f97316)] p-3 text-white shadow-lg shadow-orange-900/10">
+        <div className="mt-2.5 overflow-hidden rounded-[1.35rem] bg-[radial-gradient(circle_at_15%_10%,rgba(255,215,51,0.35),transparent_28%),linear-gradient(135deg,#1c1008,#ff3218_56%,#ff8a18)] p-3 text-white shadow-lg shadow-orange-900/10">
           <div className="flex items-center gap-3">
             <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/18 text-xl ring-1 ring-white/20">🧾</div>
             <div>

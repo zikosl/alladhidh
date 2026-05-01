@@ -186,7 +186,7 @@ export function FinanceWorkspace() {
     <WorkspaceShell
       title="Finance"
       subtitle="Suivi des depenses, des categories de charge et des echeances de paiement."
-      accent="linear-gradient(135deg, #0f766e, #14b8a6)"
+      accent="linear-gradient(135deg, #78350f, #f59e0b 62%, #ffd733)"
       icon="💸"
       sectionLabel="Module finance"
       onBack={() => setCurrentModule('apps')}

@@ -97,7 +97,7 @@ export function ReportsWorkspace() {
     <WorkspaceShell
       title="Rapports & analyses"
       subtitle="Pilotage ventes, rentabilite, operations, pertes et stock pour mieux decider au quotidien."
-      accent="linear-gradient(135deg, #111827, #334155)"
+      accent="linear-gradient(135deg, #110b07, #3b1c0d 58%, #b45309)"
       icon="📊"
       sectionLabel="Module rapports"
       onBack={() => setCurrentModule('apps')}

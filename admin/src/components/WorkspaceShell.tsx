@@ -66,12 +66,12 @@ export function WorkspaceShell({
               key={item.id}
               onClick={() => onChangeView(item.id)}
               className={`group relative w-full overflow-hidden rounded-2xl px-3 py-2.5 text-left transition ${
-                activeView === item.id ? 'bg-zinc-950 text-white shadow-lg shadow-zinc-950/10' : 'mesh-chip text-zinc-700 hover:bg-white'
+                activeView === item.id ? 'flame-button text-white' : 'mesh-chip text-zinc-700 hover:bg-white'
               }`}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="text-xs font-black">{item.label}</div>
-                <div className={`h-1.5 w-1.5 rounded-full ${activeView === item.id ? 'bg-brand' : 'bg-zinc-300 group-hover:bg-zinc-500'}`} />
+                <div className={`h-1.5 w-1.5 rounded-full ${activeView === item.id ? 'bg-white' : 'bg-amber-300 group-hover:bg-brand'}`} />
               </div>
               {item.hint && (
                 <div className={`mt-0.5 line-clamp-1 text-[11px] ${activeView === item.id ? 'text-white/70' : 'text-zinc-500'}`}>
