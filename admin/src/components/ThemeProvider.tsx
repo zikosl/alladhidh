@@ -1,4 +1,5 @@
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -11,6 +12,8 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 const storageKey = 'alladhidh-theme';
 
 function getInitialTheme(): ThemeMode {
+  if (typeof window === 'undefined') return 'light';
+
   const stored = window.localStorage.getItem(storageKey);
   if (stored === 'light' || stored === 'dark') return stored;
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';

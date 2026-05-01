@@ -3,9 +3,11 @@ import { useAuthStore } from '../store/useAuthStore';
 import { BRAND_NAME } from '../lib/brand';
 import { AlertBanner } from './FeedbackProvider';
 import { BrandLogo } from './BrandLogo';
+import { useTheme } from './ThemeProvider';
 
 export function LoginScreen() {
   const { login, loading, error, clearError } = useAuthStore();
+  const { theme, toggleTheme } = useTheme();
   const [loginValue, setLoginValue] = useState('admin');
   const [password, setPassword] = useState('admin123');
 
@@ -18,10 +20,16 @@ export function LoginScreen() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8">
       <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="flex justify-end lg:col-span-2">
+          <button onClick={toggleTheme} className="mesh-chip rounded-full px-4 py-2 text-xs font-black text-zinc-600">
+            {theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
+          </button>
+        </div>
+
         <section className="premium-panel rounded-[2rem] p-8">
           <BrandLogo size={74} showName />
           <h1 className="mt-5 max-w-xl text-3xl font-black tracking-tight text-zinc-950 md:text-4xl">
-            Connexion simple pour gerer {BRAND_NAME}
+            Connexion simple pour gérer {BRAND_NAME}
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-600">
             Chaque membre voit seulement ses modules utiles: caisse, cuisine, stock, recettes, rapports ou administration.
@@ -31,7 +39,7 @@ export function LoginScreen() {
             {[
               ['Stock fiable', 'Mouvements, pertes, alertes et seuils.'],
               ['POS rapide', 'Caisse, cuisine, livraison et encaissement.'],
-              ['Acces controle', 'Roles, privileges et comptes equipe.']
+              ['Accès contrôlé', 'Rôles, privilèges et comptes équipe.']
             ].map(([title, description]) => (
               <div key={title} className="premium-card rounded-2xl p-4">
                 <div className="text-sm font-semibold text-zinc-900">{title}</div>
@@ -43,7 +51,7 @@ export function LoginScreen() {
 
         <form onSubmit={handleSubmit} className="premium-panel rounded-[2rem] p-8">
           <div className="text-[11px] font-semibold uppercase tracking-[0.26em] text-brand">Connexion</div>
-          <h2 className="mt-3 text-2xl font-bold text-zinc-950">Acces equipe</h2>
+          <h2 className="mt-3 text-2xl font-bold text-zinc-950">Accès équipe</h2>
           <p className="mt-2 text-sm text-zinc-500">Utilisez votre identifiant ou votre email et votre mot de passe.</p>
 
           <div className="mt-6 space-y-4">
@@ -69,7 +77,7 @@ export function LoginScreen() {
             </label>
           </div>
 
-          {error ? <div className="mt-4"><AlertBanner title="Connexion refusee" message={error} tone="error" onClose={clearError} /></div> : null}
+          {error ? <div className="mt-4"><AlertBanner title="Connexion refusée" message={error} tone="error" onClose={clearError} /></div> : null}
 
           <button
             type="submit"
@@ -80,7 +88,7 @@ export function LoginScreen() {
           </button>
 
           <div className="mt-4 rounded-2xl bg-zinc-50 px-4 py-3 text-xs text-zinc-500">
-            Compte par defaut en dev: <span className="font-semibold text-zinc-700">admin / admin123</span>
+            Compte par défaut en dev: <span className="font-semibold text-zinc-700">admin / admin123</span>
           </div>
         </form>
       </div>

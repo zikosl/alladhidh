@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
 import { usePosStore } from '../store/usePosStore';
 import { AlertBanner, useFeedback } from './FeedbackProvider';
+import { useTheme } from './ThemeProvider';
 
 const orderTypes = [
   { value: 'dine_in', label: 'Sur place', icon: '🍽️' },
@@ -11,6 +12,7 @@ const orderTypes = [
 
 export function OrderScreen() {
   const { toast } = useFeedback();
+  const { theme } = useTheme();
   const {
     products,
     restaurantTables,
@@ -37,6 +39,7 @@ export function OrderScreen() {
   } = usePosStore();
   const [customerPanelOpen, setCustomerPanelOpen] = useState(orderType !== 'dine_in');
   const [notesPanelOpen, setNotesPanelOpen] = useState(false);
+  const isDark = theme === 'dark';
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -195,13 +198,17 @@ export function OrderScreen() {
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {filteredProducts.map((product) => {
             const quantity = cartQuantityByProduct.get(product.id) ?? 0;
+            const productBackground = isDark
+              ? `linear-gradient(155deg, ${product.color}33 0%, rgba(18,15,13,0.94) 66%)`
+              : `linear-gradient(155deg, ${product.color}22 0%, rgba(255,255,255,0.95) 62%)`;
+
             return (
               <button
                 key={product.id}
                 onClick={() => addToCart(product)}
                 className="premium-card group min-h-[132px] rounded-[1.55rem] p-3.5 text-left transition hover:-translate-y-1"
                 style={{
-                  background: `linear-gradient(155deg, ${product.color}22 0%, rgba(255,255,255,0.95) 62%)`
+                  background: productBackground
                 }}
               >
                 <div className="relative z-10 flex items-start justify-between gap-2">

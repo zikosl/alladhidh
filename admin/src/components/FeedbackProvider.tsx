@@ -175,7 +175,7 @@ function ConfirmDialog({ dialog, onClose }: { dialog: PendingDialog; onClose: (c
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-zinc-950/45 px-4 backdrop-blur-sm">
-      <div className="dialog-panel-motion w-full max-w-md rounded-3xl bg-white p-4 shadow-2xl">
+      <div className="dialog-panel-motion premium-panel w-full max-w-md rounded-3xl p-4 shadow-2xl">
         <div className="flex items-start gap-3">
           <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-sm font-black ${styles.badge}`}>
             {styles.icon}

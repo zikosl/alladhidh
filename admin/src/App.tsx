@@ -94,8 +94,8 @@ function AppContent() {
     return (
       <>
         <div className="flex min-h-screen items-center justify-center px-4 py-8">
-          <div className="rounded-2xl bg-white/80 px-6 py-20 text-center text-sm font-semibold text-zinc-500 shadow-soft">
-            Initialisation securisee...
+          <div className="premium-panel rounded-2xl px-6 py-20 text-center text-sm font-semibold text-zinc-500">
+            Initialisation sécurisée...
           </div>
         </div>
         <BackendBusyOverlay visible={backendBusy || submitting} submitting={submitting} />
@@ -149,8 +149,8 @@ function BackendBusyOverlay({ visible, submitting }: { visible: boolean; submitt
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-white/35 px-4 backdrop-blur-[2px]">
-      <div className="rounded-2xl border border-zinc-100 bg-white px-5 py-4 text-center shadow-soft">
+    <div className="backend-busy-backdrop fixed inset-0 z-[90] flex items-center justify-center bg-white/35 px-4 backdrop-blur-[2px]">
+      <div className="premium-panel rounded-2xl px-5 py-4 text-center">
         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-zinc-200 border-t-brand" />
         <div className="mt-3 text-sm font-black text-zinc-950">
           {submitting ? 'Envoi en cuisine...' : 'Sauvegarde en cours...'}
