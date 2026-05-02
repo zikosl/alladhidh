@@ -7,10 +7,12 @@ export const initialInventoryItems: InventoryItem[] = [
     category: 'Proteines',
     measurementType: 'weight',
     unit: 'g',
+    usageType: 'recipe_only',
     quantity: 8200,
     estimatedCost: 0.16,
     minimumStock: 2000,
-    status: 'in_stock'
+    status: 'in_stock',
+    directSale: null
   },
   {
     id: 2,
@@ -18,10 +20,12 @@ export const initialInventoryItems: InventoryItem[] = [
     category: 'Boulangerie',
     measurementType: 'portion',
     unit: 'piece',
+    usageType: 'recipe_only',
     quantity: 54,
     estimatedCost: 18,
     minimumStock: 20,
-    status: 'in_stock'
+    status: 'in_stock',
+    directSale: null
   },
   {
     id: 3,
@@ -29,10 +33,12 @@ export const initialInventoryItems: InventoryItem[] = [
     category: 'Produits laitiers',
     measurementType: 'portion',
     unit: 'slice',
+    usageType: 'recipe_only',
     quantity: 16,
     estimatedCost: 22,
     minimumStock: 18,
-    status: 'low_stock'
+    status: 'low_stock',
+    directSale: null
   },
   {
     id: 4,
@@ -40,10 +46,12 @@ export const initialInventoryItems: InventoryItem[] = [
     category: 'Legumes',
     measurementType: 'weight',
     unit: 'g',
+    usageType: 'recipe_only',
     quantity: 1100,
     estimatedCost: 0.05,
     minimumStock: 800,
-    status: 'in_stock'
+    status: 'in_stock',
+    directSale: null
   },
   {
     id: 5,
@@ -51,10 +59,12 @@ export const initialInventoryItems: InventoryItem[] = [
     category: 'Sauces',
     measurementType: 'weight',
     unit: 'g',
+    usageType: 'recipe_only',
     quantity: 5400,
     estimatedCost: 0.03,
     minimumStock: 1200,
-    status: 'in_stock'
+    status: 'in_stock',
+    directSale: null
   },
   {
     id: 6,
@@ -62,10 +72,19 @@ export const initialInventoryItems: InventoryItem[] = [
     category: 'Boissons',
     measurementType: 'portion',
     unit: 'bottle',
+    usageType: 'direct_sale',
     quantity: 0,
     estimatedCost: 60,
     minimumStock: 12,
-    status: 'out_of_stock'
+    status: 'out_of_stock',
+    directSale: {
+      productId: 6,
+      sellingPrice: 120,
+      category: 'Boissons',
+      categoryId: null,
+      saleUnitQuantity: 1,
+      isActive: true
+    }
   }
 ];
 
@@ -85,7 +104,10 @@ export const initialMenuItems: MenuItem[] = [
     estimatedCost: 64,
     sellingPrice: 950,
     profit: 886,
-    margin: 93.26
+    margin: 93.26,
+    sourceType: 'recipe',
+    stockItemId: null,
+    saleUnitQuantity: 1
   },
   {
     id: 2,
@@ -100,6 +122,9 @@ export const initialMenuItems: MenuItem[] = [
     estimatedCost: 80,
     sellingPrice: 1400,
     profit: 1320,
-    margin: 94.29
+    margin: 94.29,
+    sourceType: 'recipe',
+    stockItemId: null,
+    saleUnitQuantity: 1
   }
 ];

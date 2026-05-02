@@ -25,6 +25,7 @@ type SaleWithItems = Prisma.SaleGetPayload<{
 
 type ProductWithRecipes = Prisma.ProductGetPayload<{
   include: {
+    stockItem: true;
     recipes: {
       include: {
         ingredient: true;
@@ -39,6 +40,7 @@ type SaleWithRecipes = Prisma.SaleGetPayload<{
       include: {
         product: {
           include: {
+            stockItem: true;
             recipes: {
               include: {
                 ingredient: true;
@@ -150,6 +152,7 @@ async function getOrderWithRecipesOrThrow(client: PrismaClient | Prisma.Transact
         include: {
           product: {
             include: {
+              stockItem: true,
               recipes: {
                 include: {
                   ingredient: true
@@ -170,16 +173,28 @@ async function getOrderWithRecipesOrThrow(client: PrismaClient | Prisma.Transact
 }
 
 async function restoreStockForCancelledOrder(client: Prisma.TransactionClient, order: SaleWithRecipes) {
-  const movements = order.saleItems.flatMap((item) =>
-    item.product.recipes.map((recipe) => ({
+  const movements = order.saleItems.flatMap((item) => {
+    if (item.product.sourceType === 'direct_stock') {
+      if (!item.product.stockItemId) return [];
+      return [
+        {
+          ingredientId: item.product.stockItemId,
+          type: StockMovementType.IN,
+          quantity: toNumber(item.product.saleUnitQuantity) * item.quantity,
+          reason: StockMovementReason.adjustment
+        }
+      ];
+    }
+
+    return item.product.recipes.map((recipe) => ({
       ingredientId: recipe.ingredientId,
       type: StockMovementType.IN,
       quantity:
         convertRecipeQuantityToStockUnit(toNumber(recipe.quantity), recipe.unit, recipe.ingredient.unit) *
         item.quantity,
       reason: StockMovementReason.adjustment
-    }))
-  );
+    }));
+  });
 
   if (movements.length > 0) {
     await client.stockMovement.createMany({ data: movements });
@@ -253,9 +268,11 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderSummary
         where: {
           id: {
             in: productIds
-          }
+          },
+          isActive: true
         },
         include: {
+          stockItem: true,
           recipes: {
             include: {
               ingredient: true
@@ -266,7 +283,12 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderSummary
 
       const productsById = new Map<number, ProductWithRecipes>(products.map((product) => [product.id, product]));
       const ingredientUsage = new Map<number, { requiredQuantity: number; ingredientName: string }>();
-      const normalizedItems: Array<{ productId: number; quantity: number; unitPrice: number; recipes: ProductWithRecipes['recipes'] }> = [];
+      const normalizedItems: Array<{
+        productId: number;
+        quantity: number;
+        unitPrice: number;
+        stockMovements: Array<{ ingredientId: number; quantity: number }>;
+      }> = [];
       let subtotal = 0;
 
       for (const item of input.items) {
@@ -278,29 +300,46 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderSummary
           throw new HttpError(404, `Product not found: ${productId}`);
         }
 
-        if (product.recipes.length === 0) {
-          throw new HttpError(400, `Product "${product.name}" does not have a recipe`);
-        }
-
         const unitPrice = toNumber(product.price);
         subtotal += unitPrice * quantity;
+        const stockMovements: Array<{ ingredientId: number; quantity: number }> = [];
+
+        if (product.sourceType === 'direct_stock') {
+          if (!product.stockItemId || !product.stockItem) {
+            throw new HttpError(400, `Product "${product.name}" is not linked to stock`);
+          }
+
+          const required = toNumber(product.saleUnitQuantity) * quantity;
+          const existing = ingredientUsage.get(product.stockItemId);
+          ingredientUsage.set(product.stockItemId, {
+            requiredQuantity: (existing?.requiredQuantity ?? 0) + required,
+            ingredientName: product.stockItem.name
+          });
+          stockMovements.push({ ingredientId: product.stockItemId, quantity: required });
+        } else {
+          if (product.recipes.length === 0) {
+            throw new HttpError(400, `Product "${product.name}" does not have a recipe`);
+          }
+
+          for (const recipe of product.recipes) {
+            const required =
+              convertRecipeQuantityToStockUnit(toNumber(recipe.quantity), recipe.unit, recipe.ingredient.unit) * quantity;
+            const existing = ingredientUsage.get(recipe.ingredientId);
+
+            ingredientUsage.set(recipe.ingredientId, {
+              requiredQuantity: (existing?.requiredQuantity ?? 0) + required,
+              ingredientName: recipe.ingredient.name
+            });
+            stockMovements.push({ ingredientId: recipe.ingredientId, quantity: required });
+          }
+        }
+
         normalizedItems.push({
           productId,
           quantity,
           unitPrice,
-          recipes: product.recipes
+          stockMovements
         });
-
-        for (const recipe of product.recipes) {
-          const required =
-            convertRecipeQuantityToStockUnit(toNumber(recipe.quantity), recipe.unit, recipe.ingredient.unit) * quantity;
-          const existing = ingredientUsage.get(recipe.ingredientId);
-
-          ingredientUsage.set(recipe.ingredientId, {
-            requiredQuantity: (existing?.requiredQuantity ?? 0) + required,
-            ingredientName: recipe.ingredient.name
-          });
-        }
       }
 
       const ingredientIds = [...ingredientUsage.keys()];
@@ -359,12 +398,10 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderSummary
 
       await client.stockMovement.createMany({
         data: normalizedItems.flatMap((item) =>
-          item.recipes.map((recipe) => ({
-            ingredientId: recipe.ingredientId,
+          item.stockMovements.map((movement) => ({
+            ingredientId: movement.ingredientId,
             type: StockMovementType.OUT,
-            quantity:
-              convertRecipeQuantityToStockUnit(toNumber(recipe.quantity), recipe.unit, recipe.ingredient.unit) *
-              item.quantity,
+            quantity: movement.quantity,
             reason: StockMovementReason.sale
           }))
         )

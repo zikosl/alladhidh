@@ -1,9 +1,9 @@
 import { ExpenseSourceType, ExpenseStatus, ExpenseType, FinancePaymentMethod, Prisma, StockMovementReason, StockMovementType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { systemExpenseCategories, upsertLinkedExpense } from './expenseSyncService';
-import { InventoryCategorySummary, InventoryItemSummary, MeasurementType, MeasurementUnit, StockMovementSummary } from '../types/pos';
+import { InventoryCategorySummary, InventoryItemSummary, InventoryUsageType, MeasurementType, MeasurementUnit, StockMovementSummary } from '../types/pos';
 import { HttpError } from '../utils/httpError';
-import { requireField, toNonNegativeNumber } from '../utils/validation';
+import { requireField, toNonNegativeNumber, toPositiveNumber } from '../utils/validation';
 
 interface InventoryRow {
   id: number;
@@ -13,7 +13,14 @@ interface InventoryRow {
   unit: MeasurementUnit;
   purchase_price: Prisma.Decimal | number | string;
   minimum_stock: Prisma.Decimal | number | string | null;
+  usage_type: InventoryUsageType | string;
   quantity: Prisma.Decimal | number | string;
+  direct_product_id: number | null;
+  direct_selling_price: Prisma.Decimal | number | string | null;
+  direct_sale_category: string | null;
+  direct_sale_category_id: number | null;
+  direct_sale_unit_quantity: Prisma.Decimal | number | string | null;
+  direct_sale_is_active: boolean | null;
 }
 
 interface InventoryPayload {
@@ -21,10 +28,18 @@ interface InventoryPayload {
   category?: string;
   measurementType?: MeasurementType;
   unit: MeasurementUnit;
+  usageType?: InventoryUsageType;
   estimatedCost?: number;
   initialQuantity?: number;
   initialTotalPrice?: number;
   minimumStock?: number | null;
+  directSale?: {
+    enabled?: boolean;
+    sellingPrice?: number;
+    category?: string;
+    categoryId?: number | null;
+    saleUnitQuantity?: number;
+  };
 }
 
 interface StockEntryPayload {
@@ -56,6 +71,13 @@ function toNumber(value: Prisma.Decimal | number | string | null | undefined): n
   return Number(value);
 }
 
+function normalizeUsageType(value: unknown): InventoryUsageType {
+  if (value === 'direct_sale' || value === 'both' || value === 'recipe_only') {
+    return value;
+  }
+  return 'recipe_only';
+}
+
 function mapInventoryRow(row: InventoryRow): InventoryItemSummary {
   const quantity = toNumber(row.quantity);
   const minimumStock = row.minimum_stock === null ? null : toNumber(row.minimum_stock);
@@ -69,10 +91,21 @@ function mapInventoryRow(row: InventoryRow): InventoryItemSummary {
     category: row.category,
     measurementType,
     unit: row.unit,
+    usageType: normalizeUsageType(row.usage_type),
     quantity,
     estimatedCost: toNumber(row.purchase_price),
     minimumStock,
-    status
+    status,
+    directSale: row.direct_product_id
+      ? {
+          productId: row.direct_product_id,
+          sellingPrice: toNumber(row.direct_selling_price),
+          category: row.direct_sale_category ?? row.category,
+          categoryId: row.direct_sale_category_id,
+          saleUnitQuantity: toNumber(row.direct_sale_unit_quantity) || 1,
+          isActive: Boolean(row.direct_sale_is_active)
+        }
+      : null
   };
 }
 
@@ -118,6 +151,96 @@ async function ensureCategory(name: string, client: PrismaClientLike = prisma) {
   return categoryName;
 }
 
+async function ensureMenuCategoryForDirectSale(payload: InventoryPayload, fallbackName: string, client: PrismaClientLike) {
+  if (payload.directSale?.categoryId) {
+    const category = await client.menuCategory.findUnique({ where: { id: Number(payload.directSale.categoryId) } });
+    if (!category) {
+      throw new HttpError(404, 'Menu category not found');
+    }
+    return category;
+  }
+
+  const name = normalizeText(payload.directSale?.category) || fallbackName || 'General';
+  return client.menuCategory.upsert({
+    where: { name },
+    update: {},
+    create: { name }
+  });
+}
+
+async function syncDirectSaleProduct(ingredientId: number, payload: InventoryPayload, client: PrismaClientLike) {
+  const ingredient = await client.ingredient.findUnique({ where: { id: ingredientId } });
+  if (!ingredient) {
+    throw new HttpError(404, 'Raw material not found');
+  }
+
+  const usageType = normalizeUsageType(payload.usageType);
+  const shouldSellDirectly =
+    (usageType === 'direct_sale' || usageType === 'both') &&
+    payload.directSale?.enabled !== false;
+
+  const existingDirectProduct = await client.product.findFirst({
+    where: {
+      stockItemId: ingredientId,
+      sourceType: 'direct_stock'
+    }
+  });
+
+  if (!shouldSellDirectly) {
+    if (existingDirectProduct) {
+      await client.product.update({
+        where: { id: existingDirectProduct.id },
+        data: { isActive: false }
+      });
+    }
+    return;
+  }
+
+  const sellingPrice = toPositiveNumber(payload.directSale?.sellingPrice ?? 0, 'directSale.sellingPrice');
+  const saleUnitQuantity = toPositiveNumber(payload.directSale?.saleUnitQuantity ?? 1, 'directSale.saleUnitQuantity');
+  const category = await ensureMenuCategoryForDirectSale(payload, ingredient.category, client);
+  const estimatedCost = Number(ingredient.purchasePrice) * saleUnitQuantity;
+  const productPayload = {
+    name: ingredient.name,
+    category: category.name,
+    categoryId: category.id,
+    price: sellingPrice,
+    estimatedCost,
+    sourceType: 'direct_stock',
+    stockItemId: ingredient.id,
+    saleUnitQuantity,
+    isActive: true,
+    color: '#0ea5e9',
+    icon: ingredient.unit === 'bottle' ? '💧' : '🧃',
+    imageUrl: null
+  };
+
+  if (existingDirectProduct) {
+    await client.product.update({
+      where: { id: existingDirectProduct.id },
+      data: productPayload
+    });
+    return;
+  }
+
+  const productWithSameName = await client.product.findUnique({ where: { name: ingredient.name } });
+  if (productWithSameName) {
+    if (productWithSameName.sourceType !== 'direct_stock' || productWithSameName.stockItemId) {
+      throw new HttpError(400, `Un article caisse nommé "${ingredient.name}" existe deja`);
+    }
+
+    await client.product.update({
+      where: { id: productWithSameName.id },
+      data: productPayload
+    });
+    return;
+  }
+
+  await client.product.create({
+    data: productPayload
+  });
+}
+
 async function getInventoryRow(id: number, client: PrismaClientLike = prisma) {
   const rows = await client.$queryRaw<InventoryRow[]>(Prisma.sql`
     SELECT
@@ -128,11 +251,19 @@ async function getInventoryRow(id: number, client: PrismaClientLike = prisma) {
       i.unit,
       i.purchase_price,
       i.minimum_stock,
-      COALESCE(SUM(CASE WHEN sm.type = 'IN' THEN sm.quantity ELSE -sm.quantity END), 0) AS quantity
+      i.usage_type,
+      COALESCE(SUM(CASE WHEN sm.type = 'IN' THEN sm.quantity ELSE -sm.quantity END), 0) AS quantity,
+      p.id AS direct_product_id,
+      p.price AS direct_selling_price,
+      p.category AS direct_sale_category,
+      p.category_id AS direct_sale_category_id,
+      p.sale_unit_quantity AS direct_sale_unit_quantity,
+      p.is_active AS direct_sale_is_active
     FROM ingredients i
     LEFT JOIN stock_movements sm ON sm.ingredient_id = i.id
+    LEFT JOIN products p ON p.stock_item_id = i.id AND p.source_type = 'direct_stock'
     WHERE i.id = ${id}
-    GROUP BY i.id
+    GROUP BY i.id, p.id
   `);
 
   return rows[0];
@@ -150,10 +281,18 @@ export async function listInventoryItems(): Promise<InventoryItemSummary[]> {
       i.unit,
       i.purchase_price,
       i.minimum_stock,
-      COALESCE(SUM(CASE WHEN sm.type = 'IN' THEN sm.quantity ELSE -sm.quantity END), 0) AS quantity
+      i.usage_type,
+      COALESCE(SUM(CASE WHEN sm.type = 'IN' THEN sm.quantity ELSE -sm.quantity END), 0) AS quantity,
+      p.id AS direct_product_id,
+      p.price AS direct_selling_price,
+      p.category AS direct_sale_category,
+      p.category_id AS direct_sale_category_id,
+      p.sale_unit_quantity AS direct_sale_unit_quantity,
+      p.is_active AS direct_sale_is_active
     FROM ingredients i
     LEFT JOIN stock_movements sm ON sm.ingredient_id = i.id
-    GROUP BY i.id
+    LEFT JOIN products p ON p.stock_item_id = i.id AND p.source_type = 'direct_stock'
+    GROUP BY i.id, p.id
     ORDER BY i.category, i.name
   `);
 
@@ -254,6 +393,7 @@ export async function createInventoryItem(payload: InventoryPayload): Promise<In
     }
     const unit = normalizeUnit(payload.unit as MeasurementUnit | 'litre');
     const measurementType = payload.measurementType ?? measurementTypeFromUnit(unit);
+    const usageType = normalizeUsageType(payload.usageType);
     const category = await ensureCategory(payload.category ?? 'General', client);
     const initialQuantity = toNonNegativeNumber(payload.initialQuantity ?? 0, 'initialQuantity');
     const initialTotalPrice = toNonNegativeNumber(payload.initialTotalPrice ?? 0, 'initialTotalPrice');
@@ -272,6 +412,7 @@ export async function createInventoryItem(payload: InventoryPayload): Promise<In
         category,
         measurementType,
         unit,
+        usageType,
         purchasePrice: estimatedCost,
         minimumStock
       },
@@ -317,6 +458,8 @@ export async function createInventoryItem(payload: InventoryPayload): Promise<In
       });
     }
 
+    await syncDirectSaleProduct(created.id, payload, client);
+
     const row = await getInventoryRow(created.id, client);
     if (!row) {
       throw new HttpError(500, 'Inventory item creation failed');
@@ -336,6 +479,7 @@ export async function updateInventoryItem(id: number, payload: InventoryPayload)
     }
     const unit = normalizeUnit(payload.unit as MeasurementUnit | 'litre');
     const measurementType = payload.measurementType ?? measurementTypeFromUnit(unit);
+    const usageType = normalizeUsageType(payload.usageType);
     const category = await ensureCategory(payload.category ?? 'General', client);
     const estimatedCost = toNonNegativeNumber(payload.estimatedCost ?? 0, 'estimatedCost');
     const minimumStock =
@@ -355,10 +499,13 @@ export async function updateInventoryItem(id: number, payload: InventoryPayload)
         category,
         measurementType,
         unit,
+        usageType,
         purchasePrice: estimatedCost,
         minimumStock
       }
     });
+
+    await syncDirectSaleProduct(id, payload, client);
 
     const updated = await getInventoryRow(id, client);
     if (!updated) {
@@ -428,6 +575,26 @@ export async function createStockEntry(payload: StockEntryPayload): Promise<Inve
         purchasePrice: unitCost
       }
     });
+
+    const directProducts = await client.product.findMany({
+      where: {
+        stockItemId: ingredientId,
+        sourceType: 'direct_stock'
+      },
+      select: {
+        id: true,
+        saleUnitQuantity: true
+      }
+    });
+
+    for (const product of directProducts) {
+      await client.product.update({
+        where: { id: product.id },
+        data: {
+          estimatedCost: unitCost * Number(product.saleUnitQuantity)
+        }
+      });
+    }
 
     const row = await getInventoryRow(ingredientId, client);
     if (!row) {
@@ -501,9 +668,25 @@ export async function deleteInventoryItem(id: number): Promise<void> {
       where: { ingredientId: id }
     });
 
-    if (recipesCount > 0) {
-      throw new HttpError(400, 'Cannot delete inventory item used by recipes');
+    const directProductsWithSalesCount = await client.product.count({
+      where: {
+        stockItemId: id,
+        saleItems: {
+          some: {}
+        }
+      }
+    });
+
+    if (recipesCount > 0 || directProductsWithSalesCount > 0) {
+      throw new HttpError(400, 'Cannot delete inventory item used by recipes or sales');
     }
+
+    await client.product.deleteMany({
+      where: {
+        stockItemId: id,
+        sourceType: 'direct_stock'
+      }
+    });
 
     const [movementsCount, purchasesCount] = await Promise.all([
       client.stockMovement.count({ where: { ingredientId: id } }),

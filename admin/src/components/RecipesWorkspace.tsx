@@ -49,6 +49,10 @@ export function RecipesWorkspace() {
   const [search, setSearch] = useState('');
 
   const selectedCategory = menuCategories.find((category) => category.id === form.categoryId);
+  const recipeInventoryItems = useMemo(
+    () => inventoryItems.filter((item) => item.usageType !== 'direct_sale'),
+    [inventoryItems]
+  );
 
   const computedMetrics = useMemo(() => {
     const estimatedCost = form.estimatedCost;
@@ -404,7 +408,7 @@ export function RecipesWorkspace() {
                           className="rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm outline-none"
                         >
                           <option value={0}>Choisir une matiere premiere</option>
-                          {inventoryItems.map((item) => (
+                          {recipeInventoryItems.map((item) => (
                             <option key={item.id} value={item.id}>
                               {item.name}
                             </option>
@@ -513,6 +517,8 @@ export function RecipesWorkspace() {
 }
 
 function MenuCard({ item, onEdit, onDelete }: { item: MenuItem; onEdit: () => void; onDelete: () => void }) {
+  const isDirectSale = item.sourceType === 'direct_stock';
+
   return (
     <article className="premium-card rounded-2xl p-4 transition hover:-translate-y-0.5">
       <div className="flex items-start justify-between gap-3">
@@ -520,8 +526,8 @@ function MenuCard({ item, onEdit, onDelete }: { item: MenuItem; onEdit: () => vo
           <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{item.category}</div>
           <div className="mt-1 text-lg font-bold text-zinc-950">{item.name}</div>
         </div>
-        <div className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-zinc-700">
-          {item.ingredients.length} ingredients
+        <div className={`rounded-full px-3 py-1 text-xs font-semibold ${isDirectSale ? 'bg-sky-100 text-sky-700' : 'bg-white text-zinc-700'}`}>
+          {isDirectSale ? 'Vente directe' : `${item.ingredients.length} ingredients`}
         </div>
       </div>
 
@@ -533,12 +539,20 @@ function MenuCard({ item, onEdit, onDelete }: { item: MenuItem; onEdit: () => vo
       </div>
 
       <div className="mt-4 flex gap-2">
-        <button onClick={onEdit} className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-700">
-          Modifier
-        </button>
-        <button onClick={onDelete} className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">
-          Supprimer
-        </button>
+        {isDirectSale ? (
+          <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-black text-sky-700">
+            Gere dans stock
+          </span>
+        ) : (
+          <>
+            <button onClick={onEdit} className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-700">
+              Modifier
+            </button>
+            <button onClick={onDelete} className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600">
+              Supprimer
+            </button>
+          </>
+        )}
       </div>
     </article>
   );

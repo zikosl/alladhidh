@@ -23,21 +23,21 @@ const ingredientSeed: Prisma.IngredientCreateManyInput[] = [
   { name: 'Blanc de poulet', category: 'Proteines', measurementType: 'weight', unit: 'g', purchasePrice: 0.09, minimumStock: 4000 },
   { name: 'Pates', category: 'Epicerie', measurementType: 'weight', unit: 'g', purchasePrice: 0.03, minimumStock: 4000 },
   { name: 'Sirop cola', category: 'Boissons', measurementType: 'volume', unit: 'ml', purchasePrice: 0.06, minimumStock: 2500 },
-  { name: 'Bouteille eau', category: 'Boissons', measurementType: 'portion', unit: 'bottle', purchasePrice: 22, minimumStock: 40 }
+  { name: 'Bouteille eau', category: 'Boissons', measurementType: 'portion', unit: 'bottle', usageType: 'direct_sale', purchasePrice: 22, minimumStock: 40 }
 ];
 
 const ingredientCategorySeed: Prisma.IngredientCategoryCreateManyInput[] = Array.from(
   new Set(['General', ...ingredientSeed.map((ingredient) => ingredient.category ?? 'General')])
 ).map((name) => ({ name }));
 
-const productSeed: Prisma.ProductCreateManyInput[] = [
+const productSeed: Array<Prisma.ProductCreateManyInput & { stockItemName?: string }> = [
   { name: 'Burger classique', category: 'Burgers', price: 650, estimatedCost: 153, color: '#dc2626', icon: '🍔', imageUrl: null },
   { name: 'Cheeseburger', category: 'Burgers', price: 780, estimatedCost: 181, color: '#ef4444', icon: '🧀', imageUrl: null },
   { name: 'Box frites', category: 'Accompagnements', price: 280, estimatedCost: 14, color: '#eab308', icon: '🍟', imageUrl: null },
   { name: 'Pizza margherita', category: 'Pizza', price: 1100, estimatedCost: 104, color: '#f97316', icon: '🍕', imageUrl: null },
   { name: 'Pates au poulet', category: 'Pates', price: 980, estimatedCost: 26, color: '#f59e0b', icon: '🍝', imageUrl: null },
   { name: 'Cola', category: 'Boissons', price: 180, estimatedCost: 3, color: '#2563eb', icon: '🥤', imageUrl: null },
-  { name: 'Eau minerale', category: 'Boissons', price: 90, estimatedCost: 22, color: '#0ea5e9', icon: '💧', imageUrl: null }
+  { name: 'Eau minerale', category: 'Boissons', price: 90, estimatedCost: 22, color: '#0ea5e9', icon: '💧', imageUrl: null, sourceType: 'direct_stock', saleUnitQuantity: 1, stockItemName: 'Bouteille eau' }
 ];
 
 const menuCategorySeed: Prisma.MenuCategoryCreateManyInput[] = Array.from(
@@ -62,8 +62,7 @@ const recipeSeed: Array<{ productName: string; ingredientName: string; quantity:
   { productName: 'Pates au poulet', ingredientName: 'Blanc de poulet', quantity: 180 },
   { productName: 'Pates au poulet', ingredientName: 'Pates', quantity: 150 },
   { productName: 'Pates au poulet', ingredientName: 'Sauce tomate', quantity: 60 },
-  { productName: 'Cola', ingredientName: 'Sirop cola', quantity: 50 },
-  { productName: 'Eau minerale', ingredientName: 'Bouteille eau', quantity: 1 }
+  { productName: 'Cola', ingredientName: 'Sirop cola', quantity: 50 }
 ];
 
 function recipeUnitForIngredientUnit(unit: string) {
@@ -122,22 +121,28 @@ async function main() {
     });
     await tx.ingredient.createMany({ data: ingredientSeed });
 
+    const ingredients = await tx.ingredient.findMany({ select: { id: true, name: true } });
+    const ingredientByName = new Map(ingredients.map((item) => [item.name, item.id]));
+
     const menuCategories = await tx.menuCategory.findMany({ select: { id: true, name: true } });
     const menuCategoryByName = new Map(menuCategories.map((item) => [item.name, item.id]));
 
     await tx.product.createMany({
-      data: productSeed.map((product) => ({
-        ...product,
-        categoryId: menuCategoryByName.get(product.category ?? 'General') ?? null
-      }))
+      data: productSeed.map((product) => {
+        const { stockItemName, ...productData } = product;
+        return {
+          ...productData,
+          categoryId: menuCategoryByName.get(product.category ?? 'General') ?? null,
+          stockItemId: stockItemName ? ingredientByName.get(stockItemName) ?? null : null
+        };
+      })
     });
 
-    const ingredients = await tx.ingredient.findMany({ select: { id: true, name: true } });
     const ingredientUnitByName = new Map(ingredients.map((item) => [item.name, ingredientSeed.find((seed) => seed.name === item.name)?.unit ?? 'portion']));
-    const products = await tx.product.findMany({ select: { id: true, name: true, price: true } });
-    const ingredientByName = new Map(ingredients.map((item) => [item.name, item.id]));
+    const products = await tx.product.findMany({ select: { id: true, name: true, price: true, sourceType: true, stockItemId: true, saleUnitQuantity: true } });
     const productByName = new Map(products.map((item) => [item.name, item.id]));
     const productPriceByName = new Map(products.map((item) => [item.name, Number(item.price)]));
+    const productById = new Map(products.map((item) => [item.id, item]));
 
     await tx.recipe.createMany({
       data: recipeSeed.map((item) => ({
@@ -372,15 +377,32 @@ async function main() {
       const orderItemsByProductId = new Map(
         order.items.map((item) => [productByName.get(item.productName)!, item.quantity])
       );
+      const directStockMovements = order.items.flatMap((item) => {
+        const productId = productByName.get(item.productName)!;
+        const product = productById.get(productId);
+        if (product?.sourceType !== 'direct_stock' || !product.stockItemId) return [];
+        return [
+          {
+            ingredientId: product.stockItemId,
+            type: StockMovementType.OUT,
+            quantity: Number(product.saleUnitQuantity) * item.quantity,
+            reason: StockMovementReason.sale,
+            date: order.createdAt
+          }
+        ];
+      });
 
       await tx.stockMovement.createMany({
-        data: recipes.map((recipe) => ({
-          ingredientId: recipe.ingredientId,
-          type: StockMovementType.OUT,
-          quantity: Number(recipe.quantity) * (orderItemsByProductId.get(recipe.productId) ?? 0),
-          reason: StockMovementReason.sale,
-          date: order.createdAt
-        }))
+        data: [
+          ...recipes.map((recipe) => ({
+            ingredientId: recipe.ingredientId,
+            type: StockMovementType.OUT,
+            quantity: Number(recipe.quantity) * (orderItemsByProductId.get(recipe.productId) ?? 0),
+            reason: StockMovementReason.sale,
+            date: order.createdAt
+          })),
+          ...directStockMovements
+        ]
       });
 
       if (order.status === SaleStatus.paid && 'paymentMethod' in order) {

@@ -214,6 +214,8 @@ function loadLocalInventory() {
     return parsed.map((item) => ({
       ...item,
       measurementType: String(item.measurementType) === 'unit' ? 'portion' : item.measurementType,
+      usageType: item.usageType ?? 'recipe_only',
+      directSale: item.directSale ?? null,
       status: computeInventoryStatus(item)
     }));
   } catch {
@@ -228,7 +230,10 @@ function loadLocalMenu() {
     const parsed = JSON.parse(raw) as MenuItem[];
     return parsed.map((item) => ({
       ...item,
-      categoryId: item.categoryId ?? null
+      categoryId: item.categoryId ?? null,
+      sourceType: item.sourceType ?? 'recipe',
+      stockItemId: item.stockItemId ?? null,
+      saleUnitQuantity: item.saleUnitQuantity ?? 1
     }));
   } catch {
     return initialMenuItems;
@@ -487,8 +492,20 @@ export const usePosStore = create<PosState>((set, get) => ({
         category: item.category || 'General',
         measurementType: item.measurementType ?? (item.unit === 'kg' ? 'weight' : item.unit === 'liter' ? 'volume' : 'portion'),
         unit: item.unit,
+        usageType: item.usageType ?? 'recipe_only',
         estimatedCost: item.estimatedCost ?? 0,
         minimumStock,
+        directSale:
+          item.directSale?.enabled && item.directSale.sellingPrice > 0
+            ? {
+                productId: item.id ?? Date.now(),
+                sellingPrice: item.directSale.sellingPrice,
+                category: item.directSale.category ?? item.category ?? 'General',
+                categoryId: item.directSale.categoryId ?? null,
+                saleUnitQuantity: item.directSale.saleUnitQuantity ?? 1,
+                isActive: true
+              }
+            : null,
         id: item.id ?? Date.now(),
         quantity,
         status: computeInventoryStatus({ quantity, minimumStock })
@@ -587,6 +604,9 @@ export const usePosStore = create<PosState>((set, get) => ({
         image: item.image ?? null,
         ingredients: item.ingredients,
         sellingPrice: item.sellingPrice,
+        sourceType: item.sourceType ?? 'recipe',
+        stockItemId: item.stockItemId ?? null,
+        saleUnitQuantity: item.saleUnitQuantity ?? 1,
         ...metrics
       };
       const menuItems = item.id

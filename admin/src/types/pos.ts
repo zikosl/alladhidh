@@ -12,6 +12,8 @@ export type ExpenseSourceType = 'manual' | 'stock_purchase' | 'payroll_payment' 
 export type EmploymentType = 'monthly' | 'daily' | 'hourly';
 export type PayrollPeriodStatus = 'draft' | 'validated' | 'paid';
 export type MeasurementType = 'portion' | 'weight' | 'volume';
+export type InventoryUsageType = 'recipe_only' | 'direct_sale' | 'both';
+export type ProductSourceType = 'recipe' | 'direct_stock';
 export type MeasurementUnit =
   | 'g'
   | 'kg'
@@ -34,6 +36,9 @@ export interface Product {
   icon: string;
   image?: string | null;
   estimatedCost: number;
+  sourceType: ProductSourceType;
+  stockItemId: number | null;
+  saleUnitQuantity: number;
 }
 
 export interface AuthUser {
@@ -453,10 +458,19 @@ export interface InventoryItem {
   category: string;
   measurementType: MeasurementType;
   unit: MeasurementUnit;
+  usageType: InventoryUsageType;
   quantity: number;
   estimatedCost: number;
   minimumStock: number | null;
   status: InventoryStatus;
+  directSale: {
+    productId: number;
+    sellingPrice: number;
+    category: string;
+    categoryId: number | null;
+    saleUnitQuantity: number;
+    isActive: boolean;
+  } | null;
 }
 
 export interface InventoryCategory {
@@ -471,11 +485,19 @@ export interface InventoryItemInput {
   name: string;
   category: string;
   unit: MeasurementUnit;
+  usageType?: InventoryUsageType;
   measurementType?: MeasurementType;
   estimatedCost?: number;
   initialQuantity?: number;
   initialTotalPrice?: number;
   minimumStock?: number | null;
+  directSale?: {
+    enabled: boolean;
+    sellingPrice: number;
+    category?: string;
+    categoryId?: number | null;
+    saleUnitQuantity?: number;
+  };
 }
 
 export interface StockEntryInput {
@@ -511,6 +533,9 @@ export interface MenuItem {
   sellingPrice: number;
   profit: number;
   margin: number;
+  sourceType: ProductSourceType;
+  stockItemId: number | null;
+  saleUnitQuantity: number;
 }
 
 export interface MenuCategory {
@@ -529,4 +554,7 @@ export interface MenuItemInput {
   estimatedCost: number;
   sellingPrice: number;
   ingredients: RecipeIngredientInput[];
+  sourceType?: ProductSourceType;
+  stockItemId?: number | null;
+  saleUnitQuantity?: number;
 }

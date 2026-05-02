@@ -123,6 +123,9 @@ async function mapMenuItem(product: ProductWithRecipes): Promise<MenuItemSummary
     sellingPrice,
     profit,
     margin,
+    sourceType: (product.sourceType === 'direct_stock' ? 'direct_stock' : 'recipe'),
+    stockItemId: product.stockItemId,
+    saleUnitQuantity: toNumber(product.saleUnitQuantity) || 1,
     ingredients: recipeRows.map<RecipeIngredientSummary>((row) => ({
       inventoryItemId: row.ingredientId,
       inventoryItemName: row.ingredient.name,
@@ -134,6 +137,7 @@ async function mapMenuItem(product: ProductWithRecipes): Promise<MenuItemSummary
 
 export async function listMenuItems(): Promise<MenuItemSummary[]> {
   const rows = await prisma.product.findMany({
+    where: { isActive: true },
     orderBy: [{ category: 'asc' }, { name: 'asc' }],
     include: {
       categoryRef: true,
@@ -159,7 +163,10 @@ export async function listProducts(): Promise<{ categories: string[]; products: 
     color: item.color,
     icon: item.icon,
     image: item.image,
-    estimatedCost: item.estimatedCost
+    estimatedCost: item.estimatedCost,
+    sourceType: item.sourceType,
+    stockItemId: item.stockItemId,
+    saleUnitQuantity: item.saleUnitQuantity
   }));
 
   return {
@@ -258,6 +265,10 @@ export async function createMenuItem(payload: MenuPayload): Promise<MenuItemSumm
         categoryId: category.id,
         price: sellingPrice,
         estimatedCost,
+        sourceType: 'recipe',
+        stockItemId: null,
+        saleUnitQuantity: 1,
+        isActive: true,
         color: payload.color ?? '#1f2937',
         icon: payload.icon ?? '🍽️',
         imageUrl: payload.image ?? null
@@ -306,6 +317,10 @@ export async function updateMenuItem(id: number, payload: MenuPayload): Promise<
         categoryId: category.id,
         price: toNonNegativeNumber(payload.sellingPrice, 'sellingPrice'),
         estimatedCost: toNonNegativeNumber(payload.estimatedCost, 'estimatedCost'),
+        sourceType: 'recipe',
+        stockItemId: null,
+        saleUnitQuantity: 1,
+        isActive: true,
         color: payload.color ?? product.color,
         icon: payload.icon ?? product.icon,
         imageUrl: payload.image ?? null

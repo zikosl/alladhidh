@@ -10,6 +10,8 @@ export type ExpenseSourceType = 'manual' | 'stock_purchase' | 'payroll_payment' 
 export type EmploymentType = 'monthly' | 'daily' | 'hourly';
 export type PayrollPeriodStatus = 'draft' | 'validated' | 'paid';
 export type MeasurementType = 'portion' | 'weight' | 'volume';
+export type InventoryUsageType = 'recipe_only' | 'direct_sale' | 'both';
+export type ProductSourceType = 'recipe' | 'direct_stock';
 export type MeasurementUnit =
   | 'g'
   | 'kg'
@@ -31,6 +33,9 @@ export interface Product {
   icon: string;
   image: string | null;
   estimatedCost: number;
+  sourceType: ProductSourceType;
+  stockItemId: number | null;
+  saleUnitQuantity: number;
 }
 
 export interface AuthUserSummary {
@@ -215,10 +220,19 @@ export interface InventoryItemSummary {
   category: string;
   measurementType: MeasurementType;
   unit: MeasurementUnit;
+  usageType: InventoryUsageType;
   quantity: number;
   estimatedCost: number;
   minimumStock: number | null;
   status: 'in_stock' | 'low_stock' | 'out_of_stock';
+  directSale: {
+    productId: number;
+    sellingPrice: number;
+    category: string;
+    categoryId: number | null;
+    saleUnitQuantity: number;
+    isActive: boolean;
+  } | null;
 }
 
 export interface InventoryCategorySummary {
@@ -260,6 +274,9 @@ export interface MenuItemSummary {
   sellingPrice: number;
   profit: number;
   margin: number;
+  sourceType: ProductSourceType;
+  stockItemId: number | null;
+  saleUnitQuantity: number;
   ingredients: RecipeIngredientSummary[];
 }
 

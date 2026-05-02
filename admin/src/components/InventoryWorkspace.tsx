@@ -1,7 +1,7 @@
 import { ReactNode, useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
 import { usePosStore } from '../store/usePosStore';
-import { ExpenseStatus, FinancePaymentMethod, InventoryCategory, InventoryItem, MeasurementType, MeasurementUnit, StockMovement } from '../types/pos';
+import { ExpenseStatus, FinancePaymentMethod, InventoryCategory, InventoryItem, InventoryUsageType, MeasurementType, MeasurementUnit, StockMovement } from '../types/pos';
 import { useFeedback } from './FeedbackProvider';
 import { WorkspaceShell } from './WorkspaceShell';
 
@@ -19,6 +19,10 @@ const emptyMaterialForm = {
   name: '',
   category: '',
   unit: 'kg' as CoreUnit,
+  usageType: 'recipe_only' as InventoryUsageType,
+  sellingPrice: 0,
+  saleUnitQuantity: 1,
+  posCategoryId: 0,
   initialQuantity: 0,
   initialTotalPrice: 0
 };
@@ -69,6 +73,7 @@ export function InventoryWorkspace() {
     inventoryItems,
     inventoryCategories,
     stockMovements,
+    menuCategories,
     upsertInventoryItem,
     addInventoryCategory,
     removeInventoryCategory,
@@ -110,11 +115,13 @@ export function InventoryWorkspace() {
 
   const lowStockItems = inventoryItems.filter((item) => item.status !== 'in_stock');
   const totalValue = inventoryItems.reduce((sum, item) => sum + item.quantity * item.estimatedCost, 0);
-  const portionCount = inventoryItems.filter((item) => item.measurementType === 'portion').length;
   const measuredCount = inventoryItems.filter((item) => item.measurementType !== 'portion').length;
+  const directSaleCount = inventoryItems.filter((item) => item.usageType === 'direct_sale' || item.usageType === 'both').length;
   const selectedEntryItem = inventoryItems.find((item) => item.id === entryForm.ingredientId);
   const selectedLossItem = inventoryItems.find((item) => item.id === lossForm.ingredientId);
   const selectedUnit = coreUnits.find((unit) => unit.value === materialForm.unit) ?? coreUnits[0];
+  const materialUsesDirectSale = materialForm.usageType === 'direct_sale' || materialForm.usageType === 'both';
+  const selectedPosCategory = menuCategories.find((category) => category.id === materialForm.posCategoryId);
   const visibleItems = view === 'alerts' ? lowStockItems : filteredItems;
 
   function openMaterialModal(item?: InventoryItem) {
@@ -124,6 +131,10 @@ export function InventoryWorkspace() {
         name: item.name,
         category: item.category,
         unit: (item.unit === 'liter' || item.unit === 'kg' || item.unit === 'portion' ? item.unit : 'portion') as CoreUnit,
+        usageType: item.usageType,
+        sellingPrice: item.directSale?.sellingPrice ?? 0,
+        saleUnitQuantity: item.directSale?.saleUnitQuantity ?? 1,
+        posCategoryId: item.directSale?.categoryId ?? 0,
         initialQuantity: 0,
         initialTotalPrice: 0
       });
@@ -131,7 +142,8 @@ export function InventoryWorkspace() {
       setEditingId(null);
       setMaterialForm({
         ...emptyMaterialForm,
-        category: derivedCategories[0]?.name ?? 'General'
+        category: derivedCategories[0]?.name ?? 'General',
+        posCategoryId: menuCategories[0]?.id ?? 0
       });
     }
     setModalMode('material');
@@ -178,9 +190,17 @@ export function InventoryWorkspace() {
       name: materialForm.name,
       category: materialForm.category || 'General',
       unit,
+      usageType: materialForm.usageType,
       measurementType: measurementTypeFromUnit(materialForm.unit),
       initialQuantity: editingId ? 0 : materialForm.initialQuantity,
-      initialTotalPrice: editingId ? 0 : materialForm.initialTotalPrice
+      initialTotalPrice: editingId ? 0 : materialForm.initialTotalPrice,
+      directSale: {
+        enabled: materialUsesDirectSale,
+        sellingPrice: materialForm.sellingPrice,
+        categoryId: selectedPosCategory?.id ?? null,
+        category: (selectedPosCategory?.name ?? materialForm.category) || 'General',
+        saleUnitQuantity: materialForm.saleUnitQuantity
+      }
     });
     closeModal();
   }
@@ -214,7 +234,7 @@ export function InventoryWorkspace() {
       <section className="grid gap-3 md:grid-cols-4">
         <Metric label="Matieres" value={String(inventoryItems.length)} />
         <Metric label="Alertes" value={String(lowStockItems.length)} />
-        <Metric label="Portions" value={String(portionCount)} />
+        <Metric label="Vente directe" value={String(directSaleCount)} />
         <Metric label="Valeur" value={formatMoney(totalValue)} />
       </section>
 
@@ -268,6 +288,7 @@ export function InventoryWorkspace() {
                 <tr className="text-left text-xs uppercase tracking-[0.14em] text-zinc-500">
                   <th className="px-4 py-3">Matiere</th>
                   <th className="px-4 py-3">Unite</th>
+                  <th className="px-4 py-3">Utilisation</th>
                   <th className="px-4 py-3">Stock</th>
                   <th className="px-4 py-3">Cout unitaire</th>
                   <th className="px-4 py-3">Statut</th>
@@ -284,6 +305,12 @@ export function InventoryWorkspace() {
                     <td className="px-4 py-3">
                       <div className="font-semibold text-zinc-950">{displayUnit(item.unit)}</div>
                       <div className="text-xs text-zinc-500">{formatMeasurementType(item.measurementType)}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <UsageBadge usageType={item.usageType} />
+                      {item.directSale?.isActive ? (
+                        <div className="mt-1 text-xs text-zinc-500">{formatMoney(item.directSale.sellingPrice)} en caisse</div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3 font-semibold text-zinc-950">{formatQuantity(item)}</td>
                     <td className="px-4 py-3">{formatMoney(item.estimatedCost)}</td>
@@ -451,6 +478,89 @@ export function InventoryWorkspace() {
               </div>
             </div>
 
+            <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3">
+              <div className="text-sm font-semibold text-zinc-950">Utilisation dans le restaurant</div>
+              <p className="mt-1 text-xs text-zinc-500">
+                Choisissez si cet article sert aux recettes, se vend directement en caisse, ou les deux.
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {[
+                  { value: 'recipe_only', label: 'Recettes', hint: 'Ex: viande, tomate' },
+                  { value: 'direct_sale', label: 'Vente directe', hint: 'Ex: eau, soda' },
+                  { value: 'both', label: 'Les deux', hint: 'Stock commun' }
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() =>
+                      setMaterialForm((current) => ({
+                        ...current,
+                        usageType: option.value as InventoryUsageType
+                      }))
+                    }
+                    className={`rounded-2xl border px-3 py-3 text-left transition ${
+                      materialForm.usageType === option.value
+                        ? 'border-brand bg-brand text-white'
+                        : 'border-zinc-200 bg-white text-zinc-700'
+                    }`}
+                  >
+                    <div className="text-sm font-black">{option.label}</div>
+                    <div className={`mt-1 text-xs ${materialForm.usageType === option.value ? 'text-white/75' : 'text-zinc-500'}`}>
+                      {option.hint}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {materialUsesDirectSale ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <label className="block">
+                    <span className="text-xs font-medium text-zinc-600">Categorie caisse</span>
+                    <select
+                      value={materialForm.posCategoryId}
+                      onChange={(event) =>
+                        setMaterialForm((current) => ({ ...current, posCategoryId: Number(event.target.value) }))
+                      }
+                      className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
+                    >
+                      <option value={0}>Même categorie stock</option>
+                      {menuCategories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-zinc-600">Prix de vente</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={materialForm.sellingPrice}
+                      onChange={(event) =>
+                        setMaterialForm((current) => ({ ...current, sellingPrice: Number(event.target.value) }))
+                      }
+                      placeholder="Ex: 80"
+                      className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-medium text-zinc-600">Deduction / vente</span>
+                    <input
+                      type="number"
+                      min={0.001}
+                      step="0.001"
+                      value={materialForm.saleUnitQuantity}
+                      onChange={(event) =>
+                        setMaterialForm((current) => ({ ...current, saleUnitQuantity: Number(event.target.value) }))
+                      }
+                      placeholder="Ex: 1"
+                      className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
+                    />
+                  </label>
+                </div>
+              ) : null}
+            </div>
+
             {!editingId && (
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3">
                 <div className="text-sm font-semibold text-zinc-900">Stock initial optionnel</div>
@@ -497,7 +607,11 @@ export function InventoryWorkspace() {
             )}
 
             <button
-              disabled={!materialForm.name.trim() || !materialForm.category}
+              disabled={
+                !materialForm.name.trim() ||
+                !materialForm.category ||
+                (materialUsesDirectSale && (materialForm.sellingPrice <= 0 || materialForm.saleUnitQuantity <= 0))
+              }
               onClick={saveMaterial}
               className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
             >
@@ -813,6 +927,29 @@ function StatusBadge({ status }: { status: InventoryItem['status'] }) {
       }`}
     >
       {status === 'in_stock' ? 'En stock' : status === 'low_stock' ? 'Stock bas' : 'Rupture'}
+    </span>
+  );
+}
+
+function UsageBadge({ usageType }: { usageType: InventoryUsageType }) {
+  const label =
+    usageType === 'direct_sale'
+      ? 'Vente directe'
+      : usageType === 'both'
+        ? 'Recettes + caisse'
+        : 'Recettes';
+
+  return (
+    <span
+      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+        usageType === 'recipe_only'
+          ? 'bg-zinc-100 text-zinc-700'
+          : usageType === 'both'
+            ? 'bg-amber-100 text-amber-700'
+            : 'bg-sky-100 text-sky-700'
+      }`}
+    >
+      {label}
     </span>
   );
 }

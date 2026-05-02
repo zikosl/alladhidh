@@ -127,6 +127,31 @@ async function main() {
     });
   }
 
+  const waterIngredient = await prisma.ingredient.findUnique({ where: { name: 'Bouteille eau' } });
+  const waterProduct = await prisma.product.findUnique({ where: { name: 'Eau minerale' } });
+  if (waterIngredient && waterProduct) {
+    await prisma.ingredient.update({
+      where: { id: waterIngredient.id },
+      data: { usageType: 'direct_sale' }
+    });
+    await prisma.product.update({
+      where: { id: waterProduct.id },
+      data: {
+        sourceType: 'direct_stock',
+        stockItemId: waterIngredient.id,
+        saleUnitQuantity: 1,
+        estimatedCost: waterIngredient.purchasePrice,
+        isActive: true
+      }
+    });
+    await prisma.recipe.deleteMany({
+      where: {
+        productId: waterProduct.id,
+        ingredientId: waterIngredient.id
+      }
+    });
+  }
+
   const expenseCategories = [
     ['Loyer', 'Charges fixes mensuelles'],
     ['Electricite', 'Consommation electrique'],

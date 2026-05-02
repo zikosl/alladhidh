@@ -119,6 +119,10 @@ model Product {
   categoryId Int?      @map("category_id")
   price     Decimal    @db.Decimal(10, 2)
   estimatedCost Decimal @default(0) @map("estimated_cost") @db.Decimal(10, 2)
+  sourceType String     @default("recipe") @map("source_type") @db.VarChar(30)
+  stockItemId Int?      @map("stock_item_id")
+  saleUnitQuantity Decimal @default(1) @map("sale_unit_quantity") @db.Decimal(10, 3)
+  isActive  Boolean    @default(true) @map("is_active")
   color     String     @default("#1f2937") @db.VarChar(30)
   icon      String     @default("🍽️") @db.VarChar(10)
   imageUrl  String?    @map("image_url") @db.VarChar(255)
@@ -127,9 +131,13 @@ model Product {
   recipes   Recipe[]
   saleItems SaleItem[]
   categoryRef MenuCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  stockItem Ingredient? @relation("DirectSaleProductStockItem", fields: [stockItemId], references: [id], onDelete: SetNull)
 
   @@index([category], map: "idx_products_category")
   @@index([categoryId], map: "idx_products_category_id")
+  @@index([sourceType], map: "idx_products_source_type")
+  @@index([stockItemId], map: "idx_products_stock_item_id")
+  @@unique([stockItemId, sourceType], map: "uq_products_stock_item_source")
   @@map("products")
 }
 
@@ -247,6 +255,7 @@ model Ingredient {
   category        String          @default("General") @db.VarChar(80)
   measurementType String          @default("weight") @map("measurement_type") @db.VarChar(20)
   unit            String          @default("g") @db.VarChar(20)
+  usageType       String          @default("recipe_only") @map("usage_type") @db.VarChar(30)
   purchasePrice   Decimal         @map("purchase_price") @db.Decimal(10, 4)
   minimumStock    Decimal?        @map("minimum_stock") @db.Decimal(10, 3)
   createdAt       DateTime        @default(now()) @map("created_at")
@@ -254,6 +263,7 @@ model Ingredient {
   purchases       Purchase[]
   recipes         Recipe[]
   stockMovements  StockMovement[]
+  directSaleProducts Product[]     @relation("DirectSaleProductStockItem")
   categoryRef     IngredientCategory @relation(fields: [category], references: [name], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([category], map: "idx_ingredients_category")
