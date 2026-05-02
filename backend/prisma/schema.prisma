@@ -274,6 +274,7 @@ model IngredientCategory {
   id          Int          @id @default(autoincrement())
   name        String       @unique @db.VarChar(80)
   description String?      @db.VarChar(255)
+  usageType   String       @default("recipe_only") @map("usage_type") @db.VarChar(30)
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
   ingredients Ingredient[]

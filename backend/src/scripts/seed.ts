@@ -9,6 +9,14 @@ import {
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 
+const stockCategoryUsage = new Map<string, 'recipe_only' | 'direct_sale' | 'both'>([
+  ['Boissons', 'both']
+]);
+
+function usageTypeForStockCategory(category: string) {
+  return stockCategoryUsage.get(category) ?? 'recipe_only';
+}
+
 const ingredientSeed: Prisma.IngredientCreateManyInput[] = [
   { name: 'Pain burger', category: 'Boulangerie', measurementType: 'portion', unit: 'piece', purchasePrice: 18, minimumStock: 30 },
   { name: 'Steak hache', category: 'Proteines', measurementType: 'portion', unit: 'portion', purchasePrice: 130, minimumStock: 25 },
@@ -23,12 +31,15 @@ const ingredientSeed: Prisma.IngredientCreateManyInput[] = [
   { name: 'Blanc de poulet', category: 'Proteines', measurementType: 'weight', unit: 'g', purchasePrice: 0.09, minimumStock: 4000 },
   { name: 'Pates', category: 'Epicerie', measurementType: 'weight', unit: 'g', purchasePrice: 0.03, minimumStock: 4000 },
   { name: 'Sirop cola', category: 'Boissons', measurementType: 'volume', unit: 'ml', purchasePrice: 0.06, minimumStock: 2500 },
-  { name: 'Bouteille eau', category: 'Boissons', measurementType: 'portion', unit: 'bottle', usageType: 'direct_sale', purchasePrice: 22, minimumStock: 40 }
-];
+  { name: 'Bouteille eau', category: 'Boissons', measurementType: 'portion', unit: 'bottle', purchasePrice: 22, minimumStock: 40 }
+].map((ingredient) => ({
+  ...ingredient,
+  usageType: usageTypeForStockCategory(ingredient.category ?? 'General')
+}));
 
 const ingredientCategorySeed: Prisma.IngredientCategoryCreateManyInput[] = Array.from(
   new Set(['General', ...ingredientSeed.map((ingredient) => ingredient.category ?? 'General')])
-).map((name) => ({ name }));
+).map((name) => ({ name, usageType: usageTypeForStockCategory(name) }));
 
 const productSeed: Array<Prisma.ProductCreateManyInput & { stockItemName?: string }> = [
   { name: 'Burger classique', category: 'Burgers', price: 650, estimatedCost: 153, color: '#dc2626', icon: '🍔', imageUrl: null },

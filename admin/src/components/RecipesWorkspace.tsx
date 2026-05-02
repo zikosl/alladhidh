@@ -669,9 +669,9 @@ function TextAreaField({
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-zinc-950/35 px-3 backdrop-blur-sm">
-      <div className="dialog-panel-motion premium-panel max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[1.7rem] bg-white p-5 shadow-2xl">
-        <div className="mb-4 flex items-center justify-between gap-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-zinc-950/35 px-3 py-6 backdrop-blur-sm">
+      <div className="dialog-panel-motion premium-panel mx-auto w-full max-w-5xl rounded-[1.7rem] bg-white p-5 shadow-2xl">
+        <div className="sticky top-0 z-10 mb-4 flex items-center justify-between gap-4 rounded-2xl bg-white/90 py-1 backdrop-blur">
           <h3 className="text-lg font-bold text-zinc-950">{title}</h3>
           <button onClick={onClose} className="rounded-2xl bg-zinc-100 px-3 py-2 text-sm font-black text-zinc-700">
             Fermer

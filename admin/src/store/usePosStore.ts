@@ -75,6 +75,7 @@ import {
   InventoryItem,
   InventoryItemInput,
   InventoryStatus,
+  InventoryUsageType,
   MenuCategory,
   MenuItem,
   MenuItemInput,
@@ -155,7 +156,7 @@ interface PosState {
   holdCart: () => void;
   restoreHeldCart: () => void;
   upsertInventoryItem: (item: InventoryItemInput) => Promise<void>;
-  addInventoryCategory: (category: { name: string; description?: string | null }) => Promise<void>;
+  addInventoryCategory: (category: { name: string; description?: string | null; usageType?: InventoryUsageType }) => Promise<void>;
   removeInventoryCategory: (id: number) => Promise<void>;
   addStockEntry: (entry: StockEntryInput) => Promise<void>;
   addStockLoss: (loss: StockLossInput) => Promise<void>;
@@ -240,14 +241,43 @@ function loadLocalMenu() {
   }
 }
 
+function mergeInventoryUsageTypes(types: InventoryUsageType[]): InventoryUsageType {
+  if (types.includes('both')) return 'both';
+  if (types.includes('direct_sale') && types.includes('recipe_only')) return 'both';
+  if (types.includes('direct_sale')) return 'direct_sale';
+  return 'recipe_only';
+}
+
 function categoriesFromInventory(items: InventoryItem[]): InventoryCategory[] {
   const names = Array.from(new Set(['General', ...items.map((item) => item.category || 'General')])).sort();
   return names.map((name, index) => ({
     id: index + 1,
     name,
     description: null,
+    usageType: mergeInventoryUsageTypes(
+      items.filter((item) => (item.category || 'General') === name).map((item) => item.usageType ?? 'recipe_only')
+    ),
     itemsCount: items.filter((item) => (item.category || 'General') === name).length
   }));
+}
+
+function syncInventoryCategoryCounts(items: InventoryItem[], categories: InventoryCategory[]) {
+  const counts = categoriesFromInventory(items);
+  const categoryByName = new Map(categories.map((category) => [category.name, category]));
+  const countByName = new Map(counts.map((category) => [category.name, category]));
+  const mergedNames = Array.from(new Set([...categories.map((category) => category.name), ...counts.map((category) => category.name)])).sort();
+
+  return mergedNames.map((name, index) => {
+    const saved = categoryByName.get(name);
+    const counted = countByName.get(name);
+    return {
+      id: saved?.id ?? counted?.id ?? index + 1,
+      name,
+      description: saved?.description ?? counted?.description ?? null,
+      usageType: saved?.usageType ?? counted?.usageType ?? 'recipe_only',
+      itemsCount: counted?.itemsCount ?? 0
+    };
+  });
 }
 
 function loadLocalInventoryCategories(items: InventoryItem[]) {
@@ -257,6 +287,7 @@ function loadLocalInventoryCategories(items: InventoryItem[]) {
     const parsed = JSON.parse(raw) as InventoryCategory[];
     return parsed.map((category) => ({
       ...category,
+      usageType: category.usageType ?? 'recipe_only',
       itemsCount: items.filter((item) => (item.category || 'General') === category.name).length
     }));
   } catch {
@@ -480,7 +511,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       const inventoryItems = item.id
         ? state.inventoryItems.map((existing) => (existing.id === item.id ? nextItem : existing))
         : [nextItem, ...state.inventoryItems];
-      const inventoryCategories = categoriesFromInventory(inventoryItems);
+      const inventoryCategories = syncInventoryCategoryCounts(inventoryItems, state.inventoryCategories);
       set({ inventoryItems, inventoryCategories, lastError: null });
       persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
       await get().refreshLiveData();
@@ -513,7 +544,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       const inventoryItems = item.id
         ? state.inventoryItems.map((existing) => (existing.id === item.id ? nextItem : existing))
         : [nextItem, ...state.inventoryItems];
-      const inventoryCategories = categoriesFromInventory(inventoryItems);
+      const inventoryCategories = syncInventoryCategoryCounts(inventoryItems, state.inventoryCategories);
       set({ inventoryItems, inventoryCategories, lastError: "Mode hors ligne: l'article a ete sauvegarde localement" });
       persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
     }
@@ -533,6 +564,7 @@ export const usePosStore = create<PosState>((set, get) => ({
         id: Date.now(),
         name: category.name.trim(),
         description: category.description ?? null,
+        usageType: category.usageType ?? 'recipe_only',
         itemsCount: 0
       };
       const inventoryCategories = [...state.inventoryCategories, nextCategory].sort((left, right) =>
@@ -559,7 +591,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     try {
       const updatedItem = await createStockEntry(entry);
       const inventoryItems = state.inventoryItems.map((item) => (item.id === updatedItem.id ? updatedItem : item));
-      const inventoryCategories = categoriesFromInventory(inventoryItems);
+      const inventoryCategories = syncInventoryCategoryCounts(inventoryItems, state.inventoryCategories);
       set({ inventoryItems, inventoryCategories, lastError: null });
       persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
       await get().refreshLiveData();
@@ -572,7 +604,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     try {
       const updatedItem = await createStockLoss(loss);
       const inventoryItems = state.inventoryItems.map((item) => (item.id === updatedItem.id ? updatedItem : item));
-      const inventoryCategories = categoriesFromInventory(inventoryItems);
+      const inventoryCategories = syncInventoryCategoryCounts(inventoryItems, state.inventoryCategories);
       set({ inventoryItems, inventoryCategories, lastError: null });
       persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
       await get().refreshLiveData();
@@ -658,7 +690,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     try {
       await deleteInventoryItem(id);
       const inventoryItems = state.inventoryItems.filter((item) => item.id !== id);
-      const inventoryCategories = categoriesFromInventory(inventoryItems);
+      const inventoryCategories = syncInventoryCategoryCounts(inventoryItems, state.inventoryCategories);
       set({ inventoryItems, inventoryCategories, lastError: null });
       persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
       await get().refreshLiveData();

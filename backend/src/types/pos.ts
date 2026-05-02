@@ -239,6 +239,7 @@ export interface InventoryCategorySummary {
   id: number;
   name: string;
   description: string | null;
+  usageType: InventoryUsageType;
   itemsCount: number;
 }
 

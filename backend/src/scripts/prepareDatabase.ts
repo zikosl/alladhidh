@@ -127,6 +127,30 @@ async function main() {
     });
   }
 
+  const stockCategoryUsage = [
+    { name: 'General', usageType: 'recipe_only' },
+    { name: 'Boulangerie', usageType: 'recipe_only' },
+    { name: 'Proteines', usageType: 'recipe_only' },
+    { name: 'Produits laitiers', usageType: 'recipe_only' },
+    { name: 'Legumes', usageType: 'recipe_only' },
+    { name: 'Surgeles', usageType: 'recipe_only' },
+    { name: 'Consommables', usageType: 'recipe_only' },
+    { name: 'Sauces', usageType: 'recipe_only' },
+    { name: 'Epicerie', usageType: 'recipe_only' },
+    { name: 'Boissons', usageType: 'both' }
+  ] as const;
+
+  for (const category of stockCategoryUsage) {
+    await prisma.ingredientCategory.upsert({
+      where: { name: category.name },
+      update: { usageType: category.usageType },
+      create: {
+        name: category.name,
+        usageType: category.usageType
+      }
+    });
+  }
+
   const waterIngredient = await prisma.ingredient.findUnique({ where: { name: 'Bouteille eau' } });
   const waterProduct = await prisma.product.findUnique({ where: { name: 'Eau minerale' } });
   if (waterIngredient && waterProduct) {

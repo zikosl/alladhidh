@@ -477,6 +477,7 @@ export interface InventoryCategory {
   id: number;
   name: string;
   description: string | null;
+  usageType: InventoryUsageType;
   itemsCount: number;
 }
 

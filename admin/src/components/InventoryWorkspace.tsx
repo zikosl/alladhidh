@@ -5,7 +5,7 @@ import { ExpenseStatus, FinancePaymentMethod, InventoryCategory, InventoryItem, 
 import { useFeedback } from './FeedbackProvider';
 import { WorkspaceShell } from './WorkspaceShell';
 
-type StockView = 'overview' | 'materials' | 'movements' | 'categories' | 'alerts';
+type StockView = 'overview' | 'movements' | 'alerts';
 type ModalMode = 'material' | 'entry' | 'loss' | 'category' | null;
 type CoreUnit = 'kg' | 'portion' | 'liter';
 
@@ -19,7 +19,6 @@ const emptyMaterialForm = {
   name: '',
   category: '',
   unit: 'kg' as CoreUnit,
-  usageType: 'recipe_only' as InventoryUsageType,
   sellingPrice: 0,
   saleUnitQuantity: 1,
   posCategoryId: 0,
@@ -43,7 +42,8 @@ const emptyLossForm = {
 
 const emptyCategoryForm = {
   name: '',
-  description: ''
+  description: '',
+  usageType: 'recipe_only' as InventoryUsageType
 };
 
 function measurementTypeFromUnit(unit: CoreUnit): MeasurementType {
@@ -91,38 +91,54 @@ export function InventoryWorkspace() {
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
 
   const derivedCategories = useMemo(() => {
-    if (inventoryCategories.length > 0) return inventoryCategories;
+    if (inventoryCategories.length > 0) {
+      return inventoryCategories.map((category) => ({
+        ...category,
+        usageType: category.usageType ?? 'recipe_only'
+      }));
+    }
     const names = Array.from(new Set(['General', ...inventoryItems.map((item) => item.category || 'General')])).sort();
     return names.map((name, index) => ({
       id: index + 1,
       name,
       description: null,
+      usageType: 'recipe_only' as InventoryUsageType,
       itemsCount: inventoryItems.filter((item) => (item.category || 'General') === name).length
     }));
   }, [inventoryCategories, inventoryItems]);
 
-  const filteredItems = useMemo(() => {
-    return inventoryItems.filter((item) => {
+  const selectedCategory = derivedCategories.find((category) => category.id === selectedCategoryId) ?? derivedCategories[0] ?? null;
+
+  const visibleItems = useMemo(() => {
+    const baseItems =
+      view === 'alerts'
+        ? inventoryItems.filter((item) => item.status !== 'in_stock')
+        : selectedCategory
+          ? inventoryItems.filter((item) => (item.category || 'General') === selectedCategory.name)
+          : inventoryItems;
+
+    return baseItems.filter((item) => {
       const matchesSearch =
         item.name.toLowerCase().includes(search.toLowerCase()) ||
         item.category.toLowerCase().includes(search.toLowerCase());
       const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [inventoryItems, search, statusFilter]);
+  }, [inventoryItems, search, selectedCategory, statusFilter, view]);
 
   const lowStockItems = inventoryItems.filter((item) => item.status !== 'in_stock');
-  const totalValue = inventoryItems.reduce((sum, item) => sum + item.quantity * item.estimatedCost, 0);
-  const measuredCount = inventoryItems.filter((item) => item.measurementType !== 'portion').length;
+  const selectedCategoryValue = visibleItems.reduce((sum, item) => sum + item.quantity * item.estimatedCost, 0);
   const directSaleCount = inventoryItems.filter((item) => item.usageType === 'direct_sale' || item.usageType === 'both').length;
   const selectedEntryItem = inventoryItems.find((item) => item.id === entryForm.ingredientId);
   const selectedLossItem = inventoryItems.find((item) => item.id === lossForm.ingredientId);
   const selectedUnit = coreUnits.find((unit) => unit.value === materialForm.unit) ?? coreUnits[0];
-  const materialUsesDirectSale = materialForm.usageType === 'direct_sale' || materialForm.usageType === 'both';
+  const selectedMaterialCategory = derivedCategories.find((category) => category.name === materialForm.category);
+  const materialUsageType = selectedMaterialCategory?.usageType ?? 'recipe_only';
+  const materialUsesDirectSale = materialUsageType === 'direct_sale' || materialUsageType === 'both';
   const selectedPosCategory = menuCategories.find((category) => category.id === materialForm.posCategoryId);
-  const visibleItems = view === 'alerts' ? lowStockItems : filteredItems;
 
   function openMaterialModal(item?: InventoryItem) {
     if (item) {
@@ -131,7 +147,6 @@ export function InventoryWorkspace() {
         name: item.name,
         category: item.category,
         unit: (item.unit === 'liter' || item.unit === 'kg' || item.unit === 'portion' ? item.unit : 'portion') as CoreUnit,
-        usageType: item.usageType,
         sellingPrice: item.directSale?.sellingPrice ?? 0,
         saleUnitQuantity: item.directSale?.saleUnitQuantity ?? 1,
         posCategoryId: item.directSale?.categoryId ?? 0,
@@ -142,7 +157,7 @@ export function InventoryWorkspace() {
       setEditingId(null);
       setMaterialForm({
         ...emptyMaterialForm,
-        category: derivedCategories[0]?.name ?? 'General',
+        category: selectedCategory?.name ?? derivedCategories[0]?.name ?? 'General',
         posCategoryId: menuCategories[0]?.id ?? 0
       });
     }
@@ -190,7 +205,7 @@ export function InventoryWorkspace() {
       name: materialForm.name,
       category: materialForm.category || 'General',
       unit,
-      usageType: materialForm.usageType,
+      usageType: materialUsageType,
       measurementType: measurementTypeFromUnit(materialForm.unit),
       initialQuantity: editingId ? 0 : materialForm.initialQuantity,
       initialTotalPrice: editingId ? 0 : materialForm.initialTotalPrice,
@@ -208,7 +223,8 @@ export function InventoryWorkspace() {
   async function saveCategory() {
     await addInventoryCategory({
       name: categoryForm.name,
-      description: categoryForm.description || null
+      description: categoryForm.description || null,
+      usageType: categoryForm.usageType
     });
     closeModal();
   }
@@ -216,45 +232,48 @@ export function InventoryWorkspace() {
   return (
     <WorkspaceShell
       title="Stock"
-      subtitle="Matieres premieres, entrees et alertes."
+      subtitle="Categories, produits stock, entrees et alertes."
       accent="linear-gradient(135deg, #155e75, #16a34a)"
       icon="📦"
       sectionLabel="Module stock"
       onBack={() => setCurrentModule('apps')}
       navigation={[
-        { id: 'overview', label: 'Vue globale', hint: 'Valeur & alertes' },
-        { id: 'materials', label: 'Matieres', hint: 'Articles bruts' },
+        { id: 'overview', label: 'Categories', hint: 'Produits stock' },
         { id: 'movements', label: 'Mouvements', hint: 'Audit stock' },
-        { id: 'categories', label: 'Categories', hint: 'Organisation' },
         { id: 'alerts', label: 'Alertes', hint: 'Bas & rupture' }
       ]}
       activeView={view}
       onChangeView={(nextView) => setView(nextView as StockView)}
     >
       <section className="grid gap-3 md:grid-cols-4">
-        <Metric label="Matieres" value={String(inventoryItems.length)} />
+        <Metric label="Produits stock" value={String(inventoryItems.length)} />
+        <Metric label="Categories" value={String(derivedCategories.length)} />
         <Metric label="Alertes" value={String(lowStockItems.length)} />
-        <Metric label="Vente directe" value={String(directSaleCount)} />
-        <Metric label="Valeur" value={formatMoney(totalValue)} />
+        <Metric label="Vente caisse" value={String(directSaleCount)} />
       </section>
 
-      {(view === 'overview' || view === 'materials' || view === 'alerts') && (
+      {(view === 'overview' || view === 'alerts') && (
         <section className="premium-panel rounded-[1.6rem] p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">
-                Matieres premieres
+                {view === 'alerts' ? 'Alertes stock' : 'Categories stock'}
               </div>
               <h2 className="mt-1 text-xl font-bold text-zinc-950">
-                {view === 'alerts' ? 'Articles a traiter' : 'Stock operationnel'}
+                {view === 'alerts' ? 'Produits a traiter' : selectedCategory ? selectedCategory.name : 'Produits stock'}
               </h2>
+              <p className="mt-1 text-xs font-semibold text-zinc-500">
+                {view === 'alerts'
+                  ? 'Surveillez les ruptures et les stocks bas.'
+                  : 'Cliquez une categorie, puis ajoutez les produits qui lui appartiennent.'}
+              </p>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[220px_160px_150px_150px]">
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Rechercher une matiere..."
+                placeholder="Rechercher un produit..."
                 className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold outline-none"
               />
               <select
@@ -274,94 +293,104 @@ export function InventoryWorkspace() {
                 Entree stock
               </button>
               <button
-                onClick={() => openMaterialModal()}
+                onClick={() => (view === 'alerts' ? openCategoryModal() : openMaterialModal())}
+                disabled={view !== 'alerts' && !selectedCategory}
                 className="rounded-2xl bg-ink px-3 py-2 text-sm font-black text-white shadow-soft"
               >
-                Nouvelle matiere
+                {view === 'alerts' ? 'Categorie' : 'Nouveau produit'}
               </button>
             </div>
           </div>
 
-          <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-100 bg-white/70">
-            <table className="min-w-full divide-y divide-zinc-100">
-              <thead className="bg-brand/5">
-                <tr className="text-left text-xs uppercase tracking-[0.14em] text-zinc-500">
-                  <th className="px-4 py-3">Matiere</th>
-                  <th className="px-4 py-3">Unite</th>
-                  <th className="px-4 py-3">Utilisation</th>
-                  <th className="px-4 py-3">Stock</th>
-                  <th className="px-4 py-3">Cout unitaire</th>
-                  <th className="px-4 py-3">Statut</th>
-                  <th className="px-4 py-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 bg-white/80">
-                {visibleItems.map((item) => (
-                  <tr key={item.id} className="text-sm text-zinc-700 transition hover:bg-orange-50/45">
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-zinc-950">{item.name}</div>
-                      <div className="mt-0.5 text-xs text-zinc-500">{item.category}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="font-semibold text-zinc-950">{displayUnit(item.unit)}</div>
-                      <div className="text-xs text-zinc-500">{formatMeasurementType(item.measurementType)}</div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <UsageBadge usageType={item.usageType} />
-                      {item.directSale?.isActive ? (
-                        <div className="mt-1 text-xs text-zinc-500">{formatMoney(item.directSale.sellingPrice)} en caisse</div>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-zinc-950">{formatQuantity(item)}</td>
-                    <td className="px-4 py-3">{formatMoney(item.estimatedCost)}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={item.status} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => openMaterialModal(item)}
-                          className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-700"
-                        >
-                          Modifier
-                        </button>
-                        <button
-                          onClick={() => openEntryModal(item)}
-                          className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700"
-                        >
-                          Entree
-                        </button>
-                        <button
-                          onClick={() => openLossModal(item)}
-                          className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700"
-                        >
-                          Perte
-                        </button>
-                        <button
-                          onClick={() => {
-                            void confirm({
-                              title: 'Supprimer la matiere ?',
-                              message: `"${item.name}" sera supprimee si aucun historique stock ne bloque l'action.`,
-                              confirmLabel: 'Supprimer',
-                              tone: 'danger'
-                            }).then((confirmed) => {
-                              if (confirmed) void removeInventoryItem(item.id);
-                            });
-                          }}
-                          className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600"
-                        >
-                          Supprimer
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+          {view === 'overview' ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-[280px_minmax(0,1fr)]">
+              <aside className="grid content-start gap-2">
+                <button
+                  onClick={openCategoryModal}
+                  className="rounded-2xl border border-dashed border-zinc-300 bg-white/65 px-4 py-3 text-left text-sm font-black text-zinc-800 transition hover:border-brand hover:text-brand"
+                >
+                  + Ajouter categorie
+                </button>
+                {derivedCategories.map((category) => (
+                  <CategoryCard
+                    key={category.id}
+                    category={category}
+                    active={selectedCategory?.id === category.id}
+                    onOpen={() => setSelectedCategoryId(category.id)}
+                    onDelete={() => {
+                      void confirm({
+                        title: 'Supprimer la categorie ?',
+                        message: `"${category.name}" ne sera supprimee que si elle n'est plus utilisee.`,
+                        confirmLabel: 'Supprimer',
+                        tone: 'danger'
+                      }).then((confirmed) => {
+                        if (confirmed) void removeInventoryCategory(category.id);
+                      });
+                    }}
+                  />
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </aside>
+
+              <div className="min-w-0 rounded-[1.35rem] border border-zinc-100 bg-white/60 p-3">
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-black text-zinc-950">{selectedCategory?.name ?? 'Categorie'}</h3>
+                      {selectedCategory ? <UsageBadge usageType={selectedCategory.usageType} /> : null}
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-zinc-500">
+                      Valeur estimee: {formatMoney(selectedCategoryValue)}. Stock derive uniquement des mouvements.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => openMaterialModal()}
+                    disabled={!selectedCategory}
+                    className="rounded-2xl bg-ink px-4 py-2.5 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+                  >
+                    + Produit
+                  </button>
+                </div>
+                <InventoryTable
+                  items={visibleItems}
+                  onEdit={openMaterialModal}
+                  onEntry={openEntryModal}
+                  onLoss={openLossModal}
+                  onDelete={(item) => {
+                    void confirm({
+                      title: 'Supprimer le produit ?',
+                      message: `"${item.name}" sera supprime si aucun historique stock ne bloque l'action.`,
+                      confirmLabel: 'Supprimer',
+                      tone: 'danger'
+                    }).then((confirmed) => {
+                      if (confirmed) void removeInventoryItem(item.id);
+                    });
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4">
+              <InventoryTable
+                items={visibleItems}
+                onEdit={openMaterialModal}
+                onEntry={openEntryModal}
+                onLoss={openLossModal}
+                onDelete={(item) => {
+                  void confirm({
+                    title: 'Supprimer le produit ?',
+                    message: `"${item.name}" sera supprime si aucun historique stock ne bloque l'action.`,
+                    confirmLabel: 'Supprimer',
+                    tone: 'danger'
+                  }).then((confirmed) => {
+                    if (confirmed) void removeInventoryItem(item.id);
+                  });
+                }}
+              />
+            </div>
+          )}
 
           <div className="mt-3 text-xs text-zinc-500">
-            {measuredCount} matieres en poids/volume. Les quantites restent derivees des mouvements stock.
+            Les categories controlent l'usage: recette, vente directe, ou les deux. Les produits heritent de cette regle.
           </div>
         </section>
       )}
@@ -394,48 +423,15 @@ export function InventoryWorkspace() {
         </section>
       )}
 
-      {view === 'categories' && (
-        <section className="premium-panel rounded-[1.6rem] p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Categories stock</div>
-              <h2 className="mt-1 text-xl font-bold text-zinc-950">Organisation des matieres</h2>
-            </div>
-            <button onClick={openCategoryModal} className="rounded-2xl bg-ink px-4 py-2.5 text-sm font-black text-white shadow-soft">
-              Ajouter categorie
-            </button>
-          </div>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {derivedCategories.map((category) => (
-              <CategoryCard
-                key={category.id}
-                category={category}
-                onDelete={() => {
-                  void confirm({
-                    title: 'Supprimer la categorie ?',
-                    message: `"${category.name}" ne sera supprimee que si elle n'est plus utilisee.`,
-                    confirmLabel: 'Supprimer',
-                    tone: 'danger'
-                  }).then((confirmed) => {
-                    if (confirmed) void removeInventoryCategory(category.id);
-                  });
-                }}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
       {modalMode === 'material' && (
-        <Modal title={editingId ? 'Modifier la matiere' : 'Nouvelle matiere'} onClose={closeModal}>
+        <Modal title={editingId ? 'Modifier le produit stock' : 'Nouveau produit stock'} onClose={closeModal}>
           <div className="space-y-4">
             <label className="block">
-              <span className="text-xs font-semibold text-zinc-600">Nom de la matiere</span>
+              <span className="text-xs font-semibold text-zinc-600">Nom du produit</span>
               <input
                 value={materialForm.name}
                 onChange={(event) => setMaterialForm((current) => ({ ...current, name: event.target.value }))}
-                placeholder="Ex: Tomate, viande hachee, fromage tranche"
+                placeholder="Ex: Tomate, viande hachee, bouteille d'eau"
                 className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
               />
             </label>
@@ -479,36 +475,14 @@ export function InventoryWorkspace() {
             </div>
 
             <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-3">
-              <div className="text-sm font-semibold text-zinc-950">Utilisation dans le restaurant</div>
-              <p className="mt-1 text-xs text-zinc-500">
-                Choisissez si cet article sert aux recettes, se vend directement en caisse, ou les deux.
-              </p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                {[
-                  { value: 'recipe_only', label: 'Recettes', hint: 'Ex: viande, tomate' },
-                  { value: 'direct_sale', label: 'Vente directe', hint: 'Ex: eau, soda' },
-                  { value: 'both', label: 'Les deux', hint: 'Stock commun' }
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() =>
-                      setMaterialForm((current) => ({
-                        ...current,
-                        usageType: option.value as InventoryUsageType
-                      }))
-                    }
-                    className={`rounded-2xl border px-3 py-3 text-left transition ${
-                      materialForm.usageType === option.value
-                        ? 'border-brand bg-brand text-white'
-                        : 'border-zinc-200 bg-white text-zinc-700'
-                    }`}
-                  >
-                    <div className="text-sm font-black">{option.label}</div>
-                    <div className={`mt-1 text-xs ${materialForm.usageType === option.value ? 'text-white/75' : 'text-zinc-500'}`}>
-                      {option.hint}
-                    </div>
-                  </button>
-                ))}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold text-zinc-950">Regle de la categorie</div>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Le produit herite automatiquement de l'usage defini sur sa categorie.
+                  </p>
+                </div>
+                <UsageBadge usageType={materialUsageType} />
               </div>
 
               {materialUsesDirectSale ? (
@@ -565,7 +539,7 @@ export function InventoryWorkspace() {
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3">
                 <div className="text-sm font-semibold text-zinc-900">Stock initial optionnel</div>
                 <p className="mt-1 text-xs text-zinc-600">
-                  Laissez 0 si la matiere existe sans entree. Si vous saisissez une quantite, le systeme cree une entree stock.
+                  Laissez 0 si le produit existe sans entree. Si vous saisissez une quantite, le systeme cree une entree stock.
                 </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <label className="block">
@@ -615,7 +589,7 @@ export function InventoryWorkspace() {
               onClick={saveMaterial}
               className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
             >
-              {editingId ? 'Mettre a jour' : 'Creer la matiere'}
+              {editingId ? 'Mettre a jour' : 'Creer le produit'}
             </button>
           </div>
         </Modal>
@@ -629,7 +603,7 @@ export function InventoryWorkspace() {
               onChange={(event) => setEntryForm((current) => ({ ...current, ingredientId: Number(event.target.value) }))}
               className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
             >
-              <option value={0}>Choisir une matiere premiere</option>
+              <option value={0}>Choisir un produit stock</option>
               {inventoryItems.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name} · {formatQuantity(item)}
@@ -709,7 +683,7 @@ export function InventoryWorkspace() {
             </div>
 
             <div className="rounded-2xl bg-zinc-50 p-3 text-sm text-zinc-600 ring-1 ring-zinc-100">
-              <Summary label="Matiere" value={selectedEntryItem?.name ?? '-'} />
+              <Summary label="Produit" value={selectedEntryItem?.name ?? '-'} />
               <Summary label="Unite" value={selectedEntryItem ? displayUnit(selectedEntryItem.unit) : '-'} />
               <Summary
                 label="Cout unitaire calcule"
@@ -744,7 +718,7 @@ export function InventoryWorkspace() {
               onChange={(event) => setLossForm((current) => ({ ...current, ingredientId: Number(event.target.value) }))}
               className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
             >
-              <option value={0}>Choisir une matiere premiere</option>
+              <option value={0}>Choisir un produit stock</option>
               {inventoryItems.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name} · {formatQuantity(item)}
@@ -771,7 +745,7 @@ export function InventoryWorkspace() {
             </label>
 
             <div className="rounded-2xl bg-zinc-50 p-3 text-sm text-zinc-600 ring-1 ring-zinc-100">
-              <Summary label="Matiere" value={selectedLossItem?.name ?? '-'} />
+              <Summary label="Produit" value={selectedLossItem?.name ?? '-'} />
               <Summary label="Stock actuel" value={selectedLossItem ? formatQuantity(selectedLossItem) : '-'} />
               <Summary
                 label="Stock apres perte"
@@ -821,10 +795,35 @@ export function InventoryWorkspace() {
               <textarea
                 value={categoryForm.description}
                 onChange={(event) => setCategoryForm((current) => ({ ...current, description: event.target.value }))}
-                placeholder="Ex: Matieres utilisees dans les recettes chaudes"
+                placeholder="Ex: Produits utilises dans les recettes chaudes"
                 className="mt-1 min-h-24 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
               />
             </label>
+            <div>
+              <div className="text-xs font-semibold text-zinc-600">Usage des produits</div>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {[
+                  { value: 'recipe_only', label: 'Recette', hint: 'Ingrédients uniquement' },
+                  { value: 'direct_sale', label: 'Vente directe', hint: 'Caisse uniquement' },
+                  { value: 'both', label: 'Les deux', hint: 'Recette + caisse' }
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => setCategoryForm((current) => ({ ...current, usageType: option.value as InventoryUsageType }))}
+                    className={`rounded-2xl border px-3 py-3 text-left transition ${
+                      categoryForm.usageType === option.value
+                        ? 'border-zinc-950 bg-zinc-950 text-white'
+                        : 'border-zinc-200 bg-zinc-50 text-zinc-700'
+                    }`}
+                  >
+                    <div className="text-sm font-black">{option.label}</div>
+                    <div className={`mt-1 text-xs ${categoryForm.usageType === option.value ? 'text-white/70' : 'text-zinc-500'}`}>
+                      {option.hint}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
             <button
               disabled={!categoryForm.name.trim()}
               onClick={saveCategory}
@@ -892,9 +891,120 @@ function formatMovementReason(reason: StockMovement['reason']) {
   return 'Ajustement';
 }
 
-function CategoryCard({ category, onDelete }: { category: InventoryCategory; onDelete: () => void }) {
+function InventoryTable({
+  items,
+  onEdit,
+  onEntry,
+  onLoss,
+  onDelete
+}: {
+  items: InventoryItem[];
+  onEdit: (item: InventoryItem) => void;
+  onEntry: (item: InventoryItem) => void;
+  onLoss: (item: InventoryItem) => void;
+  onDelete: (item: InventoryItem) => void;
+}) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-zinc-200 bg-white/70 p-8 text-center">
+        <div className="text-sm font-black text-zinc-950">Aucun produit ici</div>
+        <div className="mt-1 text-xs font-semibold text-zinc-500">
+          Ajoutez un produit stock ou changez le filtre.
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <article className="premium-card rounded-2xl p-4">
+    <div className="overflow-x-auto rounded-2xl border border-zinc-100 bg-white/70">
+      <table className="min-w-full divide-y divide-zinc-100">
+        <thead className="bg-brand/5">
+          <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-zinc-500">
+            <th className="px-4 py-3">Produit</th>
+            <th className="px-4 py-3">Unite</th>
+            <th className="px-4 py-3">Usage</th>
+            <th className="px-4 py-3">Stock</th>
+            <th className="px-4 py-3">Cout</th>
+            <th className="px-4 py-3">Statut</th>
+            <th className="px-4 py-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-100 bg-white/80">
+          {items.map((item) => (
+            <tr key={item.id} className="text-sm text-zinc-700 transition hover:bg-orange-50/45">
+              <td className="px-4 py-3">
+                <div className="font-semibold text-zinc-950">{item.name}</div>
+                <div className="mt-0.5 text-xs text-zinc-500">{item.category}</div>
+              </td>
+              <td className="px-4 py-3">
+                <div className="font-semibold text-zinc-950">{displayUnit(item.unit)}</div>
+                <div className="text-xs text-zinc-500">{formatMeasurementType(item.measurementType)}</div>
+              </td>
+              <td className="px-4 py-3">
+                <UsageBadge usageType={item.usageType} />
+                {item.directSale?.isActive ? (
+                  <div className="mt-1 text-xs text-zinc-500">{formatMoney(item.directSale.sellingPrice)} en caisse</div>
+                ) : null}
+              </td>
+              <td className="px-4 py-3 font-semibold text-zinc-950">{formatQuantity(item)}</td>
+              <td className="px-4 py-3">{formatMoney(item.estimatedCost)}</td>
+              <td className="px-4 py-3">
+                <StatusBadge status={item.status} />
+              </td>
+              <td className="px-4 py-3">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => onEdit(item)}
+                    className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-700"
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    onClick={() => onEntry(item)}
+                    className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700"
+                  >
+                    Entree
+                  </button>
+                  <button
+                    onClick={() => onLoss(item)}
+                    className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700"
+                  >
+                    Perte
+                  </button>
+                  <button
+                    onClick={() => onDelete(item)}
+                    className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CategoryCard({
+  category,
+  active,
+  onOpen,
+  onDelete
+}: {
+  category: InventoryCategory;
+  active: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <article
+      onClick={onOpen}
+      className={`premium-card cursor-pointer rounded-2xl p-4 transition hover:-translate-y-0.5 ${
+        active ? 'ring-2 ring-zinc-950' : ''
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-lg font-bold text-zinc-950">{category.name}</div>
@@ -904,9 +1014,15 @@ function CategoryCard({ category, onDelete }: { category: InventoryCategory; onD
           {category.itemsCount} articles
         </div>
       </div>
+      <div className="mt-3">
+        <UsageBadge usageType={category.usageType} />
+      </div>
       <button
         disabled={category.itemsCount > 0}
-        onClick={onDelete}
+        onClick={(event) => {
+          event.stopPropagation();
+          onDelete();
+        }}
         className="mt-4 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
       >
         Supprimer
@@ -956,9 +1072,9 @@ function UsageBadge({ usageType }: { usageType: InventoryUsageType }) {
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-zinc-950/35 px-3 backdrop-blur-sm">
-      <div className="dialog-panel-motion premium-panel max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[1.7rem] bg-white p-5 shadow-2xl">
-        <div className="mb-4 flex items-center justify-between gap-4">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-zinc-950/35 px-3 py-6 backdrop-blur-sm">
+      <div className="dialog-panel-motion premium-panel mx-auto w-full max-w-xl rounded-[1.7rem] bg-white p-5 shadow-2xl">
+        <div className="sticky top-0 z-10 mb-4 flex items-center justify-between gap-4 rounded-2xl bg-white/90 py-1 backdrop-blur">
           <h3 className="text-lg font-bold text-zinc-950">{title}</h3>
           <button onClick={onClose} className="rounded-2xl bg-zinc-100 px-3 py-2 text-sm font-black text-zinc-700">
             Fermer

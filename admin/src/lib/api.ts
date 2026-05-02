@@ -171,7 +171,7 @@ export async function fetchStockMovements(limit = 120) {
   return response.data.data;
 }
 
-export async function createInventoryCategory(payload: { name: string; description?: string | null }) {
+export async function createInventoryCategory(payload: { name: string; description?: string | null; usageType?: InventoryCategory['usageType'] }) {
   const response = await api.post<{ success: boolean; data: InventoryCategory }>('/inventory/categories', payload);
   return response.data.data;
 }
