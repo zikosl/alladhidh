@@ -36,7 +36,7 @@ const moduleAliases: Record<string, ModuleId> = {
 
 const posPaths: Record<PosScreen, string> = {
   order: 'caisse',
-  kitchen: 'cuisine',
+  kitchen: 'caisse',
   cashier: 'paiement',
   delivery: 'livraison'
 };
@@ -46,9 +46,9 @@ const posAliases: Record<string, PosScreen> = {
   caisse: 'order',
   order: 'order',
   commande: 'order',
-  cuisine: 'kitchen',
-  kitchen: 'kitchen',
-  kds: 'kitchen',
+  cuisine: 'cashier',
+  kitchen: 'cashier',
+  kds: 'cashier',
   paiement: 'cashier',
   caissement: 'cashier',
   cashier: 'cashier',

@@ -1,26 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CashierScreen } from './CashierScreen';
 import { DeliveryScreen } from './DeliveryScreen';
-import { KitchenScreen } from './KitchenScreen';
 import { OrderScreen } from './OrderScreen';
 import { usePosStore } from '../store/usePosStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { DeliveryStatus, OrderStatus, OrderType, PosScreen } from '../types/pos';
+import { DeliveryStatus, OrderType, PosScreen } from '../types/pos';
 
-const posTabs: Array<{ id: PosScreen; label: string; hint: string }> = [
+type VisiblePosScreen = Exclude<PosScreen, 'kitchen'>;
+
+const posTabs: Array<{ id: VisiblePosScreen; label: string; hint: string }> = [
   { id: 'order', label: 'Caisse', hint: 'Commande rapide' },
-  { id: 'kitchen', label: 'Cuisine', hint: 'KDS' },
   { id: 'cashier', label: 'Paiement', hint: 'Cloture' },
   { id: 'delivery', label: 'Livraison', hint: 'Suivi' }
 ];
 
 export function PosWorkspace() {
-  const { posScreen, setPosScreen, setCurrentModule, categories, selectedCategory, setSelectedCategory, orders, refreshLiveData } =
-    usePosStore();
+  const { posScreen, setPosScreen, setCurrentModule, categories, selectedCategory, setSelectedCategory, orders } = usePosStore();
   const { hasPermission } = useAuthStore();
-  const [kitchenStatus, setKitchenStatus] = useState<'all' | Extract<OrderStatus, 'pending' | 'preparing' | 'ready'>>('all');
-  const [kitchenType, setKitchenType] = useState<'all' | OrderType>('all');
-  const [kitchenSearch, setKitchenSearch] = useState('');
   const [cashierStatus, setCashierStatus] = useState<'all' | 'pending' | 'preparing' | 'ready' | 'paid'>('all');
   const [cashierType, setCashierType] = useState<'all' | OrderType>('all');
   const [cashierSearch, setCashierSearch] = useState('');
@@ -35,26 +31,22 @@ export function PosWorkspace() {
     () => orders.filter((order) => order.status !== 'paid' && order.status !== 'cancelled').reduce((sum, order) => sum + order.totalPrice, 0),
     [orders]
   );
-  const urgentKitchenCount = useMemo(
-    () =>
-      orders.filter((order) => ['pending', 'preparing'].includes(order.status) && Date.now() - new Date(order.createdAt).getTime() >= 15 * 60000)
-        .length,
+  const deliveryActiveCount = useMemo(
+    () => orders.filter((order) => order.type === 'delivery' && order.deliveryStatus !== 'delivered').length,
     [orders]
   );
   const tabCounters = useMemo(
     () => ({
       order: activeOrdersCount,
-      kitchen: orders.filter((order) => ['pending', 'preparing'].includes(order.status)).length,
       cashier: orders.filter((order) => order.status !== 'paid' && order.status !== 'cancelled').length,
-      delivery: orders.filter((order) => order.type === 'delivery' && order.deliveryStatus !== 'delivered').length
+      delivery: deliveryActiveCount
     }),
-    [activeOrdersCount, orders]
+    [activeOrdersCount, deliveryActiveCount, orders]
   );
   const visibleTabs = useMemo(
     () =>
       posTabs.filter((tab) => {
         if (tab.id === 'order') return hasPermission('pos.use');
-        if (tab.id === 'kitchen') return hasPermission('pos.kitchen');
         if (tab.id === 'cashier') return hasPermission('pos.cashier');
         if (tab.id === 'delivery') return hasPermission('pos.delivery');
         return false;
@@ -88,58 +80,6 @@ export function PosWorkspace() {
                 </span>
               </button>
             ))}
-          </div>
-        </div>
-      );
-    }
-
-    if (posScreen === 'kitchen') {
-      const states = [
-        { id: 'all', label: 'Toutes' },
-        { id: 'pending', label: 'En attente' },
-        { id: 'preparing', label: 'En preparation' },
-        { id: 'ready', label: 'Pretes' }
-      ] as const;
-
-      return (
-        <div className="mt-3 space-y-3">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Etats cuisine</div>
-            <div className="mt-2 space-y-1.5">
-              {states.map((state) => (
-                <button
-                  key={state.id}
-                  onClick={() => setKitchenStatus(state.id)}
-                  className={`w-full rounded-2xl px-3 py-2 text-left text-xs font-black transition ${
-                    kitchenStatus === state.id ? 'bg-zinc-950 text-white shadow-lg shadow-zinc-950/10' : 'mesh-chip text-zinc-700 hover:bg-white'
-                  }`}
-                >
-                  {state.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">Type</div>
-            <div className="mt-2 grid grid-cols-1 gap-1.5">
-              {[
-                { id: 'all', label: 'Toutes' },
-                { id: 'dine_in', label: 'Sur place' },
-                { id: 'take_away', label: 'A emporter' },
-                { id: 'delivery', label: 'Livraison' }
-              ].map((type) => (
-                <button
-                  key={type.id}
-                  onClick={() => setKitchenType(type.id as 'all' | OrderType)}
-                  className={`rounded-2xl px-3 py-2 text-left text-xs font-black transition ${
-                    kitchenType === type.id ? 'bg-brand text-white shadow-lg shadow-brand/15' : 'mesh-chip text-zinc-700 hover:bg-white'
-                  }`}
-                >
-                  {type.label}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       );
@@ -245,8 +185,8 @@ export function PosWorkspace() {
               <div className="mt-0.5">{activeOrdersCount}</div>
             </div>
             <div className="rounded-xl bg-white/14 px-2.5 py-2 ring-1 ring-white/15">
-              <div className="text-white/55">Urgentes</div>
-              <div className="mt-0.5">{urgentKitchenCount}</div>
+              <div className="text-white/55">A encaisser</div>
+              <div className="mt-0.5">{tabCounters.cashier}</div>
             </div>
           </div>
         </div>
@@ -260,7 +200,7 @@ export function PosWorkspace() {
             <div>
               <div className="text-[9px] font-black uppercase tracking-[0.2em] text-brand">Poste actif</div>
               <div className="mt-0.5 text-base font-black text-zinc-950">
-                {posTabs.find((tab) => tab.id === posScreen)?.label}
+                {posTabs.find((tab) => tab.id === posScreen)?.label ?? 'Paiement'}
               </div>
             </div>
             <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -287,21 +227,12 @@ export function PosWorkspace() {
           </div>
           <div className="mt-3 grid gap-2 md:grid-cols-3">
             <PosMetric label="Commandes actives" value={String(activeOrdersCount)} />
-            <PosMetric label="Cuisine urgente" value={String(urgentKitchenCount)} danger={urgentKitchenCount > 0} />
             <PosMetric label="A encaisser" value={`${Math.round(readyToPayTotal).toLocaleString('fr-DZ')} DZD`} />
+            <PosMetric label="Livraisons" value={String(deliveryActiveCount)} />
           </div>
         </section>
 
         {posScreen === 'order' && <OrderScreen />}
-        {posScreen === 'kitchen' && (
-          <KitchenScreen
-            statusFilter={kitchenStatus}
-            typeFilter={kitchenType}
-            search={kitchenSearch}
-            onSearchChange={setKitchenSearch}
-            onRefresh={refreshLiveData}
-          />
-        )}
         {posScreen === 'cashier' && (
           <CashierScreen
             statusFilter={cashierStatus}
