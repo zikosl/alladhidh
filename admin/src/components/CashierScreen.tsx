@@ -17,7 +17,7 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
   const activeOrders = useMemo(
     () =>
       orders.filter((order) => {
-        const matchesStatus = statusFilter === 'all' ? order.status === 'ready' : order.status === statusFilter;
+        const matchesStatus = statusFilter === 'all' ? order.status !== 'paid' && order.status !== 'cancelled' : order.status === statusFilter;
         const matchesType = typeFilter === 'all' || order.type === typeFilter;
         const needle = search.trim().toLowerCase();
         const matchesSearch =
@@ -46,7 +46,7 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
           <div>
             <div className="text-[9px] font-black uppercase tracking-[0.22em] text-brand">Caisse</div>
             <div className="text-base font-black text-zinc-950">{activeOrders.length} commande(s)</div>
-            <p className="mt-0.5 text-[11px] font-bold text-zinc-500">Paiement rapide, uniquement quand la cuisine a valide.</p>
+            <p className="mt-0.5 text-[11px] font-bold text-zinc-500">Paiement rapide: la commande peut etre encaissee tout de suite.</p>
           </div>
           <div className="grid grid-cols-4 gap-1.5 rounded-2xl bg-zinc-50 p-1.5 ring-1 ring-zinc-100">
             <CashierMetric label="Pretes" value={cashierStats.ready} tone="emerald" />
@@ -102,25 +102,28 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
               <div className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-center text-xs font-black text-emerald-700">
                 Commande deja payee
               </div>
-            ) : order.status !== 'ready' ? (
-              <div className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-center text-xs font-black text-amber-700">
-                En attente cuisine
-              </div>
             ) : (
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => payOrder(order.id, 'cash')}
-                  className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 active:translate-y-0"
-                >
-                  Espece
-                </button>
-                <button
-                  onClick={() => payOrder(order.id, 'card')}
-                  className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 active:translate-y-0"
-                >
-                  Carte
-                </button>
-              </div>
+              <>
+                {order.status !== 'ready' ? (
+                  <div className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-center text-xs font-black text-amber-700">
+                    Cuisine: {order.status === 'pending' ? 'en attente' : 'en preparation'}
+                  </div>
+                ) : null}
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => void payOrder(order.id, 'cash')}
+                    className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                    Especes
+                  </button>
+                  <button
+                    onClick={() => void payOrder(order.id, 'card')}
+                    className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                    Carte
+                  </button>
+                </div>
+              </>
             )}
           </article>
         ))}

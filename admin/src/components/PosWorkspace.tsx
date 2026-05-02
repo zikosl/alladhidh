@@ -32,7 +32,7 @@ export function PosWorkspace() {
     [orders]
   );
   const readyToPayTotal = useMemo(
-    () => orders.filter((order) => order.status === 'ready').reduce((sum, order) => sum + order.totalPrice, 0),
+    () => orders.filter((order) => order.status !== 'paid' && order.status !== 'cancelled').reduce((sum, order) => sum + order.totalPrice, 0),
     [orders]
   );
   const urgentKitchenCount = useMemo(
@@ -45,7 +45,7 @@ export function PosWorkspace() {
     () => ({
       order: activeOrdersCount,
       kitchen: orders.filter((order) => ['pending', 'preparing'].includes(order.status)).length,
-      cashier: orders.filter((order) => order.status === 'ready').length,
+      cashier: orders.filter((order) => order.status !== 'paid' && order.status !== 'cancelled').length,
       delivery: orders.filter((order) => order.type === 'delivery' && order.deliveryStatus !== 'delivered').length
     }),
     [activeOrdersCount, orders]

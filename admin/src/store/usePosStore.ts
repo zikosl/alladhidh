@@ -1096,7 +1096,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       return;
     }
     if (state.orderType === 'dine_in' && !state.tableNumber.trim()) {
-      set({ lastError: "Choisissez une table avant l'envoi en cuisine" });
+      set({ lastError: 'Choisissez une table avant de valider la commande' });
       return;
     }
     if (state.orderType === 'delivery') {
@@ -1109,7 +1109,7 @@ export const usePosStore = create<PosState>((set, get) => ({
 
     set({ submitting: true, lastError: null });
     try {
-      const createdOrder = await createOrder({
+      await createOrder({
         type: state.orderType,
         tableNumber: state.orderType === 'dine_in' ? state.tableNumber : null,
         customerName: state.orderType === 'dine_in' ? null : state.deliveryForm.customerName || null,
@@ -1122,18 +1122,26 @@ export const usePosStore = create<PosState>((set, get) => ({
           quantity: item.quantity
         }))
       });
-      printCustomerInvoice(createdOrder, state.restaurantSettings);
       localStorage.removeItem(heldCartKey);
       set({ cart: [], notes: '', submitting: false });
       await get().refreshLiveData();
-      get().setPosScreen('kitchen');
+      get().setPosScreen('cashier');
     } catch (error) {
       set({ submitting: false, lastError: error instanceof Error ? error.message : 'Creation commande impossible' });
     }
   },
   setKitchenStatus: async (orderId, status) => {
-    await updateOrderStatus(orderId, status);
-    await get().refreshLiveData();
+    try {
+      const updatedOrder = await updateOrderStatus(orderId, status);
+      set((state) => ({
+        orders: state.orders.map((order) => (order.id === orderId ? updatedOrder : order)),
+        kitchenOrders: state.kitchenOrders.map((order) => (order.id === orderId ? updatedOrder : order)),
+        lastError: null
+      }));
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Mise a jour cuisine impossible' });
+    }
   },
   cancelOrder: async (orderId) => {
     try {
@@ -1144,11 +1152,30 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
   payOrder: async (orderId, method) => {
-    await createPayment(orderId, method);
-    await get().refreshLiveData();
+    try {
+      const updatedOrder = await createPayment(orderId, method);
+      printCustomerInvoice(updatedOrder, get().restaurantSettings);
+      set((state) => ({
+        orders: state.orders.map((order) => (order.id === orderId ? updatedOrder : order)),
+        kitchenOrders: state.kitchenOrders.map((order) => (order.id === orderId ? updatedOrder : order)),
+        lastError: null
+      }));
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Paiement impossible' });
+    }
   },
   setDeliveryOrderStatus: async (orderId, status) => {
-    await updateDeliveryStatus(orderId, status);
-    await get().refreshLiveData();
+    try {
+      const updatedOrder = await updateDeliveryStatus(orderId, status);
+      set((state) => ({
+        orders: state.orders.map((order) => (order.id === orderId ? updatedOrder : order)),
+        kitchenOrders: state.kitchenOrders.map((order) => (order.id === orderId ? updatedOrder : order)),
+        lastError: null
+      }));
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Mise a jour livraison impossible' });
+    }
   }
 }));

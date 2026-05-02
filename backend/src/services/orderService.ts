@@ -494,10 +494,6 @@ export async function createPayment(orderId: number, method: string): Promise<Or
       throw new HttpError(400, 'Order is already paid');
     }
 
-    if (existing.status !== PrismaSaleStatus.ready) {
-      throw new HttpError(400, 'La commande doit etre prete en cuisine avant le paiement');
-    }
-
     await client.payment.create({
       data: {
         saleId: orderId,

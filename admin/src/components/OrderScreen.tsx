@@ -68,12 +68,12 @@ export function OrderScreen() {
       ? 'Completer la livraison'
       : cart.length === 0
         ? 'Ajouter un produit'
-        : 'Pret pour la cuisine';
-  const primaryActionLabel = missingDelivery ? 'Completer livraison' : submitting ? 'Envoi...' : 'Envoyer cuisine';
+        : 'Pret pour paiement';
+  const primaryActionLabel = missingDelivery ? 'Completer livraison' : submitting ? 'Validation...' : 'Valider commande';
 
   function handlePrimaryAction() {
     if (cart.length === 0) {
-      toast({ title: 'Panier vide', message: "Ajoutez au moins un produit avant l'envoi en cuisine.", tone: 'warning' });
+      toast({ title: 'Panier vide', message: 'Ajoutez au moins un produit avant de valider la commande.', tone: 'warning' });
       return;
     }
     if (missingTable) {
@@ -291,7 +291,7 @@ export function OrderScreen() {
           onClick={() => setNotesPanelOpen((current) => !current)}
           className="mt-3 w-full rounded-2xl bg-zinc-100/80 px-3 py-2 text-left text-xs font-black text-zinc-700"
         >
-          Notes cuisine {notes.trim() ? '- ajoutees' : ''}
+          Notes commande {notes.trim() ? '- ajoutees' : ''}
         </button>
         {notesPanelOpen && (
           <textarea

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { formatDeliveryStatus, formatMoney } from '../lib/format';
 import { usePosStore } from '../store/usePosStore';
 import { DeliveryStatus } from '../types/pos';
-import { DeliveryStatusBadge, nextDeliveryAction, OrderStatusBadge } from './posUi';
+import { DeliveryStatusBadge, OrderStatusBadge } from './posUi';
 
 interface DeliveryScreenProps {
   statusFilter: 'all' | DeliveryStatus;
@@ -12,6 +12,11 @@ interface DeliveryScreenProps {
 
 export function DeliveryScreen({ statusFilter, search, onSearchChange }: DeliveryScreenProps) {
   const { orders, setDeliveryOrderStatus } = usePosStore();
+  const deliveryActions: Array<{ status: DeliveryStatus; label: string; className: string }> = [
+    { status: 'pending', label: 'Attente', className: 'bg-amber-100 text-amber-800 ring-amber-200' },
+    { status: 'on_the_way', label: 'En route', className: 'bg-sky-600 text-white ring-sky-600' },
+    { status: 'delivered', label: 'Livree', className: 'bg-emerald-600 text-white ring-emerald-600' }
+  ];
 
   const deliveryOrders = useMemo(
     () =>
@@ -70,7 +75,7 @@ export function DeliveryScreen({ statusFilter, search, onSearchChange }: Deliver
 
       <div className="grid gap-3 xl:grid-cols-2">
         {deliveryOrders.map((order) => {
-          const action = nextDeliveryAction(order.deliveryStatus);
+          const currentStatus = order.deliveryStatus ?? 'pending';
           return (
             <article key={order.id} className="premium-card p-3 transition hover:-translate-y-0.5">
               <div className="flex items-start justify-between gap-3">
@@ -107,17 +112,22 @@ export function DeliveryScreen({ statusFilter, search, onSearchChange }: Deliver
                 ))}
               </div>
 
-              <div className="mt-3 flex items-center justify-end">
-                {action ? (
-                  <button
-                    onClick={() => setDeliveryOrderStatus(order.id, action.status)}
-                    className={`rounded-2xl px-4 py-2.5 text-sm font-black shadow-soft transition hover:-translate-y-0.5 active:translate-y-0 ${action.className}`}
-                  >
-                    {action.label}
-                  </button>
-                ) : (
-                  <span className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">Course terminee</span>
-                )}
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {deliveryActions.map((action) => {
+                  const active = currentStatus === action.status;
+                  return (
+                    <button
+                      key={action.status}
+                      disabled={active}
+                      onClick={() => void setDeliveryOrderStatus(order.id, action.status)}
+                      className={`rounded-2xl px-3 py-2.5 text-xs font-black ring-1 transition hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-default disabled:opacity-100 ${
+                        active ? action.className : 'bg-white text-zinc-700 ring-zinc-100 hover:bg-zinc-50'
+                      }`}
+                    >
+                      {action.label}
+                    </button>
+                  );
+                })}
               </div>
             </article>
           );
