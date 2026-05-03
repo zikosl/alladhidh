@@ -230,6 +230,7 @@ function loadLocalInventory() {
     const parsed = JSON.parse(raw) as InventoryItem[];
     return parsed.map((item) => ({
       ...item,
+      isActive: item.isActive ?? true,
       measurementType: String(item.measurementType) === 'unit' ? 'portion' : item.measurementType,
       usageType: item.usageType ?? 'recipe_only',
       directSale: item.directSale ?? null,
@@ -544,6 +545,7 @@ export const usePosStore = create<PosState>((set, get) => ({
         usageType: item.usageType ?? 'recipe_only',
         estimatedCost: item.estimatedCost ?? 0,
         minimumStock,
+        isActive: true,
         directSale:
           item.directSale?.enabled && item.directSale.sellingPrice > 0
             ? {
@@ -713,7 +715,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
       await get().refreshLiveData();
     } catch (error) {
-      set({ lastError: error instanceof Error ? error.message : 'Suppression stock impossible' });
+      set({ lastError: error instanceof Error ? error.message : 'Archivage stock impossible' });
     }
   },
   removeMenuItem: async (id) => {

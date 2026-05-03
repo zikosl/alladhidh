@@ -539,6 +539,7 @@ export interface InventoryItem {
   quantity: number;
   estimatedCost: number;
   minimumStock: number | null;
+  isActive: boolean;
   status: InventoryStatus;
   directSale: {
     productId: number;

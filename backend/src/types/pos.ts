@@ -260,6 +260,7 @@ export interface InventoryItemSummary {
   quantity: number;
   estimatedCost: number;
   minimumStock: number | null;
+  isActive: boolean;
   status: 'in_stock' | 'low_stock' | 'out_of_stock';
   directSale: {
     productId: number;

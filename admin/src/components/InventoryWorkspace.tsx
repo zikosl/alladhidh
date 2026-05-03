@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
 import { usePosStore } from '../store/usePosStore';
 import { ExpenseStatus, FinancePaymentMethod, InventoryCategory, InventoryItem, InventoryUsageType, MeasurementType, MeasurementUnit, StockMovement } from '../types/pos';
@@ -358,8 +358,8 @@ export function InventoryWorkspace() {
                   onDelete={(item) => {
                     void confirm({
                       title: 'Supprimer le produit ?',
-                      message: `"${item.name}" sera supprime si aucun historique stock ne bloque l'action.`,
-                      confirmLabel: 'Supprimer',
+                      message: `"${item.name}" sera archive. L'historique stock reste conserve, mais le produit disparaitra des listes actives.`,
+                      confirmLabel: 'Archiver',
                       tone: 'danger'
                     }).then((confirmed) => {
                       if (confirmed) void removeInventoryItem(item.id);
@@ -378,8 +378,8 @@ export function InventoryWorkspace() {
                 onDelete={(item) => {
                   void confirm({
                     title: 'Supprimer le produit ?',
-                    message: `"${item.name}" sera supprime si aucun historique stock ne bloque l'action.`,
-                    confirmLabel: 'Supprimer',
+                    message: `"${item.name}" sera archive. L'historique stock reste conserve, mais le produit disparaitra des listes actives.`,
+                    confirmLabel: 'Archiver',
                     tone: 'danger'
                   }).then((confirmed) => {
                     if (confirmed) void removeInventoryItem(item.id);
@@ -952,31 +952,11 @@ function InventoryTable({
                 <StatusBadge status={item.status} />
               </td>
               <td className="px-4 py-3">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => onEdit(item)}
-                    className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-700"
-                  >
-                    Modifier
-                  </button>
-                  <button
-                    onClick={() => onEntry(item)}
-                    className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700"
-                  >
-                    Entree
-                  </button>
-                  <button
-                    onClick={() => onLoss(item)}
-                    className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700"
-                  >
-                    Perte
-                  </button>
-                  <button
-                    onClick={() => onDelete(item)}
-                    className="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-600"
-                  >
-                    Supprimer
-                  </button>
+                <div className="flex flex-wrap gap-1.5">
+                  <IconActionButton label="Modifier" icon="✎" tone="neutral" onClick={() => onEdit(item)} />
+                  <IconActionButton label="Entrée stock" icon="+" tone="success" onClick={() => onEntry(item)} />
+                  <IconActionButton label="Déclarer une perte" icon="−" tone="warning" onClick={() => onLoss(item)} />
+                  <IconActionButton label="Archiver" icon="×" tone="danger" onClick={() => onDelete(item)} />
                 </div>
               </td>
             </tr>
@@ -984,6 +964,37 @@ function InventoryTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function IconActionButton({
+  label,
+  icon,
+  tone,
+  onClick
+}: {
+  label: string;
+  icon: string;
+  tone: 'neutral' | 'success' | 'warning' | 'danger';
+  onClick: () => void;
+}) {
+  const toneClass = {
+    neutral: 'bg-zinc-100 text-zinc-700 ring-zinc-200 hover:bg-white',
+    success: 'bg-emerald-50 text-emerald-700 ring-emerald-100 hover:bg-emerald-100',
+    warning: 'bg-amber-50 text-amber-700 ring-amber-100 hover:bg-amber-100',
+    danger: 'bg-red-50 text-red-600 ring-red-100 hover:bg-red-100'
+  }[tone];
+
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={`grid h-8 w-8 place-items-center rounded-xl text-sm font-black ring-1 transition hover:-translate-y-0.5 active:translate-y-0 ${toneClass}`}
+    >
+      {icon}
+    </button>
   );
 }
 
@@ -1019,13 +1030,15 @@ function CategoryCard({
       </div>
       <button
         disabled={category.itemsCount > 0}
+        aria-label="Supprimer la categorie"
+        title="Supprimer la categorie"
         onClick={(event) => {
           event.stopPropagation();
           onDelete();
         }}
-        className="mt-4 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+        className="mt-4 grid h-8 w-8 place-items-center rounded-xl bg-red-50 text-sm font-black text-red-600 ring-1 ring-red-100 transition hover:-translate-y-0.5 hover:bg-red-100 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400 disabled:ring-zinc-100"
       >
-        Supprimer
+        ×
       </button>
     </article>
   );
@@ -1062,7 +1075,7 @@ function UsageBadge({ usageType }: { usageType: InventoryUsageType }) {
           ? 'bg-zinc-100 text-zinc-700'
           : usageType === 'both'
             ? 'bg-amber-100 text-amber-700'
-            : 'bg-sky-100 text-sky-700'
+            : 'bg-brand/10 text-brand ring-1 ring-brand/15'
       }`}
     >
       {label}
@@ -1071,16 +1084,29 @@ function UsageBadge({ usageType }: { usageType: InventoryUsageType }) {
 }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-zinc-950/35 px-3 py-6 backdrop-blur-sm">
-      <div className="dialog-panel-motion premium-panel mx-auto w-full max-w-xl rounded-[1.7rem] bg-white p-5 shadow-2xl">
-        <div className="sticky top-0 z-10 mb-4 flex items-center justify-between gap-4 rounded-2xl bg-white/90 py-1 backdrop-blur">
+    <div
+      className="fixed inset-0 z-50 grid min-h-dvh place-items-center overflow-hidden bg-zinc-950/45 p-3 backdrop-blur-sm sm:p-5"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="dialog-panel-motion premium-panel flex max-h-[calc(100dvh-1.5rem)] w-full max-w-xl flex-col overflow-hidden rounded-[1.7rem] bg-white p-3 shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:p-5">
+        <div className="z-10 mb-3 flex shrink-0 items-center justify-between gap-4 rounded-2xl bg-white/90 py-1 pl-1 backdrop-blur">
           <h3 className="text-lg font-bold text-zinc-950">{title}</h3>
           <button onClick={onClose} className="rounded-2xl bg-zinc-100 px-3 py-2 text-sm font-black text-zinc-700">
             Fermer
           </button>
         </div>
-        {children}
+        <div className="min-h-0 overflow-y-auto pr-1">{children}</div>
       </div>
     </div>
   );

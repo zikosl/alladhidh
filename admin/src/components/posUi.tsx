@@ -4,9 +4,9 @@ import { DeliveryStatus, OrderStatus, OrderType } from '../types/pos';
 export function orderStatusClass(status: OrderStatus) {
   const classes: Record<OrderStatus, string> = {
     pending: 'bg-amber-100 text-amber-800 ring-amber-200',
-    preparing: 'bg-sky-100 text-sky-700 ring-sky-200',
+    preparing: 'bg-brand/10 text-brand ring-brand/15',
     ready: 'bg-emerald-100 text-emerald-700 ring-emerald-200',
-    paid: 'bg-zinc-950 text-white ring-zinc-950',
+    paid: 'bg-charcoal text-white ring-charcoal',
     cancelled: 'bg-red-100 text-red-700 ring-red-200'
   };
   return classes[status];
@@ -15,7 +15,7 @@ export function orderStatusClass(status: OrderStatus) {
 export function deliveryStatusClass(status: DeliveryStatus | null) {
   const classes: Record<DeliveryStatus, string> = {
     pending: 'bg-amber-100 text-amber-800 ring-amber-200',
-    on_the_way: 'bg-sky-100 text-sky-700 ring-sky-200',
+    on_the_way: 'bg-brand/10 text-brand ring-brand/15',
     delivered: 'bg-emerald-100 text-emerald-700 ring-emerald-200'
   };
   return classes[status ?? 'pending'];
@@ -25,7 +25,7 @@ export function orderTypeClass(type: OrderType) {
   const classes: Record<OrderType, string> = {
     dine_in: 'bg-orange-50 text-orange-700 ring-orange-100',
     take_away: 'bg-zinc-100 text-zinc-700 ring-zinc-200',
-    delivery: 'bg-sky-50 text-sky-700 ring-sky-100'
+    delivery: 'bg-brand/10 text-brand ring-brand/15'
   };
   return classes[type];
 }
@@ -55,13 +55,13 @@ export function OrderTypeBadge({ type }: { type: OrderType }) {
 }
 
 export function nextKitchenAction(status: OrderStatus) {
-  if (status === 'pending') return { status: 'preparing' as const, label: 'Demarrer', className: 'bg-sky-600 text-white' };
+  if (status === 'pending') return { status: 'preparing' as const, label: 'Demarrer', className: 'bg-brand text-white' };
   if (status === 'preparing') return { status: 'ready' as const, label: 'Pret', className: 'bg-emerald-600 text-white' };
   return null;
 }
 
 export function nextDeliveryAction(status: DeliveryStatus | null) {
-  if ((status ?? 'pending') === 'pending') return { status: 'on_the_way' as const, label: 'Depart', className: 'bg-sky-600 text-white' };
+  if ((status ?? 'pending') === 'pending') return { status: 'on_the_way' as const, label: 'Depart', className: 'bg-brand text-white' };
   if (status === 'on_the_way') return { status: 'delivered' as const, label: 'Livree', className: 'bg-emerald-600 text-white' };
   return null;
 }

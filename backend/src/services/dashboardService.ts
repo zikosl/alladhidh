@@ -96,7 +96,7 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
     prisma.expense.findMany({
       where: { date: { gte: previous.start, lte: previous.end } }
     }),
-    prisma.ingredient.findMany(),
+    prisma.ingredient.findMany({ where: { isActive: true } }),
     prisma.stockMovement.findMany({
       where: {
         OR: [{ date: { gte: previous.start, lte: range.end } }, {}]
@@ -665,7 +665,10 @@ export async function getProfitReport(filters?: Partial<ReportFilters>) {
 }
 
 export async function listStock() {
-  const [ingredients, stockMovements] = await Promise.all([prisma.ingredient.findMany(), prisma.stockMovement.findMany()]);
+  const [ingredients, stockMovements] = await Promise.all([
+    prisma.ingredient.findMany({ where: { isActive: true } }),
+    prisma.stockMovement.findMany()
+  ]);
   const stockByIngredient = new Map<number, number>();
   for (const movement of stockMovements) {
     const signedQuantity = Number(movement.quantity) * (movement.type === 'IN' ? 1 : -1);

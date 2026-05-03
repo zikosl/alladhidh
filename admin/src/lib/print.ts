@@ -35,26 +35,26 @@ function contactLines(settings?: RestaurantSettings | null) {
 function baseStyles() {
   return `
     * { box-sizing: border-box; }
-    body { font-family: "Cairo", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #fff; color: #111; }
+    body { font-family: "Cairo", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #fffaf1; color: #1a1714; }
     .ticket { width: 80mm; padding: 12px 10px 18px; margin: 0 auto; }
     .logo-wrap { text-align: center; margin-bottom: 6px; }
     .logo { max-width: 112px; max-height: 58px; object-fit: contain; }
     .brand { text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 0.03em; }
-    .subtitle, .meta, .contact, .social, .footer, .extra { text-align: center; font-size: 10.5px; color: #555; line-height: 1.45; }
+    .subtitle, .meta, .contact, .social, .footer, .extra { text-align: center; font-size: 10.5px; color: #5c5045; line-height: 1.45; }
     .subtitle { margin-top: 3px; }
     .meta { margin-top: 7px; }
     .badge-row { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-    .badge { width: fit-content; border: 1.5px solid #111; border-radius: 999px; padding: 4px 9px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; }
-    .badge.soft { border-color: #ddd; background: #f7f7f7; }
-    .section { margin-top: 12px; padding-top: 8px; border-top: 1px dashed #999; }
-    .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #666; margin-bottom: 6px; }
-    .line-item { display: grid; grid-template-columns: 30px 1fr auto; gap: 7px; padding: 6px 0; border-bottom: 1px dotted #ddd; }
+    .badge { width: fit-content; border: 1.5px solid #1a1714; border-radius: 999px; padding: 4px 9px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; }
+    .badge.soft { border-color: #e8d2af; background: #fff4e3; }
+    .section { margin-top: 12px; padding-top: 8px; border-top: 1px dashed #8c7d6d; }
+    .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #5c5045; margin-bottom: 6px; }
+    .line-item { display: grid; grid-template-columns: 30px 1fr auto; gap: 7px; padding: 6px 0; border-bottom: 1px dotted #e8d2af; }
     .line-item.kitchen { grid-template-columns: 34px 1fr; }
     .qty { font-size: 15px; font-weight: 700; }
     .name { font-size: 13px; font-weight: 700; line-height: 1.3; }
     .amount { font-size: 12px; font-weight: 700; align-self: center; }
     .notes { font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
-    .totals { margin-top: 8px; border: 1px solid #111; border-radius: 12px; padding: 8px; }
+    .totals { margin-top: 8px; border: 1px solid #1a1714; border-radius: 12px; padding: 8px; background: #fff4e3; }
     .total-line { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; padding: 3px 0; }
     .total-line.grand { font-size: 17px; font-weight: 700; padding-top: 4px; }
     .thanks { margin-top: 12px; text-align: center; font-size: 11px; font-weight: 700; }

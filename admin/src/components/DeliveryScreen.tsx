@@ -14,7 +14,7 @@ export function DeliveryScreen({ statusFilter, search, onSearchChange }: Deliver
   const { orders, setDeliveryOrderStatus } = usePosStore();
   const deliveryActions: Array<{ status: DeliveryStatus; label: string; className: string }> = [
     { status: 'pending', label: 'Attente', className: 'bg-amber-100 text-amber-800 ring-amber-200' },
-    { status: 'on_the_way', label: 'En route', className: 'bg-sky-600 text-white ring-sky-600' },
+    { status: 'on_the_way', label: 'En route', className: 'bg-brand text-white ring-brand' },
     { status: 'delivered', label: 'Livree', className: 'bg-emerald-600 text-white ring-emerald-600' }
   ];
 
@@ -55,7 +55,7 @@ export function DeliveryScreen({ statusFilter, search, onSearchChange }: Deliver
           </div>
           <div className="grid grid-cols-4 gap-1.5 rounded-2xl bg-zinc-50 p-1.5 ring-1 ring-zinc-100">
             <DeliveryMetric label="Attente" value={deliveryStats.pending} tone="amber" />
-            <DeliveryMetric label="Route" value={deliveryStats.onTheWay} tone="sky" />
+            <DeliveryMetric label="Route" value={deliveryStats.onTheWay} tone="route" />
             <DeliveryMetric label="Livrees" value={deliveryStats.delivered} tone="emerald" />
             <DeliveryMetric label="Total" value={formatMoney(deliveryStats.total)} tone="brand" />
           </div>
@@ -149,11 +149,11 @@ function DeliveryMetric({
 }: {
   label: string;
   value: number | string;
-  tone: 'amber' | 'sky' | 'emerald' | 'brand';
+  tone: 'amber' | 'route' | 'emerald' | 'brand';
 }) {
   const toneClasses = {
     amber: 'bg-amber-50 text-amber-700 ring-amber-100',
-    sky: 'bg-sky-50 text-sky-700 ring-sky-100',
+    route: 'bg-brand/10 text-brand ring-brand/15',
     emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
     brand: 'bg-brand/10 text-brand ring-brand/15'
   }[tone];

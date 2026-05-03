@@ -274,6 +274,7 @@ model Ingredient {
   usageType       String          @default("recipe_only") @map("usage_type") @db.VarChar(30)
   purchasePrice   Decimal         @map("purchase_price") @db.Decimal(10, 4)
   minimumStock    Decimal?        @map("minimum_stock") @db.Decimal(10, 3)
+  isActive        Boolean         @default(true) @map("is_active")
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
   purchases       Purchase[]
@@ -283,6 +284,7 @@ model Ingredient {
   categoryRef     IngredientCategory @relation(fields: [category], references: [name], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([category], map: "idx_ingredients_category")
+  @@index([isActive], map: "idx_ingredients_active")
   @@map("ingredients")
 }
 

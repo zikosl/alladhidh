@@ -11,6 +11,7 @@ export const initialInventoryItems: InventoryItem[] = [
     quantity: 8200,
     estimatedCost: 0.16,
     minimumStock: 2000,
+    isActive: true,
     status: 'in_stock',
     directSale: null
   },
@@ -24,6 +25,7 @@ export const initialInventoryItems: InventoryItem[] = [
     quantity: 54,
     estimatedCost: 18,
     minimumStock: 20,
+    isActive: true,
     status: 'in_stock',
     directSale: null
   },
@@ -37,6 +39,7 @@ export const initialInventoryItems: InventoryItem[] = [
     quantity: 16,
     estimatedCost: 22,
     minimumStock: 18,
+    isActive: true,
     status: 'low_stock',
     directSale: null
   },
@@ -50,6 +53,7 @@ export const initialInventoryItems: InventoryItem[] = [
     quantity: 1100,
     estimatedCost: 0.05,
     minimumStock: 800,
+    isActive: true,
     status: 'in_stock',
     directSale: null
   },
@@ -63,6 +67,7 @@ export const initialInventoryItems: InventoryItem[] = [
     quantity: 5400,
     estimatedCost: 0.03,
     minimumStock: 1200,
+    isActive: true,
     status: 'in_stock',
     directSale: null
   },
@@ -76,6 +81,7 @@ export const initialInventoryItems: InventoryItem[] = [
     quantity: 0,
     estimatedCost: 60,
     minimumStock: 12,
+    isActive: true,
     status: 'out_of_stock',
     directSale: {
       productId: 6,

@@ -347,7 +347,7 @@ export function PayrollWorkspace() {
                               Le montant depasse le reste a payer.
                             </div>
                           ) : null}
-                          <div className="mt-3 rounded-2xl bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">
+                          <div className="mt-3 rounded-2xl bg-brand/10 px-3 py-2 text-xs font-black text-brand ring-1 ring-brand/15">
                             Impact finance: le paiement sera visible automatiquement dans Finance / Salaires.
                           </div>
                           <button
@@ -477,7 +477,7 @@ export function PayrollWorkspace() {
               <Field label="Motif" value={adjustmentForm.reason} onChange={(value) => setAdjustmentForm((current) => ({ ...current, reason: value }))} placeholder="Ex: Retard, casse, absence..." />
               <Field label="Date" type="date" value={adjustmentForm.date ?? ''} onChange={(value) => setAdjustmentForm((current) => ({ ...current, date: value }))} placeholder="" />
               <Field label="Note" value={adjustmentForm.note ?? ''} onChange={(value) => setAdjustmentForm((current) => ({ ...current, note: value }))} placeholder="Optionnel" />
-              <div className="rounded-2xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
+              <div className="rounded-2xl bg-brand/10 px-3 py-2 text-xs font-semibold text-brand ring-1 ring-brand/15">
                 Si une periode est choisie, la retenue est appliquee automatiquement a la ligne de paie.
               </div>
               <button
@@ -585,7 +585,7 @@ function formatPayrollStatus(status: PayrollPeriodStatus) {
 function PeriodBadge({ status }: { status: PayrollPeriodStatus }) {
   const toneClass: Record<PayrollPeriodStatus, string> = {
     draft: 'bg-zinc-100 text-zinc-600',
-    validated: 'bg-sky-50 text-sky-700',
+    validated: 'bg-brand/10 text-brand',
     paid: 'bg-emerald-50 text-emerald-700'
   };
   return (
@@ -603,7 +603,7 @@ function PaymentBadge({ status }: { status: 'unpaid' | 'partial' | 'paid' }) {
   };
   const toneClass: Record<typeof status, string> = {
     unpaid: 'bg-amber-50 text-amber-700',
-    partial: 'bg-sky-50 text-sky-700',
+    partial: 'bg-brand/10 text-brand',
     paid: 'bg-emerald-50 text-emerald-700'
   };
   return (

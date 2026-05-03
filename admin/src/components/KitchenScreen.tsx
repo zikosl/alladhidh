@@ -53,7 +53,7 @@ export function KitchenScreen({ statusFilter, typeFilter, search, onSearchChange
           </div>
           <div className="grid grid-cols-4 gap-1.5 rounded-2xl bg-zinc-50 p-1.5 ring-1 ring-zinc-100">
             <KitchenMetric label="Attente" value={kitchenStats.pending} tone="amber" />
-            <KitchenMetric label="Prepa" value={kitchenStats.preparing} tone="sky" />
+            <KitchenMetric label="Prepa" value={kitchenStats.preparing} tone="brand" />
             <KitchenMetric label="Pretes" value={kitchenStats.ready} tone="emerald" />
             <KitchenMetric label="Urgent" value={kitchenStats.urgent} tone="red" />
           </div>
@@ -94,7 +94,7 @@ export function KitchenScreen({ statusFilter, typeFilter, search, onSearchChange
                     : order.status === 'pending'
                       ? 'bg-amber-400'
                       : order.status === 'preparing'
-                        ? 'bg-sky-500'
+                        ? 'bg-brand'
                         : 'bg-emerald-500'
                 }`}
               />
@@ -163,10 +163,10 @@ export function KitchenScreen({ statusFilter, typeFilter, search, onSearchChange
   );
 }
 
-function KitchenMetric({ label, value, tone }: { label: string; value: number; tone: 'amber' | 'sky' | 'emerald' | 'red' }) {
+function KitchenMetric({ label, value, tone }: { label: string; value: number; tone: 'amber' | 'brand' | 'emerald' | 'red' }) {
   const toneClasses = {
     amber: 'bg-amber-50 text-amber-700 ring-amber-100',
-    sky: 'bg-sky-50 text-sky-700 ring-sky-100',
+    brand: 'bg-brand/10 text-brand ring-brand/15',
     emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
     red: 'bg-red-50 text-red-700 ring-red-100'
   }[tone];

@@ -279,9 +279,9 @@ function Metric({ label, value }: { label: string; value: string }) {
 function StatusBadge({ status }: { status: OrderStatus }) {
   const toneClass: Record<OrderStatus, string> = {
     pending: 'bg-amber-50 text-amber-700',
-    preparing: 'bg-blue-50 text-blue-700',
+    preparing: 'bg-brand/10 text-brand',
     ready: 'bg-emerald-50 text-emerald-700',
-    paid: 'bg-zinc-950 text-white',
+    paid: 'bg-charcoal text-white',
     cancelled: 'bg-red-50 text-red-600'
   };
   return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${toneClass[status]}`}>{formatOrderStatus(status)}</span>;

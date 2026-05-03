@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
 import { MeasurementUnit, MenuCategory, MenuItem } from '../types/pos';
 import { usePosStore } from '../store/usePosStore';
@@ -526,7 +526,7 @@ function MenuCard({ item, onEdit, onDelete }: { item: MenuItem; onEdit: () => vo
           <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{item.category}</div>
           <div className="mt-1 text-lg font-bold text-zinc-950">{item.name}</div>
         </div>
-        <div className={`rounded-full px-3 py-1 text-xs font-semibold ${isDirectSale ? 'bg-sky-100 text-sky-700' : 'bg-white text-zinc-700'}`}>
+        <div className={`rounded-full px-3 py-1 text-xs font-semibold ${isDirectSale ? 'bg-brand/10 text-brand ring-1 ring-brand/15' : 'bg-white text-zinc-700 ring-1 ring-zinc-100'}`}>
           {isDirectSale ? 'Vente directe' : `${item.ingredients.length} ingredients`}
         </div>
       </div>
@@ -540,7 +540,7 @@ function MenuCard({ item, onEdit, onDelete }: { item: MenuItem; onEdit: () => vo
 
       <div className="mt-4 flex gap-2">
         {isDirectSale ? (
-          <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-black text-sky-700">
+          <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-black text-brand ring-1 ring-brand/15">
             Gere dans stock
           </span>
         ) : (
@@ -668,16 +668,29 @@ function TextAreaField({
 }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-zinc-950/35 px-3 py-6 backdrop-blur-sm">
-      <div className="dialog-panel-motion premium-panel mx-auto w-full max-w-5xl rounded-[1.7rem] bg-white p-5 shadow-2xl">
-        <div className="sticky top-0 z-10 mb-4 flex items-center justify-between gap-4 rounded-2xl bg-white/90 py-1 backdrop-blur">
+    <div
+      className="fixed inset-0 z-50 grid min-h-dvh place-items-center overflow-hidden bg-zinc-950/45 p-3 backdrop-blur-sm sm:p-5"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="dialog-panel-motion premium-panel flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[1.7rem] bg-white p-3 shadow-2xl sm:max-h-[calc(100dvh-2.5rem)] sm:p-5">
+        <div className="z-10 mb-3 flex shrink-0 items-center justify-between gap-4 rounded-2xl bg-white/90 py-1 pl-1 backdrop-blur">
           <h3 className="text-lg font-bold text-zinc-950">{title}</h3>
           <button onClick={onClose} className="rounded-2xl bg-zinc-100 px-3 py-2 text-sm font-black text-zinc-700">
             Fermer
           </button>
         </div>
-        {children}
+        <div className="min-h-0 overflow-y-auto pr-1">{children}</div>
       </div>
     </div>
   );

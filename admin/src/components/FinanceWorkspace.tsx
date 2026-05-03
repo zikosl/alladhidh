@@ -593,7 +593,7 @@ export function FinanceWorkspace() {
 function StatusBadge({ status }: { status: ExpenseInput['status'] }) {
   const toneClass: Record<ExpenseInput['status'], string> = {
     planned: 'bg-amber-50 text-amber-700',
-    partial: 'bg-sky-50 text-sky-700',
+    partial: 'bg-brand/10 text-brand',
     paid: 'bg-emerald-50 text-emerald-700',
     cancelled: 'bg-zinc-100 text-zinc-500'
   };
@@ -614,7 +614,7 @@ function SourceBadge({ sourceType }: { sourceType: ExpenseSourceType }) {
   const toneClass: Record<ExpenseSourceType, string> = {
     manual: 'bg-white text-zinc-600',
     stock_purchase: 'bg-emerald-50 text-emerald-700',
-    payroll_payment: 'bg-blue-50 text-blue-700',
+    payroll_payment: 'bg-brand/10 text-brand',
     salary_advance: 'bg-amber-50 text-amber-700'
   };
   return (

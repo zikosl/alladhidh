@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 type ToastTone = 'success' | 'error' | 'warning' | 'info';
 type DialogTone = 'danger' | 'warning' | 'info';
@@ -173,9 +173,22 @@ function ConfirmDialog({ dialog, onClose }: { dialog: PendingDialog; onClose: (c
   const tone = dialog.options.tone ?? 'info';
   const styles = dialogToneStyles[tone];
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-zinc-950/45 px-4 backdrop-blur-sm">
-      <div className="dialog-panel-motion premium-panel w-full max-w-md rounded-3xl p-4 shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 grid min-h-dvh place-items-center overflow-hidden bg-zinc-950/45 p-4 backdrop-blur-sm"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose(false);
+      }}
+    >
+      <div className="dialog-panel-motion premium-panel max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl p-4 shadow-2xl">
         <div className="flex items-start gap-3">
           <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-sm font-black ${styles.badge}`}>
             {styles.icon}

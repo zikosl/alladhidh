@@ -13,6 +13,7 @@ interface InventoryRow {
   unit: MeasurementUnit;
   purchase_price: Prisma.Decimal | number | string;
   minimum_stock: Prisma.Decimal | number | string | null;
+  is_active: boolean;
   usage_type: InventoryUsageType | string;
   quantity: Prisma.Decimal | number | string;
   direct_product_id: number | null;
@@ -96,6 +97,7 @@ function mapInventoryRow(row: InventoryRow): InventoryItemSummary {
     quantity,
     estimatedCost: toNumber(row.purchase_price),
     minimumStock,
+    isActive: row.is_active,
     status,
     directSale: row.direct_product_id
       ? {
@@ -262,6 +264,7 @@ async function getInventoryRow(id: number, client: PrismaClientLike = prisma) {
       i.unit,
       i.purchase_price,
       i.minimum_stock,
+      i.is_active,
       COALESCE(ic.usage_type, i.usage_type, 'recipe_only') AS usage_type,
       COALESCE(SUM(CASE WHEN sm.type = 'IN' THEN sm.quantity ELSE -sm.quantity END), 0) AS quantity,
       p.id AS direct_product_id,
@@ -293,6 +296,7 @@ export async function listInventoryItems(): Promise<InventoryItemSummary[]> {
       i.unit,
       i.purchase_price,
       i.minimum_stock,
+      i.is_active,
       COALESCE(ic.usage_type, i.usage_type, 'recipe_only') AS usage_type,
       COALESCE(SUM(CASE WHEN sm.type = 'IN' THEN sm.quantity ELSE -sm.quantity END), 0) AS quantity,
       p.id AS direct_product_id,
@@ -305,6 +309,7 @@ export async function listInventoryItems(): Promise<InventoryItemSummary[]> {
     LEFT JOIN ingredient_categories ic ON ic.name = i.category
     LEFT JOIN stock_movements sm ON sm.ingredient_id = i.id
     LEFT JOIN products p ON p.stock_item_id = i.id AND p.source_type = 'direct_stock'
+    WHERE i.is_active = true
     GROUP BY i.id, ic.usage_type, p.id
     ORDER BY i.category, i.name
   `);
@@ -317,7 +322,11 @@ export async function listInventoryCategories(): Promise<InventoryCategorySummar
     orderBy: { name: 'asc' },
     include: {
       _count: {
-        select: { ingredients: true }
+        select: {
+          ingredients: {
+            where: { isActive: true }
+          }
+        }
       }
     }
   });
@@ -451,26 +460,45 @@ export async function createInventoryItem(payload: InventoryPayload): Promise<In
         ? null
         : toNonNegativeNumber(payload.minimumStock, 'minimumStock');
 
-    const created = await client.ingredient.create({
-      data: {
-        name,
-        category,
-        measurementType,
-        unit,
-        usageType,
-        purchasePrice: estimatedCost,
-        minimumStock
-      },
-      select: {
-        id: true
-      }
-    });
+    const archivedWithSameName = await client.ingredient.findUnique({ where: { name } });
+    if (archivedWithSameName?.isActive) {
+      throw new HttpError(400, 'A stock item with this name already exists');
+    }
+
+    const saved = archivedWithSameName
+      ? await client.ingredient.update({
+          where: { id: archivedWithSameName.id },
+          data: {
+            category,
+            measurementType,
+            unit,
+            usageType,
+            purchasePrice: estimatedCost,
+            minimumStock,
+            isActive: true
+          },
+          select: { id: true }
+        })
+      : await client.ingredient.create({
+          data: {
+            name,
+            category,
+            measurementType,
+            unit,
+            usageType,
+            purchasePrice: estimatedCost,
+            minimumStock
+          },
+          select: {
+            id: true
+          }
+        });
 
     if (initialQuantity > 0) {
       const date = new Date();
       const purchase = await client.purchase.create({
         data: {
-          ingredientId: created.id,
+          ingredientId: saved.id,
           quantity: initialQuantity,
           totalPrice: initialTotalPrice,
           date
@@ -479,7 +507,7 @@ export async function createInventoryItem(payload: InventoryPayload): Promise<In
 
       await client.stockMovement.create({
         data: {
-          ingredientId: created.id,
+          ingredientId: saved.id,
           type: StockMovementType.IN,
           quantity: initialQuantity,
           reason: StockMovementReason.purchase,
@@ -503,9 +531,9 @@ export async function createInventoryItem(payload: InventoryPayload): Promise<In
       });
     }
 
-    await syncDirectSaleProduct(created.id, { ...payload, category, usageType }, client);
+    await syncDirectSaleProduct(saved.id, { ...payload, category, usageType }, client);
 
-    const row = await getInventoryRow(created.id, client);
+    const row = await getInventoryRow(saved.id, client);
     if (!row) {
       throw new HttpError(500, 'Inventory item creation failed');
     }
@@ -576,6 +604,9 @@ export async function createStockEntry(payload: StockEntryPayload): Promise<Inve
     const ingredient = await client.ingredient.findUnique({ where: { id: ingredientId } });
     if (!ingredient) {
       throw new HttpError(404, 'Raw material not found');
+    }
+    if (!ingredient.isActive) {
+      throw new HttpError(400, 'Archived stock item cannot receive new entries');
     }
 
     const date = payload.date ? new Date(payload.date) : new Date();
@@ -666,6 +697,9 @@ export async function createStockLoss(payload: StockLossPayload): Promise<Invent
     if (!ingredient) {
       throw new HttpError(404, 'Raw material not found');
     }
+    if (!ingredient.isActive) {
+      throw new HttpError(400, 'Archived stock item cannot receive losses');
+    }
 
     await client.$queryRaw(Prisma.sql`
       SELECT id
@@ -710,39 +744,17 @@ export async function deleteInventoryItem(id: number): Promise<void> {
       throw new HttpError(404, 'Inventory item not found');
     }
 
-    const recipesCount = await client.recipe.count({
-      where: { ingredientId: id }
-    });
-
-    const directProductsWithSalesCount = await client.product.count({
-      where: {
-        stockItemId: id,
-        saleItems: {
-          some: {}
-        }
-      }
-    });
-
-    if (recipesCount > 0 || directProductsWithSalesCount > 0) {
-      throw new HttpError(400, 'Cannot delete inventory item used by recipes or sales');
-    }
-
-    await client.product.deleteMany({
+    await client.product.updateMany({
       where: {
         stockItemId: id,
         sourceType: 'direct_stock'
-      }
+      },
+      data: { isActive: false }
     });
 
-    const [movementsCount, purchasesCount] = await Promise.all([
-      client.stockMovement.count({ where: { ingredientId: id } }),
-      client.purchase.count({ where: { ingredientId: id } })
-    ]);
-
-    if (movementsCount > 0 || purchasesCount > 0) {
-      throw new HttpError(400, 'Cannot delete inventory item with stock history');
-    }
-
-    await client.ingredient.delete({ where: { id } });
+    await client.ingredient.update({
+      where: { id },
+      data: { isActive: false }
+    });
   });
 }

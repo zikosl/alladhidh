@@ -7,6 +7,7 @@
   --color-surface: #ffffff;
   --color-surface-secondary: #f7e6c8;
   --color-surface-elevated: #ffffff;
+  --color-surface-soft: #fffaf1;
   --color-header: #ffffff;
   --color-footer: #1a1714;
   --color-text-primary: #1a1714;
@@ -21,6 +22,7 @@
   --color-success: #2f9e63;
   --color-error: #d92d20;
   --color-charcoal: #1a1714;
+  --color-charcoal-soft: #2a211b;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
@@ -52,6 +54,7 @@
   background:
     radial-gradient(circle at 8% 4%, rgba(244, 90, 36, 0.12), transparent 28%),
     radial-gradient(circle at 92% 3%, rgba(255, 209, 47, 0.18), transparent 30%),
+    radial-gradient(circle at 50% 105%, rgba(26, 23, 20, 0.06), transparent 36%),
     linear-gradient(140deg, #fff4e3 0%, #fff8ed 44%, #f7e6c8 100%);
   font-family: "Cairo", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis-weight: none;
@@ -90,6 +93,13 @@ body::after {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.42),
     0 0 0 1px rgba(244, 90, 36, 0.035);
+}
+
+@media (max-width: 640px) {
+  body::after {
+    inset: 8px;
+    border-radius: 24px;
+  }
 }
 
 * {
@@ -244,7 +254,9 @@ textarea {
 .premium-panel {
   border: 1px solid var(--line);
   border-radius: var(--radius-xl);
-  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--color-surface) 92%, transparent), color-mix(in srgb, var(--color-surface-soft) 74%, transparent)),
+    var(--color-surface);
   box-shadow: var(--shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(18px) saturate(1.05);
 }
@@ -254,7 +266,9 @@ textarea {
   overflow: hidden;
   border-radius: var(--radius-xl);
   border: 1px solid var(--color-border);
-  background: var(--color-surface);
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--color-surface) 96%, transparent), color-mix(in srgb, var(--color-surface-soft) 50%, transparent)),
+    var(--color-surface);
   box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(16px) saturate(1.03);
 }
@@ -274,7 +288,7 @@ textarea {
 .brand-hero {
   background:
     radial-gradient(circle at 14% 16%, rgba(255, 209, 47, 0.14), transparent 24%),
-    radial-gradient(circle at 92% 10%, rgba(244, 90, 36, 0.2), transparent 30%),
+    radial-gradient(circle at 92% 10%, rgba(244, 90, 36, 0.18), transparent 30%),
     linear-gradient(137deg, #11100e 0%, #15120f 38%, #241e19 72%, #3a1d12 100%);
   box-shadow:
     0 24px 70px rgba(26, 23, 20, 0.22),
@@ -341,6 +355,45 @@ textarea {
   border: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--color-surface) 82%, transparent);
   box-shadow: 0 8px 18px rgba(26, 23, 20, 0.045);
+}
+
+.compact-app :is(.bg-zinc-950, .bg-zinc-900, .bg-ink) {
+  background-color: var(--color-charcoal-soft) !important;
+}
+
+.compact-app :is(button.bg-zinc-950, button.bg-zinc-900, button.bg-ink):not(:disabled):hover {
+  background-color: var(--color-primary) !important;
+}
+
+.compact-app :is(.bg-zinc-50, .bg-zinc-50\/80, .bg-zinc-50\/85, .bg-zinc-100, .bg-zinc-100\/80) {
+  background-color: var(--color-surface-soft) !important;
+}
+
+.compact-app :is(.border-zinc-100, .border-zinc-200, .ring-zinc-100, .ring-zinc-200) {
+  border-color: var(--color-border) !important;
+  --tw-ring-color: var(--color-border) !important;
+}
+
+.compact-app :is(input, select, textarea) {
+  border-color: var(--color-border);
+  background-color: var(--color-surface) !important;
+  color: var(--color-text-primary);
+}
+
+.compact-app :is(input, select, textarea)::placeholder {
+  color: color-mix(in srgb, var(--color-text-muted) 74%, transparent);
+}
+
+.compact-app :is(.text-zinc-950, .text-zinc-900, .text-zinc-800) {
+  color: var(--color-text-primary) !important;
+}
+
+.compact-app :is(.text-zinc-700, .text-zinc-600) {
+  color: var(--color-text-secondary) !important;
+}
+
+.compact-app :is(.text-zinc-500, .text-zinc-400) {
+  color: var(--color-text-muted) !important;
 }
 
 .toast-motion {
@@ -505,6 +558,7 @@ textarea {
   --color-surface: #1c1814;
   --color-surface-secondary: #241e19;
   --color-surface-elevated: #241e19;
+  --color-surface-soft: #211b16;
   --color-header: #15120f;
   --color-footer: #0d0b09;
   --color-text-primary: #fff4e3;
@@ -518,7 +572,8 @@ textarea {
   --color-flame: #e7351c;
   --color-success: #35b26f;
   --color-error: #e7351c;
-  --color-charcoal: #11100e;
+  --color-charcoal: #1a1714;
+  --color-charcoal-soft: #2a211b;
   --shadow-card: 0 16px 40px rgba(0, 0, 0, 0.35);
   --shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.25);
   --surface: rgba(28, 24, 20, 0.78);
@@ -560,7 +615,9 @@ textarea {
 
 :root[data-theme='dark'] .premium-card {
   border-color: var(--color-border);
-  background: var(--color-surface-elevated);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--color-surface-elevated) 96%, transparent), color-mix(in srgb, var(--color-surface-soft) 72%, transparent)),
+    var(--color-surface-elevated);
   box-shadow:
     var(--shadow-card),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -750,4 +807,19 @@ textarea {
 
 :root[data-theme='dark'] :is(.bg-amber-400.text-zinc-950, .bg-amber-500.text-zinc-950, .bg-amber-600.text-zinc-950, .bg-accent.text-zinc-950) {
   color: var(--color-charcoal) !important;
+}
+
+@media (max-width: 768px) {
+  .compact-app {
+    padding-inline: 0.65rem !important;
+    padding-block: 0.65rem !important;
+  }
+
+  .compact-app :is(.premium-panel, .premium-card) {
+    border-radius: 1.15rem !important;
+  }
+
+  .compact-app :is(button, [role='button'], input, select, textarea) {
+    border-radius: 0.95rem !important;
+  }
 }
