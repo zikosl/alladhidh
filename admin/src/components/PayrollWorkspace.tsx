@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
 import { usePosStore } from '../store/usePosStore';
-import { EmployeeProfileInput, PayrollEntryInput, PayrollPaymentInput, PayrollPeriodInput, PayrollPeriodStatus, SalaryAdvanceInput } from '../types/pos';
+import { EmployeeProfileInput, PayrollAdjustmentInput, PayrollEntryInput, PayrollPaymentInput, PayrollPeriodInput, PayrollPeriodStatus, SalaryAdvanceInput } from '../types/pos';
 import { WorkspaceShell } from './WorkspaceShell';
 
-type PayrollView = 'employees' | 'periods' | 'advances';
+type PayrollView = 'employees' | 'periods' | 'advances' | 'adjustments';
 type PayrollStatusFilter = 'all' | PayrollPeriodStatus;
 
 const emptyEmployeeProfileForm: EmployeeProfileInput = {
@@ -33,15 +33,28 @@ const emptyPayrollPeriodForm: PayrollPeriodInput = {
   notes: ''
 };
 
+const emptyAdjustmentForm: PayrollAdjustmentInput = {
+  employeeId: 0,
+  periodId: null,
+  type: 'deduction',
+  amount: 0,
+  reason: '',
+  note: '',
+  date: new Date().toISOString().slice(0, 10)
+};
+
 export function PayrollWorkspace() {
   const {
     setCurrentModule,
     staffUsers,
     employeeProfiles,
     salaryAdvances,
+    payrollAdjustments,
     payrollPeriods,
     upsertEmployeePayrollProfile,
     addSalaryAdvance,
+    addPayrollAdjustment,
+    removePayrollAdjustment,
     addPayrollPeriod,
     savePayrollEntry,
     addPayrollPayment,
@@ -50,6 +63,7 @@ export function PayrollWorkspace() {
   const [view, setView] = useState<PayrollView>('employees');
   const [employeeProfileForm, setEmployeeProfileForm] = useState<EmployeeProfileInput>(emptyEmployeeProfileForm);
   const [advanceForm, setAdvanceForm] = useState<SalaryAdvanceInput>(emptyAdvanceForm);
+  const [adjustmentForm, setAdjustmentForm] = useState<PayrollAdjustmentInput>(emptyAdjustmentForm);
   const [payrollPeriodForm, setPayrollPeriodForm] = useState<PayrollPeriodInput>(emptyPayrollPeriodForm);
   const [payrollEntryDrafts, setPayrollEntryDrafts] = useState<Record<number, PayrollEntryInput>>({});
   const [payrollPaymentDrafts, setPayrollPaymentDrafts] = useState<Record<number, PayrollPaymentInput>>({});
@@ -58,6 +72,7 @@ export function PayrollWorkspace() {
   const canSaveEmployee = employeeProfileForm.userId > 0 && employeeProfileForm.baseSalary > 0;
   const canCreatePeriod = payrollPeriodForm.label.trim().length > 0 && Boolean(payrollPeriodForm.startDate) && Boolean(payrollPeriodForm.endDate);
   const canCreateAdvance = advanceForm.employeeId > 0 && advanceForm.amount > 0 && advanceForm.reason.trim().length > 0;
+  const canCreateAdjustment = adjustmentForm.employeeId > 0 && adjustmentForm.amount > 0 && adjustmentForm.reason.trim().length > 0;
 
   const payrollTotals = useMemo(() => {
     return payrollPeriods.reduce(
@@ -65,11 +80,23 @@ export function PayrollWorkspace() {
         acc.payroll += period.payrollTotal;
         acc.paid += period.paidTotal;
         acc.remaining += period.remainingTotal;
+        acc.deductions += period.entries.reduce((sum, entry) => sum + entry.deductions, 0);
         return acc;
       },
-      { payroll: 0, paid: 0, remaining: 0 }
+      { payroll: 0, paid: 0, remaining: 0, deductions: 0 }
     );
   }, [payrollPeriods]);
+
+  const adjustmentTotals = useMemo(() => {
+    return payrollAdjustments.reduce(
+      (acc, adjustment) => {
+        acc.total += adjustment.amount;
+        if (adjustment.type === 'penalty') acc.penalties += adjustment.amount;
+        return acc;
+      },
+      { total: 0, penalties: 0 }
+    );
+  }, [payrollAdjustments]);
 
   const filteredPayrollPeriods = useMemo(() => {
     const query = periodSearch.trim().toLowerCase();
@@ -109,15 +136,17 @@ export function PayrollWorkspace() {
       navigation={[
         { id: 'employees', label: 'Employes', hint: 'Profils & base salariale' },
         { id: 'periods', label: 'Periodes', hint: 'Bulletins & paiements' },
-        { id: 'advances', label: 'Avances', hint: 'Acomptes & restant' }
+        { id: 'advances', label: 'Avances', hint: 'Acomptes & restant' },
+        { id: 'adjustments', label: 'Retenues', hint: 'Retenues & penalites' }
       ]}
       activeView={view}
       onChangeView={(next) => setView(next as PayrollView)}
     >
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricPanel label="Masse salariale" value={formatMoney(payrollTotals.payroll)} hint="Total net sur les periodes chargees" />
         <MetricPanel label="Deja paye" value={formatMoney(payrollTotals.paid)} hint="Paiements de salaires enregistres" />
         <MetricPanel label="Reste a payer" value={formatMoney(payrollTotals.remaining)} hint="Restant ouvert sur les periodes" />
+        <MetricPanel label="Retenues" value={formatMoney(adjustmentTotals.total || payrollTotals.deductions)} hint={`${formatMoney(adjustmentTotals.penalties)} en penalites`} />
       </div>
 
       {view === 'employees' ? (
@@ -416,6 +445,97 @@ export function PayrollWorkspace() {
           </div>
         </section>
       ) : null}
+
+      {view === 'adjustments' ? (
+        <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="premium-panel rounded-[1.6rem] p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Retenues</div>
+            <h2 className="mt-1 text-xl font-bold text-zinc-950">Ajouter une retenue</h2>
+            <div className="mt-4 space-y-3">
+              <SelectField
+                label="Employe"
+                value={String(adjustmentForm.employeeId)}
+                onChange={(value) => setAdjustmentForm((current) => ({ ...current, employeeId: Number(value) }))}
+                options={[
+                  ['0', 'Choisir un employe'],
+                  ...employeeProfiles.map((employee) => [String(employee.id), employee.fullName] as [string, string])
+                ]}
+              />
+              <SelectField
+                label="Periode"
+                value={String(adjustmentForm.periodId ?? 0)}
+                onChange={(value) => setAdjustmentForm((current) => ({ ...current, periodId: Number(value) || null }))}
+                options={[
+                  ['0', 'Sans periode'],
+                  ...payrollPeriods.map((period) => [String(period.id), period.label] as [string, string])
+                ]}
+              />
+              <div className="grid gap-3 md:grid-cols-2">
+                <SelectField label="Type" value={adjustmentForm.type} onChange={(value) => setAdjustmentForm((current) => ({ ...current, type: value as PayrollAdjustmentInput['type'] }))} options={[['deduction', 'Retenue'], ['penalty', 'Penalite']]} />
+                <Field label="Montant" type="number" value={String(adjustmentForm.amount || '')} onChange={(value) => setAdjustmentForm((current) => ({ ...current, amount: Number(value) }))} placeholder="Ex: 1500" />
+              </div>
+              <Field label="Motif" value={adjustmentForm.reason} onChange={(value) => setAdjustmentForm((current) => ({ ...current, reason: value }))} placeholder="Ex: Retard, casse, absence..." />
+              <Field label="Date" type="date" value={adjustmentForm.date ?? ''} onChange={(value) => setAdjustmentForm((current) => ({ ...current, date: value }))} placeholder="" />
+              <Field label="Note" value={adjustmentForm.note ?? ''} onChange={(value) => setAdjustmentForm((current) => ({ ...current, note: value }))} placeholder="Optionnel" />
+              <div className="rounded-2xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">
+                Si une periode est choisie, la retenue est appliquee automatiquement a la ligne de paie.
+              </div>
+              <button
+                disabled={!canCreateAdjustment}
+                onClick={async () => {
+                  await addPayrollAdjustment(adjustmentForm);
+                  setAdjustmentForm(emptyAdjustmentForm);
+                }}
+                className="rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
+              >
+                Ajouter retenue
+              </button>
+            </div>
+          </div>
+
+          <div className="premium-panel rounded-[1.6rem] p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Suivi</div>
+            <h2 className="mt-1 text-xl font-bold text-zinc-950">Retenues & penalites</h2>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <MetricMini label="Total retenues" value={formatMoney(adjustmentTotals.total)} />
+              <MetricMini label="Penalites" value={formatMoney(adjustmentTotals.penalties)} />
+              <MetricMini label="Nombre" value={String(payrollAdjustments.length)} />
+            </div>
+            <div className="mt-4 space-y-3">
+              {payrollAdjustments.map((adjustment) => (
+                <article key={adjustment.id} className="premium-card rounded-2xl p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-zinc-950">{adjustment.employeeName}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                        <AdjustmentBadge type={adjustment.type} />
+                        <span>{new Date(adjustment.date).toLocaleDateString('fr-DZ')}</span>
+                        {adjustment.periodLabel ? <span>{adjustment.periodLabel}</span> : <span>Sans periode</span>}
+                      </div>
+                      <div className="mt-2 text-sm text-zinc-700">{adjustment.reason}</div>
+                      {adjustment.note ? <div className="mt-1 text-xs text-zinc-500">{adjustment.note}</div> : null}
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-zinc-950">{formatMoney(adjustment.amount)}</div>
+                      <button
+                        onClick={() => void removePayrollAdjustment(adjustment.id)}
+                        className="mt-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-600"
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+              {payrollAdjustments.length === 0 ? (
+                <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500">
+                  Aucune retenue enregistree.
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
     </WorkspaceShell>
   );
 }
@@ -491,6 +611,18 @@ function PaymentBadge({ status }: { status: 'unpaid' | 'partial' | 'paid' }) {
       {labels[status]}
     </span>
   );
+}
+
+function AdjustmentBadge({ type }: { type: 'deduction' | 'penalty' }) {
+  const labels: Record<typeof type, string> = {
+    deduction: 'Retenue',
+    penalty: 'Penalite'
+  };
+  const toneClass: Record<typeof type, string> = {
+    deduction: 'bg-amber-50 text-amber-700',
+    penalty: 'bg-red-50 text-red-600'
+  };
+  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${toneClass[type]}`}>{labels[type]}</span>;
 }
 
 function statusActionClass(active: boolean) {

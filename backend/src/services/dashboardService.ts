@@ -75,6 +75,9 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
     previousPayrollPeriods,
     payrollPayments,
     previousPayrollPayments,
+    payrollAdjustments,
+    previousPayrollAdjustments,
+    cashSessions,
     salePayments,
     previousSalePayments
   ] = await Promise.all([
@@ -139,6 +142,23 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
         entry: true
       }
     }),
+    prisma.payrollAdjustment.findMany({
+      where: { date: { gte: range.start, lte: range.end } },
+      include: {
+        employee: {
+          include: {
+            user: true
+          }
+        }
+      }
+    }),
+    prisma.payrollAdjustment.findMany({
+      where: { date: { gte: previous.start, lte: previous.end } }
+    }),
+    prisma.cashSession.findMany({
+      where: { businessDate: { gte: range.start, lte: range.end } },
+      orderBy: { businessDate: 'asc' }
+    }),
     prisma.payment.findMany({
       where: { createdAt: { gte: range.start, lte: range.end } }
     }),
@@ -162,6 +182,7 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
   const stockPurchaseExpenseCurrent = sum(activeExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.stock_purchase).map((expense) => Number(expense.amount)));
   const payrollPaymentExpenseCurrent = sum(activeExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.payroll_payment).map((expense) => Number(expense.amount)));
   const salaryAdvanceExpenseCurrent = sum(activeExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.salary_advance).map((expense) => Number(expense.amount)));
+  const paidCashExpenseCurrent = sum(activeExpenses.filter((expense) => expense.status === 'paid' && expense.paymentMethod === 'cash').map((expense) => Number(expense.amount)));
   const cashRevenueCurrent = sum(salePayments.map((payment) => Number(payment.amount)));
   const cashRevenuePrevious = sum(previousSalePayments.map((payment) => Number(payment.amount)));
   const cashBenefitCurrent = cashRevenueCurrent - paidExpenseCurrent;
@@ -176,6 +197,11 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
   );
   const payrollPaidCurrent = sum(payrollPayments.map((payment) => Number(payment.amount)));
   const payrollPaidPrevious = sum(previousPayrollPayments.map((payment) => Number(payment.amount)));
+  const payrollDeductionCurrent = sum(payrollAdjustments.map((adjustment) => Number(adjustment.amount)));
+  const payrollDeductionPrevious = sum(previousPayrollAdjustments.map((adjustment) => Number(adjustment.amount)));
+  const payrollPenaltyCurrent = sum(
+    payrollAdjustments.filter((adjustment) => adjustment.type === 'penalty').map((adjustment) => Number(adjustment.amount))
+  );
   const activeOrders = sales.filter((sale) => ['pending', 'preparing', 'ready'].includes(sale.status)).length;
   const averageTicketCurrent = nonCancelledSales.length > 0 ? totalSalesCurrent / nonCancelledSales.length : 0;
 
@@ -339,7 +365,10 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
   const totalLossValue = [...lossMap.values()].reduce((acc, item) => acc + item.value, 0);
 
   const expensesByCategoryMap = new Map<string, number>();
-  const payrollByEmployeeMap = new Map<number, { employeeId: number; employeeName: string; payrollTotal: number; paidTotal: number }>();
+  const payrollByEmployeeMap = new Map<
+    number,
+    { employeeId: number; employeeName: string; payrollTotal: number; paidTotal: number; deductionsTotal: number; penaltiesTotal: number }
+  >();
   for (const expense of activeExpenses) {
     expensesByCategoryMap.set(expense.category, (expensesByCategoryMap.get(expense.category) ?? 0) + Number(expense.amount));
   }
@@ -349,7 +378,9 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
         employeeId: entry.employeeId,
         employeeName: entry.employee.user.fullName,
         payrollTotal: 0,
-        paidTotal: 0
+        paidTotal: 0,
+        deductionsTotal: 0,
+        penaltiesTotal: 0
       };
       existing.payrollTotal += Number(entry.netSalary);
       payrollByEmployeeMap.set(entry.employeeId, existing);
@@ -361,9 +392,27 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
       employeeId,
       employeeName: payment.entry.employee.user.fullName,
       payrollTotal: 0,
-      paidTotal: 0
+      paidTotal: 0,
+      deductionsTotal: 0,
+      penaltiesTotal: 0
     };
     existing.paidTotal += Number(payment.amount);
+    payrollByEmployeeMap.set(employeeId, existing);
+  }
+  for (const adjustment of payrollAdjustments) {
+    const employeeId = adjustment.employeeId;
+    const existing = payrollByEmployeeMap.get(employeeId) ?? {
+      employeeId,
+      employeeName: adjustment.employee.user.fullName,
+      payrollTotal: 0,
+      paidTotal: 0,
+      deductionsTotal: 0,
+      penaltiesTotal: 0
+    };
+    existing.deductionsTotal += Number(adjustment.amount);
+    if (adjustment.type === 'penalty') {
+      existing.penaltiesTotal += Number(adjustment.amount);
+    }
     payrollByEmployeeMap.set(employeeId, existing);
   }
 
@@ -377,6 +426,9 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
       stockPurchases: number;
       payrollPaid: number;
       salaryAdvances: number;
+      openingAmount: number;
+      closingAmount: number | null;
+      difference: number;
     }
   >();
   const dailyCashRow = (date: string) => {
@@ -389,7 +441,10 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
         manualExpenses: 0,
         stockPurchases: 0,
         payrollPaid: 0,
-        salaryAdvances: 0
+        salaryAdvances: 0,
+        openingAmount: 0,
+        closingAmount: null,
+        difference: 0
       };
     cashBenefitPerDayMap.set(date, existing);
     return existing;
@@ -420,6 +475,12 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
       row.salaryAdvances += amount;
     }
   }
+  for (const session of cashSessions) {
+    const row = dailyCashRow(toIsoDate(session.businessDate));
+    row.openingAmount += Number(session.openingAmount);
+    row.closingAmount = session.closingAmount === null ? row.closingAmount : Number(session.closingAmount);
+    row.difference += Number(session.difference);
+  }
 
   const previousEstimatedCostsTotal = previousNonCancelledSales.reduce((acc, sale) => {
     return (
@@ -437,6 +498,13 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
 
   const currentNetProfit = totalSalesCurrent - manualExpenseCurrent - payrollAccruedCurrent - estimatedCostsTotal - totalLossValue;
   const previousNetProfit = totalSalesPrevious - manualExpensePrevious - payrollAccruedPrevious - previousEstimatedCostsTotal - previousLossValue;
+  const cashSessionOpeningTotal = sum(cashSessions.map((session) => Number(session.openingAmount)));
+  const cashSessionClosingTotal = sum(cashSessions.map((session) => (session.closingAmount === null ? 0 : Number(session.closingAmount))));
+  const cashSessionExpectedTotal =
+    cashSessions.length > 0
+      ? sum(cashSessions.map((session) => Number(session.expectedCash)))
+      : cashSessionOpeningTotal + cashRevenueCurrent - paidCashExpenseCurrent;
+  const cashSessionDifferenceTotal = sum(cashSessions.map((session) => Number(session.difference)));
 
   return {
     filters: {
@@ -462,6 +530,7 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
         .map(([date, value]) => ({
           date,
           ...value,
+          expectedCash: value.openingAmount + value.cashIn - value.cashOut,
           cashBenefit: value.cashIn - value.cashOut
         }))
         .sort((left, right) => left.date.localeCompare(right.date)),
@@ -499,9 +568,16 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
       payrollPaymentExpenseTotal: payrollPaymentExpenseCurrent,
       salaryAdvanceTotal: salaryAdvanceExpenseCurrent,
       payrollOutstandingTotal: Math.max(payrollAccruedCurrent - payrollPaidCurrent, 0),
+      payrollDeductionTotal: payrollDeductionCurrent,
+      payrollPenaltyTotal: payrollPenaltyCurrent,
       cashRevenueTotal: cashRevenueCurrent,
       cashOutTotal: paidExpenseCurrent,
       cashBenefitTotal: cashBenefitCurrent,
+      cashDrawerOpeningTotal: cashSessionOpeningTotal,
+      cashDrawerExpectedTotal: cashSessionExpectedTotal,
+      cashDrawerClosingTotal: cashSessionClosingTotal,
+      cashDrawerDifferenceTotal: cashSessionDifferenceTotal,
+      cashDrawerOpenSessions: cashSessions.filter((session) => session.status === 'open').length,
       payrollByEmployee: [...payrollByEmployeeMap.values()]
         .sort((left, right) => right.payrollTotal - left.payrollTotal)
         .slice(0, 8),
@@ -570,6 +646,8 @@ export async function getProfitReport(filters?: Partial<ReportFilters>) {
       estimatedCosts: dashboard.financials.estimatedCostsTotal,
       expenses: dashboard.financials.manualExpenseTotal + dashboard.financials.payrollAccruedTotal,
       payroll: dashboard.financials.payrollAccruedTotal,
+      payrollDeductions: dashboard.financials.payrollDeductionTotal,
+      payrollPenalties: dashboard.financials.payrollPenaltyTotal,
       losses: dashboard.stockInsights.totalLossValue,
       averageTicket: dashboard.cards.averageTicketToday,
       previousSales:

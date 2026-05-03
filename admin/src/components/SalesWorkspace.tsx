@@ -8,6 +8,8 @@ import { WorkspaceShell } from './WorkspaceShell';
 
 type StatusFilter = 'all' | OrderStatus;
 type TypeFilter = 'all' | OrderType;
+type PaymentFilter = 'all' | 'paid' | 'unpaid';
+type OrdersPeriodFilter = 'today' | 'month' | 'custom' | 'all';
 
 const statusOptions: Array<{ value: StatusFilter; label: string }> = [
   { value: 'all', label: 'Tous les statuts' },
@@ -25,18 +27,45 @@ const typeOptions: Array<{ value: TypeFilter; label: string }> = [
   { value: 'delivery', label: 'Livraison' }
 ];
 
+function isSameDay(left: Date, right: Date) {
+  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate();
+}
+
+function isSameMonth(left: Date, right: Date) {
+  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth();
+}
+
 export function SalesWorkspace() {
   const { confirm, toast } = useFeedback();
   const { orders, restaurantSettings, cancelOrder, setCurrentModule } = usePosStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>('all');
+  const [periodFilter, setPeriodFilter] = useState<OrdersPeriodFilter>('today');
+  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
 
   const filteredOrders = useMemo(() => {
     const needle = search.trim().toLowerCase();
     return orders.filter((order) => {
       const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
       const matchesType = typeFilter === 'all' || order.type === typeFilter;
+      const orderDate = new Date(order.createdAt);
+      const today = new Date();
+      const isoDate = order.createdAt.slice(0, 10);
+      const matchesPeriod =
+        periodFilter === 'all'
+          ? true
+          : periodFilter === 'today'
+            ? isSameDay(orderDate, today)
+            : periodFilter === 'month'
+              ? isSameMonth(orderDate, today)
+              : (!dateFrom || isoDate >= dateFrom) && (!dateTo || isoDate <= dateTo);
+      const matchesPayment =
+        paymentFilter === 'all' ||
+        (paymentFilter === 'paid' && order.status === 'paid') ||
+        (paymentFilter === 'unpaid' && order.status !== 'paid' && order.status !== 'cancelled');
       const matchesSearch =
         !needle ||
         String(order.id).includes(needle) ||
@@ -44,18 +73,23 @@ export function SalesWorkspace() {
         (order.tableNumber ?? '').toLowerCase().includes(needle) ||
         (order.phone ?? '').toLowerCase().includes(needle);
 
-      return matchesStatus && matchesType && matchesSearch;
+      return matchesStatus && matchesType && matchesPayment && matchesPeriod && matchesSearch;
     });
-  }, [orders, search, statusFilter, typeFilter]);
+  }, [dateFrom, dateTo, orders, paymentFilter, periodFilter, search, statusFilter, typeFilter]);
 
   const totals = useMemo(() => {
+    const payable = filteredOrders.filter((order) => order.status !== 'cancelled');
+    const paid = filteredOrders.filter((order) => order.status === 'paid');
     return {
-      all: orders.length,
-      active: orders.filter((order) => ['pending', 'preparing', 'ready'].includes(order.status)).length,
-      paid: orders.filter((order) => order.status === 'paid').length,
-      revenue: orders.filter((order) => order.status === 'paid').reduce((sum, order) => sum + order.totalPrice, 0)
+      all: filteredOrders.length,
+      active: filteredOrders.filter((order) => ['pending', 'preparing', 'ready'].includes(order.status)).length,
+      paid: paid.length,
+      cancelled: filteredOrders.filter((order) => order.status === 'cancelled').length,
+      revenue: paid.reduce((sum, order) => sum + order.totalPrice, 0),
+      pendingRevenue: filteredOrders.filter((order) => order.status !== 'paid' && order.status !== 'cancelled').reduce((sum, order) => sum + order.totalPrice, 0),
+      averageTicket: payable.length > 0 ? payable.reduce((sum, order) => sum + order.totalPrice, 0) / payable.length : 0
     };
-  }, [orders]);
+  }, [filteredOrders]);
 
   return (
     <WorkspaceShell
@@ -69,11 +103,13 @@ export function SalesWorkspace() {
       activeView="orders"
       onChangeView={() => undefined}
     >
-      <section className="grid gap-3 md:grid-cols-4">
-        <Metric label="Total" value={String(totals.all)} />
+      <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <Metric label="Affichees" value={String(totals.all)} />
         <Metric label="Actives" value={String(totals.active)} />
         <Metric label="Payees" value={String(totals.paid)} />
+        <Metric label="Annulees" value={String(totals.cancelled)} />
         <Metric label="CA paye" value={formatMoney(totals.revenue)} />
+        <Metric label="A encaisser" value={formatMoney(totals.pendingRevenue)} />
       </section>
 
       <section className="premium-panel rounded-[1.6rem] p-4">
@@ -83,12 +119,36 @@ export function SalesWorkspace() {
             <div className="mt-1 text-xl font-bold text-zinc-950">Historique recent</div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[260px_180px_180px]">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[220px_150px_150px_150px_150px_150px_150px]">
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Rechercher #, table, client..."
               className="rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
+            />
+            <select
+              value={periodFilter}
+              onChange={(event) => setPeriodFilter(event.target.value as OrdersPeriodFilter)}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
+            >
+              <option value="today">Aujourd'hui</option>
+              <option value="month">Ce mois</option>
+              <option value="custom">Personnalise</option>
+              <option value="all">Tout</option>
+            </select>
+            <input
+              type="date"
+              value={dateFrom}
+              disabled={periodFilter !== 'custom'}
+              onChange={(event) => setDateFrom(event.target.value)}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none disabled:opacity-50"
+            />
+            <input
+              type="date"
+              value={dateTo}
+              disabled={periodFilter !== 'custom'}
+              onChange={(event) => setDateTo(event.target.value)}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none disabled:opacity-50"
             />
             <select
               value={statusFilter}
@@ -100,6 +160,15 @@ export function SalesWorkspace() {
                   {option.label}
                 </option>
               ))}
+            </select>
+            <select
+              value={paymentFilter}
+              onChange={(event) => setPaymentFilter(event.target.value as PaymentFilter)}
+              className="rounded-2xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none"
+            >
+              <option value="all">Paiement</option>
+              <option value="paid">Payees</option>
+              <option value="unpaid">A encaisser</option>
             </select>
             <select
               value={typeFilter}
@@ -128,9 +197,7 @@ export function SalesWorkspace() {
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-zinc-700">
                       {formatOrderType(order.type)}
                     </span>
-                    <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-semibold text-white">
-                      {formatOrderStatus(order.status)}
-                    </span>
+                    <StatusBadge status={order.status} />
                   </div>
                 </div>
 
@@ -207,4 +274,15 @@ function Metric({ label, value }: { label: string; value: string }) {
       <div className="mt-1 text-xl font-black text-zinc-950">{value}</div>
     </article>
   );
+}
+
+function StatusBadge({ status }: { status: OrderStatus }) {
+  const toneClass: Record<OrderStatus, string> = {
+    pending: 'bg-amber-50 text-amber-700',
+    preparing: 'bg-blue-50 text-blue-700',
+    ready: 'bg-emerald-50 text-emerald-700',
+    paid: 'bg-zinc-950 text-white',
+    cancelled: 'bg-red-50 text-red-600'
+  };
+  return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${toneClass[status]}`}>{formatOrderStatus(status)}</span>;
 }

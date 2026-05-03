@@ -11,6 +11,8 @@ export type FinancePaymentMethod = 'cash' | 'card' | 'transfer';
 export type ExpenseSourceType = 'manual' | 'stock_purchase' | 'payroll_payment' | 'salary_advance';
 export type EmploymentType = 'monthly' | 'daily' | 'hourly';
 export type PayrollPeriodStatus = 'draft' | 'validated' | 'paid';
+export type PayrollAdjustmentType = 'deduction' | 'penalty';
+export type CashSessionStatus = 'open' | 'closed';
 export type MeasurementType = 'portion' | 'weight' | 'volume';
 export type InventoryUsageType = 'recipe_only' | 'direct_sale' | 'both';
 export type ProductSourceType = 'recipe' | 'direct_stock';
@@ -225,6 +227,29 @@ export interface SalaryAdvanceInput {
   date?: string | null;
 }
 
+export interface PayrollAdjustment {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  periodId: number | null;
+  periodLabel: string | null;
+  type: PayrollAdjustmentType;
+  amount: number;
+  reason: string;
+  note: string | null;
+  date: string;
+}
+
+export interface PayrollAdjustmentInput {
+  employeeId: number;
+  periodId?: number | null;
+  type: PayrollAdjustmentType;
+  amount: number;
+  reason: string;
+  note?: string | null;
+  date?: string | null;
+}
+
 export interface PayrollPayment {
   id: number;
   amount: number;
@@ -247,6 +272,7 @@ export interface PayrollEntry {
   remainingAmount: number;
   paymentStatus: 'unpaid' | 'partial' | 'paid';
   notes: string | null;
+  adjustments: PayrollAdjustment[];
   payments: PayrollPayment[];
 }
 
@@ -260,7 +286,38 @@ export interface PayrollPeriod {
   payrollTotal: number;
   paidTotal: number;
   remainingTotal: number;
+  adjustmentsTotal: number;
   entries: PayrollEntry[];
+}
+
+export interface CashSession {
+  id: number;
+  businessDate: string;
+  openingAmount: number;
+  closingAmount: number | null;
+  cashIn: number;
+  cashOut: number;
+  expectedCash: number;
+  difference: number;
+  status: CashSessionStatus;
+  openedById: number | null;
+  openedByName: string | null;
+  closedById: number | null;
+  closedByName: string | null;
+  notes: string | null;
+  openedAt: string;
+  closedAt: string | null;
+}
+
+export interface CashSessionInput {
+  id?: number;
+  businessDate: string;
+  openingAmount: number;
+  closingAmount?: number | null;
+  status?: CashSessionStatus;
+  openedById?: number | null;
+  closedById?: number | null;
+  notes?: string | null;
 }
 
 export interface PayrollPeriodInput {
@@ -296,6 +353,8 @@ export interface ProfitReport {
     cashRevenue: number;
     cashOut: number;
     payroll: number;
+    payrollDeductions: number;
+    payrollPenalties: number;
     losses: number;
     averageTicket: number;
     previousSales: number;
@@ -381,6 +440,10 @@ export interface DashboardData {
       stockPurchases: number;
       payrollPaid: number;
       salaryAdvances: number;
+      openingAmount: number;
+      closingAmount: number | null;
+      expectedCash: number;
+      difference: number;
       cashBenefit: number;
     }>;
     topSellingProducts: Array<{ productId: number; name: string; totalQuantity: number; revenue: number }>;
@@ -412,10 +475,24 @@ export interface DashboardData {
     payrollPaymentExpenseTotal: number;
     salaryAdvanceTotal: number;
     payrollOutstandingTotal: number;
+    payrollDeductionTotal: number;
+    payrollPenaltyTotal: number;
     cashRevenueTotal: number;
     cashOutTotal: number;
     cashBenefitTotal: number;
-    payrollByEmployee: Array<{ employeeId: number; employeeName: string; payrollTotal: number; paidTotal: number }>;
+    cashDrawerOpeningTotal: number;
+    cashDrawerExpectedTotal: number;
+    cashDrawerClosingTotal: number;
+    cashDrawerDifferenceTotal: number;
+    cashDrawerOpenSessions: number;
+    payrollByEmployee: Array<{
+      employeeId: number;
+      employeeName: string;
+      payrollTotal: number;
+      paidTotal: number;
+      deductionsTotal: number;
+      penaltiesTotal: number;
+    }>;
     estimatedCostsTotal: number;
   };
   delivery: {

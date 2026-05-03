@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchDashboard } from '../lib/api';
 import { WorkspaceShell } from './WorkspaceShell';
 import { usePosStore } from '../store/usePosStore';
-import { DashboardData, ExpenseInput, ExpenseSourceType, ReportFilters } from '../types/pos';
+import { CashSessionInput, DashboardData, ExpenseInput, ExpenseSourceType, ReportFilters } from '../types/pos';
 import { formatMoney } from '../lib/format';
 import { useFeedback } from './FeedbackProvider';
 
-type FinanceView = 'journal' | 'categories';
+type FinanceView = 'journal' | 'caisse' | 'categories';
 type FinancePeriodFilter = 'today' | 'month' | 'custom';
 type FinanceStatusFilter = 'all' | ExpenseInput['status'];
 type FinanceSourceFilter = 'all' | ExpenseSourceType;
@@ -22,6 +22,14 @@ const emptyExpenseForm: ExpenseInput = {
   dueDate: '',
   paidAt: '',
   date: new Date().toISOString().slice(0, 10)
+};
+
+const emptyCashSessionForm: CashSessionInput = {
+  businessDate: new Date().toISOString().slice(0, 10),
+  openingAmount: 0,
+  closingAmount: null,
+  status: 'open',
+  notes: ''
 };
 
 function dateOnly(value?: string | null) {
@@ -62,15 +70,20 @@ export function FinanceWorkspace() {
     dashboard,
     expenses,
     expenseCategories,
+    cashSessions,
     upsertExpense,
     removeExpense,
     addExpenseCategory,
-    removeExpenseCategory
+    removeExpenseCategory,
+    saveCashSession,
+    removeCashSession
   } = usePosStore();
   const [view, setView] = useState<FinanceView>('journal');
   const [expenseForm, setExpenseForm] = useState<ExpenseInput>(emptyExpenseForm);
   const [editingExpenseId, setEditingExpenseId] = useState<number | null>(null);
   const [expenseCategoryForm, setExpenseCategoryForm] = useState({ name: '', description: '' });
+  const [cashSessionForm, setCashSessionForm] = useState<CashSessionInput>(emptyCashSessionForm);
+  const [editingCashSessionId, setEditingCashSessionId] = useState<number | null>(null);
   const [periodFilter, setPeriodFilter] = useState<FinancePeriodFilter>('month');
   const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
@@ -80,6 +93,7 @@ export function FinanceWorkspace() {
   const [financeDashboard, setFinanceDashboard] = useState<DashboardData | null>(dashboard);
   const canSaveExpense = expenseForm.amount > 0 && Boolean(expenseForm.categoryId);
   const canSaveCategory = expenseCategoryForm.name.trim().length > 0;
+  const canSaveCashSession = Boolean(cashSessionForm.businessDate) && cashSessionForm.openingAmount >= 0;
 
   useEffect(() => {
     setFinanceDashboard(dashboard);
@@ -157,6 +171,20 @@ export function FinanceWorkspace() {
     );
   }, [filteredExpenses]);
 
+  const cashSessionStats = useMemo(() => {
+    return cashSessions.reduce(
+      (acc, session) => {
+        acc.opening += session.openingAmount;
+        acc.expected += session.expectedCash;
+        acc.closed += session.closingAmount ?? 0;
+        acc.difference += session.difference;
+        if (session.status === 'open') acc.openSessions += 1;
+        return acc;
+      },
+      { opening: 0, expected: 0, closed: 0, difference: 0, openSessions: 0 }
+    );
+  }, [cashSessions]);
+
   function editExpense(expenseId: number) {
     const expense = expenses.find((entry) => entry.id === expenseId);
     if (!expense) return;
@@ -182,6 +210,26 @@ export function FinanceWorkspace() {
     setExpenseForm(emptyExpenseForm);
   }
 
+  function editCashSession(sessionId: number) {
+    const session = cashSessions.find((entry) => entry.id === sessionId);
+    if (!session) return;
+    setEditingCashSessionId(session.id);
+    setCashSessionForm({
+      id: session.id,
+      businessDate: session.businessDate,
+      openingAmount: session.openingAmount,
+      closingAmount: session.closingAmount,
+      status: session.status,
+      notes: session.notes ?? ''
+    });
+    setView('caisse');
+  }
+
+  function resetCashSessionForm() {
+    setEditingCashSessionId(null);
+    setCashSessionForm(emptyCashSessionForm);
+  }
+
   return (
     <WorkspaceShell
       title="Finance"
@@ -192,6 +240,7 @@ export function FinanceWorkspace() {
       onBack={() => setCurrentModule('apps')}
       navigation={[
         { id: 'journal', label: 'Journal', hint: 'Depenses & suivi' },
+        { id: 'caisse', label: 'Caisse', hint: 'Ouverture & cloture' },
         { id: 'categories', label: 'Categories', hint: 'Structure des charges' }
       ]}
       activeView={view}
@@ -202,7 +251,7 @@ export function FinanceWorkspace() {
         <MetricPanel label="En attente" value={formatMoney(financeStats.pending)} hint={`${financeStats.pendingCount} depense(s) a suivre`} />
         <MetricPanel label="Ce mois" value={formatMoney(currentMonthExpenses)} hint="Total depenses du mois courant" />
         <MetricPanel label="Tresorerie nette" value={formatMoney(financeDashboard?.financials.cashBenefitTotal ?? 0)} hint="Encaissements - sorties sur la periode" />
-        <MetricPanel label="Achats stock" value={formatMoney(financeDashboard?.financials.stockPurchaseTotal ?? 0)} hint="Entrees stock liees a la finance" />
+        <MetricPanel label="Caisse attendue" value={formatMoney(financeDashboard?.financials.cashDrawerExpectedTotal ?? cashSessionStats.expected)} hint={`${cashSessionStats.openSessions} caisse(s) ouverte(s)`} />
       </div>
 
       {view === 'journal' ? (
@@ -381,7 +430,101 @@ export function FinanceWorkspace() {
             </div>
           </div>
         </section>
-      ) : (
+      ) : null}
+
+      {view === 'caisse' ? (
+        <section className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+          <div className="premium-panel rounded-[1.6rem] p-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Caisse</div>
+            <h2 className="mt-1 text-xl font-bold text-zinc-950">{editingCashSessionId ? 'Modifier la caisse' : 'Ouvrir la journee'}</h2>
+            <div className="mt-4 space-y-3">
+              <Field label="Date caisse" type="date" value={cashSessionForm.businessDate} onChange={(value) => setCashSessionForm((current) => ({ ...current, businessDate: value }))} placeholder="" />
+              <Field label="Fond de caisse" type="number" value={String(cashSessionForm.openingAmount || '')} onChange={(value) => setCashSessionForm((current) => ({ ...current, openingAmount: Number(value) }))} placeholder="Ex: 30000" />
+              <Field label="Cloture comptee" type="number" value={cashSessionForm.closingAmount === null || cashSessionForm.closingAmount === undefined ? '' : String(cashSessionForm.closingAmount)} onChange={(value) => setCashSessionForm((current) => ({ ...current, closingAmount: value === '' ? null : Number(value), status: value === '' ? 'open' : 'closed' }))} placeholder="Optionnel en fin de journee" />
+              <SelectField label="Statut" value={cashSessionForm.status ?? 'open'} onChange={(value) => setCashSessionForm((current) => ({ ...current, status: value as CashSessionInput['status'] }))} options={[['open', 'Ouverte'], ['closed', 'Cloturee']]} />
+              <Field label="Note" value={cashSessionForm.notes ?? ''} onChange={(value) => setCashSessionForm((current) => ({ ...current, notes: value }))} placeholder="Ex: rendu monnaie, ecart explique..." />
+              <div className="rounded-2xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                La caisse attendue est calculee automatiquement: fond + especes encaissees - sorties especes.
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  disabled={!canSaveCashSession}
+                  onClick={async () => {
+                    await saveCashSession(cashSessionForm);
+                    resetCashSessionForm();
+                  }}
+                  className="rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
+                >
+                  {editingCashSessionId ? 'Mettre a jour' : 'Enregistrer caisse'}
+                </button>
+                <button onClick={resetCashSessionForm} className="rounded-2xl bg-zinc-100 px-4 py-3 text-sm font-black text-zinc-700">Reinitialiser</button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-4">
+              <MetricPanel label="Ouverture" value={formatMoney(financeDashboard?.financials.cashDrawerOpeningTotal ?? cashSessionStats.opening)} hint="Fond de caisse cumule" />
+              <MetricPanel label="Attendu" value={formatMoney(financeDashboard?.financials.cashDrawerExpectedTotal ?? cashSessionStats.expected)} hint="Apres ventes et sorties especes" />
+              <MetricPanel label="Compte" value={formatMoney(financeDashboard?.financials.cashDrawerClosingTotal ?? cashSessionStats.closed)} hint="Total cloture renseigne" />
+              <MetricPanel label="Ecart" value={formatMoney(financeDashboard?.financials.cashDrawerDifferenceTotal ?? cashSessionStats.difference)} hint="Compte - attendu" />
+            </div>
+
+            <div className="premium-panel rounded-[1.6rem] p-4">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Historique caisse</div>
+              <h2 className="mt-1 text-xl font-bold text-zinc-950">Ouvertures & clotures</h2>
+              <div className="mt-4 space-y-3">
+                {cashSessions.map((session) => (
+                  <article key={session.id} className="premium-card rounded-2xl p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-zinc-950">{new Date(session.businessDate).toLocaleDateString('fr-DZ')}</div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                          <CashStatusBadge status={session.status} />
+                          <span>In {formatMoney(session.cashIn)}</span>
+                          <span>Out {formatMoney(session.cashOut)}</span>
+                        </div>
+                        {session.notes ? <div className="mt-2 text-sm text-zinc-600">{session.notes}</div> : null}
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-semibold text-zinc-950">Attendu {formatMoney(session.expectedCash)}</div>
+                        <div className={`mt-1 text-xs font-semibold ${session.difference === 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          Ecart {formatMoney(session.difference)}
+                        </div>
+                        <div className="mt-3 flex justify-end gap-2">
+                          <button onClick={() => editCashSession(session.id)} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-zinc-700">Modifier</button>
+                          <button
+                            onClick={() => {
+                              void confirm({
+                                title: 'Supprimer cette caisse ?',
+                                message: `La caisse du ${new Date(session.businessDate).toLocaleDateString('fr-DZ')} sera retiree.`,
+                                confirmLabel: 'Supprimer',
+                                tone: 'danger'
+                              }).then((confirmed) => {
+                                if (confirmed) void removeCashSession(session.id);
+                              });
+                            }}
+                            className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-600"
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+                {cashSessions.length === 0 ? (
+                  <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500">
+                    Aucune caisse ouverte. Enregistrez le fond de caisse du jour pour commencer.
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {view === 'categories' ? (
         <section className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
           <div className="premium-panel rounded-[1.6rem] p-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Categories</div>
@@ -442,7 +585,7 @@ export function FinanceWorkspace() {
             </div>
           </div>
         </section>
-      )}
+      ) : null}
     </WorkspaceShell>
   );
 }
@@ -479,6 +622,18 @@ function SourceBadge({ sourceType }: { sourceType: ExpenseSourceType }) {
       {labels[sourceType]}
     </span>
   );
+}
+
+function CashStatusBadge({ status }: { status: 'open' | 'closed' }) {
+  const labels: Record<typeof status, string> = {
+    open: 'Ouverte',
+    closed: 'Cloturee'
+  };
+  const toneClass: Record<typeof status, string> = {
+    open: 'bg-amber-50 text-amber-700',
+    closed: 'bg-emerald-50 text-emerald-700'
+  };
+  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${toneClass[status]}`}>{labels[status]}</span>;
 }
 
 function Field({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; type?: string }) {

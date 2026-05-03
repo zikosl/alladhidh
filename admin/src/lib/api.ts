@@ -2,6 +2,8 @@ import axios, { InternalAxiosRequestConfig } from 'axios';
 import {
   AuthLoginResponse,
   AuthUser,
+  CashSession,
+  CashSessionInput,
   DashboardData,
   EmployeeProfile,
   EmployeeProfileInput,
@@ -9,6 +11,8 @@ import {
   ExpenseCategory,
   ExpenseInput,
   PayrollEntryInput,
+  PayrollAdjustment,
+  PayrollAdjustmentInput,
   PayrollPaymentInput,
   PayrollPeriod,
   PayrollPeriodInput,
@@ -358,6 +362,22 @@ export async function deleteExpense(id: number) {
   await api.delete(`/admin/finance/expenses/${id}`);
 }
 
+export async function fetchCashSessions() {
+  const response = await api.get<{ success: boolean; data: CashSession[] }>('/admin/finance/cash-sessions');
+  return response.data.data;
+}
+
+export async function upsertCashSession(payload: CashSessionInput) {
+  const response = payload.id
+    ? await api.put<{ success: boolean; data: CashSession }>(`/admin/finance/cash-sessions/${payload.id}`, payload)
+    : await api.post<{ success: boolean; data: CashSession }>('/admin/finance/cash-sessions', payload);
+  return response.data.data;
+}
+
+export async function deleteCashSession(id: number) {
+  await api.delete(`/admin/finance/cash-sessions/${id}`);
+}
+
 export async function fetchEmployeeProfiles() {
   const response = await api.get<{ success: boolean; data: EmployeeProfile[] }>('/admin/payroll/employees');
   return response.data.data;
@@ -376,6 +396,20 @@ export async function fetchSalaryAdvances() {
 export async function createSalaryAdvance(payload: SalaryAdvanceInput) {
   const response = await api.post<{ success: boolean; data: SalaryAdvance }>('/admin/payroll/advances', payload);
   return response.data.data;
+}
+
+export async function fetchPayrollAdjustments() {
+  const response = await api.get<{ success: boolean; data: PayrollAdjustment[] }>('/admin/payroll/adjustments');
+  return response.data.data;
+}
+
+export async function createPayrollAdjustment(payload: PayrollAdjustmentInput) {
+  const response = await api.post<{ success: boolean; data: PayrollAdjustment }>('/admin/payroll/adjustments', payload);
+  return response.data.data;
+}
+
+export async function deletePayrollAdjustment(id: number) {
+  await api.delete(`/admin/payroll/adjustments/${id}`);
 }
 
 export async function fetchPayrollPeriods() {

@@ -462,6 +462,19 @@ async function main() {
         const baseSalary = index === 0 ? 68000 : 42000;
         const bonuses = index === 0 ? 6000 : 2500;
         const deductions = index === 0 ? 0 : 1200;
+        if (deductions > 0) {
+          await tx.payrollAdjustment.create({
+            data: {
+              employeeId: employee.id,
+              periodId: payrollPeriod.id,
+              type: 'penalty',
+              amount: deductions,
+              reason: 'Pénalité retard service',
+              note: 'Exemple seed',
+              date: new Date('2026-04-18T00:00:00.000Z')
+            }
+          });
+        }
 
         const advance = await tx.salaryAdvance.create({
           data: {
@@ -544,6 +557,19 @@ async function main() {
           }
         });
       }
+
+      await tx.cashSession.create({
+        data: {
+          businessDate: new Date('2026-04-28T00:00:00.000Z'),
+          openingAmount: 30000,
+          closingAmount: 78000,
+          expectedCash: 78000,
+          difference: 0,
+          status: 'closed',
+          notes: 'Caisse de démonstration',
+          closedAt: new Date('2026-04-28T23:00:00.000Z')
+        }
+      });
     }
   });
 

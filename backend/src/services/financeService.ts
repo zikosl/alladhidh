@@ -1,18 +1,34 @@
-import { ExpenseSourceType, ExpenseStatus, ExpenseType } from '@prisma/client';
+import { CashSessionStatus, ExpenseSourceType, ExpenseStatus, ExpenseType, PayrollAdjustmentType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { systemExpenseCategories, upsertLinkedExpense } from './expenseSyncService';
 import {
+  CashSessionSummary,
   EmployeeProfileSummary,
   ExpenseCategorySummary,
   ExpenseSummary,
+  PayrollAdjustmentSummary,
   PayrollPeriodSummary,
   SalaryAdvanceSummary
 } from '../types/pos';
 import { HttpError } from '../utils/httpError';
 import { requireField, toNonNegativeNumber, toPositiveNumber } from '../utils/validation';
 
+type PrismaClientLike = typeof prisma | Prisma.TransactionClient;
+
 function toIso(value: Date | null | undefined) {
   return value ? value.toISOString() : null;
+}
+
+function startOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0);
+}
+
+function endOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999);
+}
+
+function dateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
 }
 
 function mapExpenseCategory(row: {
@@ -117,6 +133,75 @@ function mapAdvance(row: {
     reason: row.reason,
     note: row.note,
     date: row.date.toISOString()
+  };
+}
+
+function mapPayrollAdjustment(row: {
+  id: number;
+  employeeId: number;
+  periodId: number | null;
+  type: string;
+  amount: unknown;
+  reason: string;
+  note: string | null;
+  date: Date;
+  employee: { user: { fullName: string } };
+  period?: { label: string } | null;
+}): PayrollAdjustmentSummary {
+  return {
+    id: row.id,
+    employeeId: row.employeeId,
+    employeeName: row.employee.user.fullName,
+    periodId: row.periodId,
+    periodLabel: row.period?.label ?? null,
+    type: row.type as PayrollAdjustmentSummary['type'],
+    amount: Number(row.amount),
+    reason: row.reason,
+    note: row.note,
+    date: row.date.toISOString()
+  };
+}
+
+function mapCashSession(
+  row: {
+    id: number;
+    businessDate: Date;
+    openingAmount: unknown;
+    closingAmount: unknown | null;
+    expectedCash: unknown;
+    difference: unknown;
+    status: string;
+    openedById: number | null;
+    closedById: number | null;
+    notes: string | null;
+    openedAt: Date;
+    closedAt: Date | null;
+    openedBy?: { fullName: string } | null;
+    closedBy?: { fullName: string } | null;
+  },
+  totals?: { cashIn: number; cashOut: number }
+): CashSessionSummary {
+  const openingAmount = Number(row.openingAmount);
+  const closingAmount = row.closingAmount === null ? null : Number(row.closingAmount);
+  const expectedCash = totals ? openingAmount + totals.cashIn - totals.cashOut : Number(row.expectedCash);
+  const difference = totals ? (closingAmount === null ? 0 : closingAmount - expectedCash) : Number(row.difference);
+  return {
+    id: row.id,
+    businessDate: dateOnly(row.businessDate),
+    openingAmount,
+    closingAmount,
+    cashIn: totals?.cashIn ?? 0,
+    cashOut: totals?.cashOut ?? 0,
+    expectedCash,
+    difference,
+    status: row.status as CashSessionSummary['status'],
+    openedById: row.openedById,
+    openedByName: row.openedBy?.fullName ?? null,
+    closedById: row.closedById,
+    closedByName: row.closedBy?.fullName ?? null,
+    notes: row.notes,
+    openedAt: row.openedAt.toISOString(),
+    closedAt: toIso(row.closedAt)
   };
 }
 
@@ -273,6 +358,116 @@ export async function deleteExpense(id: number): Promise<void> {
     throw new HttpError(400, 'Cette depense est liee a un module source et ne peut pas etre supprimee ici');
   }
   await prisma.expense.delete({ where: { id } });
+}
+
+async function calculateCashSessionTotals(businessDate: Date, openingAmount: number, closingAmount?: number | null) {
+  const start = startOfDay(businessDate);
+  const end = endOfDay(businessDate);
+  const [payments, expenses] = await Promise.all([
+    prisma.payment.findMany({
+      where: {
+        method: 'cash',
+        createdAt: { gte: start, lte: end }
+      }
+    }),
+    prisma.expense.findMany({
+      where: {
+        status: ExpenseStatus.paid,
+        paymentMethod: 'cash',
+        date: { gte: start, lte: end }
+      }
+    })
+  ]);
+  const cashIn = payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  const cashOut = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+  const expectedCash = openingAmount + cashIn - cashOut;
+  return {
+    cashIn,
+    cashOut,
+    expectedCash,
+    difference: closingAmount === null || closingAmount === undefined ? 0 : closingAmount - expectedCash
+  };
+}
+
+export async function listCashSessions(): Promise<CashSessionSummary[]> {
+  const rows = await prisma.cashSession.findMany({
+    include: {
+      openedBy: true,
+      closedBy: true
+    },
+    orderBy: [{ businessDate: 'desc' }, { id: 'desc' }]
+  });
+
+  const withTotals = await Promise.all(
+    rows.map(async (row) => {
+      const totals = await calculateCashSessionTotals(row.businessDate, Number(row.openingAmount), row.closingAmount === null ? null : Number(row.closingAmount));
+      return mapCashSession(row, totals);
+    })
+  );
+
+  return withTotals;
+}
+
+export async function upsertCashSession(payload: {
+  id?: number;
+  businessDate: string;
+  openingAmount: number;
+  closingAmount?: number | null;
+  status?: CashSessionSummary['status'];
+  openedById?: number | null;
+  closedById?: number | null;
+  notes?: string | null;
+}): Promise<CashSessionSummary> {
+  requireField(payload, 'businessDate');
+  const businessDate = startOfDay(new Date(payload.businessDate));
+  if (Number.isNaN(businessDate.getTime())) {
+    throw new HttpError(400, 'Date de caisse invalide');
+  }
+  const openingAmount = toNonNegativeNumber(payload.openingAmount, 'openingAmount');
+  const closingAmount =
+    payload.closingAmount === null || payload.closingAmount === undefined || String(payload.closingAmount) === ''
+      ? null
+      : toNonNegativeNumber(payload.closingAmount, 'closingAmount');
+  const totals = await calculateCashSessionTotals(businessDate, openingAmount, closingAmount);
+  const status = payload.status ?? (closingAmount === null ? CashSessionStatus.open : CashSessionStatus.closed);
+  const data = {
+    businessDate,
+    openingAmount,
+    closingAmount,
+    expectedCash: totals.expectedCash,
+    difference: totals.difference,
+    status,
+    openedById: payload.openedById ?? null,
+    closedById: status === CashSessionStatus.closed ? payload.closedById ?? null : null,
+    notes: payload.notes ? String(payload.notes).trim() : null,
+    closedAt: status === CashSessionStatus.closed ? new Date() : null
+  };
+
+  const row = payload.id
+    ? await prisma.cashSession.update({
+        where: { id: Number(payload.id) },
+        data,
+        include: { openedBy: true, closedBy: true }
+      })
+    : await prisma.cashSession.upsert({
+        where: { businessDate },
+        update: data,
+        create: {
+          ...data,
+          openedAt: new Date()
+        },
+        include: { openedBy: true, closedBy: true }
+      });
+
+  return mapCashSession(row, totals);
+}
+
+export async function deleteCashSession(id: number): Promise<void> {
+  const existing = await prisma.cashSession.findUnique({ where: { id } });
+  if (!existing) {
+    throw new HttpError(404, 'Session de caisse introuvable');
+  }
+  await prisma.cashSession.delete({ where: { id } });
 }
 
 export async function listEmployeeProfiles(): Promise<EmployeeProfileSummary[]> {
@@ -438,7 +633,24 @@ function mapPayrollPeriod(row: {
       note: string | null;
     }>;
   }>;
+  adjustments: Array<{
+    id: number;
+    employeeId: number;
+    periodId: number | null;
+    type: string;
+    amount: unknown;
+    reason: string;
+    note: string | null;
+    date: Date;
+    employee: { user: { fullName: string } };
+    period?: { label: string } | null;
+  }>;
 }): PayrollPeriodSummary {
+  const adjustmentsByEmployee = new Map<number, PayrollAdjustmentSummary[]>();
+  for (const adjustment of row.adjustments ?? []) {
+    const mapped = mapPayrollAdjustment(adjustment);
+    adjustmentsByEmployee.set(adjustment.employeeId, [...(adjustmentsByEmployee.get(adjustment.employeeId) ?? []), mapped]);
+  }
   const entries = row.entries.map((entry) => {
     const netSalary = Number(entry.netSalary);
     const paidAmount = entry.payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
@@ -456,6 +668,7 @@ function mapPayrollPeriod(row: {
       remainingAmount: Math.max(netSalary - paidAmount, 0),
       paymentStatus: computePaymentStatus(netSalary, paidAmount),
       notes: entry.notes,
+      adjustments: adjustmentsByEmployee.get(entry.employeeId) ?? [],
       payments: entry.payments.map((payment) => ({
         id: payment.id,
         amount: Number(payment.amount),
@@ -468,6 +681,7 @@ function mapPayrollPeriod(row: {
 
   const payrollTotal = entries.reduce((sum, entry) => sum + entry.netSalary, 0);
   const paidTotal = entries.reduce((sum, entry) => sum + entry.paidAmount, 0);
+  const adjustmentsTotal = row.adjustments.reduce((sum, adjustment) => sum + Number(adjustment.amount), 0);
 
   return {
     id: row.id,
@@ -479,6 +693,7 @@ function mapPayrollPeriod(row: {
     payrollTotal,
     paidTotal,
     remainingTotal: Math.max(payrollTotal - paidTotal, 0),
+    adjustmentsTotal,
     entries
   };
 }
@@ -504,6 +719,17 @@ export async function listPayrollPeriods(): Promise<PayrollPeriodSummary[]> {
             }
           }
         }
+      },
+      adjustments: {
+        include: {
+          employee: {
+            include: {
+              user: true
+            }
+          },
+          period: true
+        },
+        orderBy: [{ date: 'desc' }, { id: 'desc' }]
       }
     },
     orderBy: [{ endDate: 'desc' }, { id: 'desc' }]
@@ -546,18 +772,40 @@ export async function createPayrollPeriod(payload: {
     });
 
     if (employees.length > 0) {
+      const adjustments = await tx.payrollAdjustment.findMany({
+        where: {
+          periodId: null,
+          date: { gte: startDate, lte: endDate },
+          employeeId: { in: employees.map((employee) => employee.id) }
+        }
+      });
+      const deductionsByEmployee = new Map<number, number>();
+      for (const adjustment of adjustments) {
+        deductionsByEmployee.set(
+          adjustment.employeeId,
+          (deductionsByEmployee.get(adjustment.employeeId) ?? 0) + Number(adjustment.amount)
+        );
+      }
+
       await tx.payrollEntry.createMany({
         data: employees.map((employee) => ({
           periodId: period.id,
           employeeId: employee.id,
           baseSalary: employee.baseSalary,
           bonuses: 0,
-          deductions: 0,
+          deductions: deductionsByEmployee.get(employee.id) ?? 0,
           advanceDeduction: 0,
-          netSalary: employee.baseSalary,
+          netSalary: Math.max(Number(employee.baseSalary) - (deductionsByEmployee.get(employee.id) ?? 0), 0),
           notes: null
         }))
       });
+
+      if (adjustments.length > 0) {
+        await tx.payrollAdjustment.updateMany({
+          where: { id: { in: adjustments.map((adjustment) => adjustment.id) } },
+          data: { periodId: period.id }
+        });
+      }
     }
 
     return tx.payrollPeriod.findUniqueOrThrow({
@@ -571,6 +819,16 @@ export async function createPayrollPeriod(payload: {
               }
             },
             payments: true
+          }
+        },
+        adjustments: {
+          include: {
+            employee: {
+              include: {
+                user: true
+              }
+            },
+            period: true
           }
         }
       }
@@ -597,6 +855,151 @@ async function restoreEntryAdvanceSettlements(tx: Omit<typeof prisma, '$connect'
   if (previousSettlements.length > 0) {
     await tx.salaryAdvanceSettlement.deleteMany({ where: { entryId } });
   }
+}
+
+async function recalculatePayrollEntry(tx: Prisma.TransactionClient, entryId: number) {
+  const entry = await tx.payrollEntry.findUnique({ where: { id: entryId } });
+  if (!entry) return;
+  const netSalary = Math.max(
+    Number(entry.baseSalary) + Number(entry.bonuses) - Number(entry.deductions) - Number(entry.advanceDeduction),
+    0
+  );
+  const payments = await tx.payrollPayment.findMany({ where: { entryId } });
+  const paidAmount = payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+  if (paidAmount - netSalary > 0.001) {
+    throw new HttpError(400, 'La retenue rendrait la ligne inferieure au montant deja paye');
+  }
+  await tx.payrollEntry.update({
+    where: { id: entryId },
+    data: { netSalary }
+  });
+}
+
+export async function listPayrollAdjustments(): Promise<PayrollAdjustmentSummary[]> {
+  const rows = await prisma.payrollAdjustment.findMany({
+    include: {
+      employee: {
+        include: {
+          user: true
+        }
+      },
+      period: true
+    },
+    orderBy: [{ date: 'desc' }, { id: 'desc' }]
+  });
+  return rows.map(mapPayrollAdjustment);
+}
+
+export async function createPayrollAdjustment(payload: {
+  employeeId: number;
+  periodId?: number | null;
+  type: PayrollAdjustmentSummary['type'];
+  amount: number;
+  reason: string;
+  note?: string | null;
+  date?: string | null;
+}): Promise<PayrollAdjustmentSummary> {
+  requireField(payload, 'employeeId');
+  requireField(payload, 'reason');
+  const amount = toPositiveNumber(payload.amount, 'amount');
+  const employee = await prisma.employeeProfile.findUnique({
+    where: { id: Number(payload.employeeId) },
+    include: {
+      user: true
+    }
+  });
+  if (!employee) {
+    throw new HttpError(404, 'Employe introuvable');
+  }
+
+  const periodId = payload.periodId ? Number(payload.periodId) : null;
+  if (periodId) {
+    const period = await prisma.payrollPeriod.findUnique({ where: { id: periodId } });
+    if (!period) {
+      throw new HttpError(404, 'Periode de paie introuvable');
+    }
+  }
+
+  const created = await prisma.$transaction(async (tx) => {
+    const adjustment = await tx.payrollAdjustment.create({
+      data: {
+        employeeId: employee.id,
+        periodId,
+        type: payload.type === PayrollAdjustmentType.penalty ? PayrollAdjustmentType.penalty : PayrollAdjustmentType.deduction,
+        amount,
+        reason: String(payload.reason).trim(),
+        note: payload.note ? String(payload.note).trim() : null,
+        date: payload.date ? new Date(payload.date) : new Date()
+      },
+      include: {
+        employee: {
+          include: {
+            user: true
+          }
+        },
+        period: true
+      }
+    });
+
+    if (periodId) {
+      const entry = await tx.payrollEntry.findUnique({
+        where: {
+          periodId_employeeId: {
+            periodId,
+            employeeId: employee.id
+          }
+        }
+      });
+      if (entry) {
+        await tx.payrollEntry.update({
+          where: { id: entry.id },
+          data: {
+            deductions: {
+              increment: amount
+            }
+          }
+        });
+        await recalculatePayrollEntry(tx, entry.id);
+      }
+    }
+
+    return adjustment;
+  });
+
+  return mapPayrollAdjustment(created);
+}
+
+export async function deletePayrollAdjustment(id: number): Promise<void> {
+  const existing = await prisma.payrollAdjustment.findUnique({
+    where: { id },
+    include: { period: true }
+  });
+  if (!existing) {
+    throw new HttpError(404, 'Retenue introuvable');
+  }
+
+  await prisma.$transaction(async (tx) => {
+    if (existing.periodId) {
+      const entry = await tx.payrollEntry.findUnique({
+        where: {
+          periodId_employeeId: {
+            periodId: existing.periodId,
+            employeeId: existing.employeeId
+          }
+        }
+      });
+      if (entry) {
+        await tx.payrollEntry.update({
+          where: { id: entry.id },
+          data: {
+            deductions: Math.max(Number(entry.deductions) - Number(existing.amount), 0)
+          }
+        });
+        await recalculatePayrollEntry(tx, entry.id);
+      }
+    }
+    await tx.payrollAdjustment.delete({ where: { id } });
+  });
 }
 
 export async function updatePayrollEntry(
@@ -626,6 +1029,12 @@ export async function updatePayrollEntry(
   const grossAvailable = baseSalary + bonuses - deductions;
   if (advanceDeduction > grossAvailable) {
     throw new HttpError(400, 'La retenue sur avance depasse le disponible');
+  }
+  const paidAmount = await prisma.payrollPayment
+    .findMany({ where: { entryId } })
+    .then((payments) => payments.reduce((sum, payment) => sum + Number(payment.amount), 0));
+  if (paidAmount - (grossAvailable - advanceDeduction) > 0.001) {
+    throw new HttpError(400, 'La ligne est deja payee au-dessus du nouveau net');
   }
 
   await prisma.$transaction(async (tx) => {
@@ -782,6 +1191,17 @@ async function getPayrollPeriod(periodId: number): Promise<PayrollPeriodSummary>
             }
           }
         }
+      },
+      adjustments: {
+        include: {
+          employee: {
+            include: {
+              user: true
+            }
+          },
+          period: true
+        },
+        orderBy: [{ date: 'desc' }, { id: 'desc' }]
       }
     }
   });

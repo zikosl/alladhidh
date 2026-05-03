@@ -75,6 +75,8 @@ export function ReportsWorkspace() {
       ['Synthese', 'Charges depenses + paie', String(reportProfit.totals.expenses)],
       ['Synthese', 'Depenses operationnelles', String(reportDashboard.financials.expenseTotal)],
       ['Synthese', 'Paie constatee', String(reportProfit.totals.payroll)],
+      ['Synthese', 'Retenues paie', String(reportProfit.totals.payrollDeductions)],
+      ['Synthese', 'Penalites paie', String(reportProfit.totals.payrollPenalties)],
       ['Synthese', 'Pertes', String(reportProfit.totals.losses)],
       ...reportDashboard.charts.salesPerDay.map((row) => ['Ventes par jour', row.date, String(row.totalSales)]),
       ...reportDashboard.charts.topSellingProducts.map((row) => ['Top produit', row.name, String(row.revenue)]),
@@ -212,7 +214,7 @@ export function ReportsWorkspace() {
                   key={day.date}
                   label={day.date}
                   value={formatMoney(day.cashBenefit)}
-                  hint={`In ${formatMoney(day.cashIn)} / Out ${formatMoney(day.cashOut)}`}
+                  hint={`Attendu ${formatMoney(day.expectedCash)} / Ecart ${formatMoney(day.difference)}`}
                   percent={
                     (Math.abs(day.cashBenefit) /
                       Math.max(...activeDashboard.charts.cashBenefitPerDay.map((entry) => Math.abs(entry.cashBenefit)), 1)) *
@@ -384,6 +386,13 @@ export function ReportsWorkspace() {
             <MetricCard label="Reste paie" value={formatMoney(activeDashboard.financials.payrollOutstandingTotal)} />
           </div>
 
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Retenues paie" value={formatMoney(activeDashboard.financials.payrollDeductionTotal)} />
+            <MetricCard label="Penalites" value={formatMoney(activeDashboard.financials.payrollPenaltyTotal)} />
+            <MetricCard label="Caisse attendue" value={formatMoney(activeDashboard.financials.cashDrawerExpectedTotal)} />
+            <MetricCard label="Ecart caisse" value={formatMoney(activeDashboard.financials.cashDrawerDifferenceTotal)} />
+          </div>
+
           <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
             <Panel title="Produits les plus rentables" eyebrow="Profit estime">
               <div className="space-y-3">
@@ -430,6 +439,7 @@ export function ReportsWorkspace() {
                   <div className="text-sm font-semibold text-zinc-900">{item.employeeName}</div>
                   <div className="mt-2 text-sm text-zinc-500">Total paie {formatMoney(item.payrollTotal)}</div>
                   <div className="mt-1 text-lg font-bold text-zinc-950">Paye {formatMoney(item.paidTotal)}</div>
+                  <div className="mt-1 text-xs text-amber-600">Retenues {formatMoney(item.deductionsTotal)}</div>
                 </div>
               ))}
             </div>

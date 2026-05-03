@@ -18,18 +18,24 @@ import {
 } from '../services/adminService';
 import {
   upsertEmployeeProfile,
+  createPayrollAdjustment,
   createExpense,
   createExpenseCategory,
   createPayrollPayment,
   createPayrollPeriod,
   createSalaryAdvance,
+  deleteCashSession,
   deleteExpense,
   deleteExpenseCategory,
+  deletePayrollAdjustment,
+  listCashSessions,
   listEmployeeProfiles,
   listExpenseCategories,
   listExpenses,
+  listPayrollAdjustments,
   listPayrollPeriods,
   listSalaryAdvances,
+  upsertCashSession,
   updateExpense,
   updatePayrollEntry,
   updatePayrollPeriodStatus
@@ -218,6 +224,42 @@ adminRouter.delete(
 );
 
 adminRouter.get(
+  '/finance/cash-sessions',
+  requirePermission('finance.read', 'finance.write'),
+  asyncHandler(async (_req, res) => {
+    const data = await listCashSessions();
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.post(
+  '/finance/cash-sessions',
+  requirePermission('finance.write'),
+  asyncHandler(async (req, res) => {
+    const data = await upsertCashSession(req.body);
+    res.status(201).json({ success: true, data });
+  })
+);
+
+adminRouter.put(
+  '/finance/cash-sessions/:id',
+  requirePermission('finance.write'),
+  asyncHandler(async (req, res) => {
+    const data = await upsertCashSession({ ...req.body, id: Number(req.params.id) });
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.delete(
+  '/finance/cash-sessions/:id',
+  requirePermission('finance.write'),
+  asyncHandler(async (req, res) => {
+    await deleteCashSession(Number(req.params.id));
+    res.json({ success: true });
+  })
+);
+
+adminRouter.get(
   '/payroll/employees',
   requirePermission('payroll.read', 'payroll.write'),
   asyncHandler(async (_req, res) => {
@@ -250,6 +292,33 @@ adminRouter.post(
   asyncHandler(async (req, res) => {
     const data = await createSalaryAdvance(req.body);
     res.status(201).json({ success: true, data });
+  })
+);
+
+adminRouter.get(
+  '/payroll/adjustments',
+  requirePermission('payroll.read', 'payroll.write'),
+  asyncHandler(async (_req, res) => {
+    const data = await listPayrollAdjustments();
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.post(
+  '/payroll/adjustments',
+  requirePermission('payroll.write'),
+  asyncHandler(async (req, res) => {
+    const data = await createPayrollAdjustment(req.body);
+    res.status(201).json({ success: true, data });
+  })
+);
+
+adminRouter.delete(
+  '/payroll/adjustments/:id',
+  requirePermission('payroll.write'),
+  asyncHandler(async (req, res) => {
+    await deletePayrollAdjustment(Number(req.params.id));
+    res.json({ success: true });
   })
 );
 

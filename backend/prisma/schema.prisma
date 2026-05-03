@@ -112,6 +112,20 @@ enum PayrollPeriodStatus {
   @@map("payroll_period_status")
 }
 
+enum PayrollAdjustmentType {
+  deduction
+  penalty
+
+  @@map("payroll_adjustment_type")
+}
+
+enum CashSessionStatus {
+  open
+  closed
+
+  @@map("cash_session_status")
+}
+
 model Product {
   id        Int        @id @default(autoincrement())
   name      String     @unique @db.VarChar(150)
@@ -189,6 +203,8 @@ model User {
   updatedAt    DateTime    @updatedAt @map("updated_at")
   employeeProfile EmployeeProfile?
   role         Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  openedCashSessions CashSession[] @relation("CashSessionOpenedBy")
+  closedCashSessions CashSession[] @relation("CashSessionClosedBy")
 
   @@index([roleId], map: "idx_users_role_id")
   @@map("users")
@@ -425,6 +441,7 @@ model EmployeeProfile {
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   advances       SalaryAdvance[]
   payrollEntries PayrollEntry[]
+  payrollAdjustments PayrollAdjustment[]
 
   @@index([isActive], map: "idx_employee_profiles_active")
   @@map("employee_profiles")
@@ -457,6 +474,7 @@ model PayrollPeriod {
   createdAt DateTime            @default(now()) @map("created_at")
   updatedAt DateTime            @updatedAt @map("updated_at")
   entries   PayrollEntry[]
+  adjustments PayrollAdjustment[]
 
   @@index([startDate, endDate], map: "idx_payroll_periods_range")
   @@map("payroll_periods")
@@ -482,6 +500,48 @@ model PayrollEntry {
   @@unique([periodId, employeeId], map: "uq_payroll_entry_period_employee")
   @@index([employeeId], map: "idx_payroll_entries_employee")
   @@map("payroll_entries")
+}
+
+model PayrollAdjustment {
+  id         Int                   @id @default(autoincrement())
+  employeeId Int                  @map("employee_id")
+  periodId  Int?                  @map("period_id")
+  type       PayrollAdjustmentType @default(deduction)
+  amount     Decimal              @db.Decimal(10, 2)
+  reason     String               @db.VarChar(160)
+  note       String?              @db.VarChar(255)
+  date       DateTime             @default(now())
+  createdAt  DateTime             @default(now()) @map("created_at")
+  updatedAt  DateTime             @updatedAt @map("updated_at")
+  employee   EmployeeProfile      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  period     PayrollPeriod?       @relation(fields: [periodId], references: [id], onDelete: SetNull)
+
+  @@index([employeeId, date], map: "idx_payroll_adjustments_employee_date")
+  @@index([periodId], map: "idx_payroll_adjustments_period")
+  @@map("payroll_adjustments")
+}
+
+model CashSession {
+  id            Int               @id @default(autoincrement())
+  businessDate  DateTime          @unique @map("business_date") @db.Date
+  openingAmount Decimal           @default(0) @map("opening_amount") @db.Decimal(10, 2)
+  closingAmount Decimal?          @map("closing_amount") @db.Decimal(10, 2)
+  expectedCash  Decimal           @default(0) @map("expected_cash") @db.Decimal(10, 2)
+  difference    Decimal           @default(0) @db.Decimal(10, 2)
+  status        CashSessionStatus @default(open)
+  openedById    Int?              @map("opened_by_id")
+  closedById    Int?              @map("closed_by_id")
+  notes         String?           @db.VarChar(255)
+  openedAt      DateTime          @default(now()) @map("opened_at")
+  closedAt      DateTime?         @map("closed_at")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  openedBy      User?             @relation("CashSessionOpenedBy", fields: [openedById], references: [id], onDelete: SetNull)
+  closedBy      User?             @relation("CashSessionClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+
+  @@index([businessDate], map: "idx_cash_sessions_business_date")
+  @@index([status], map: "idx_cash_sessions_status")
+  @@map("cash_sessions")
 }
 
 model PayrollPayment {

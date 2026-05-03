@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   cancelOrder as cancelOrderRequest,
+  createPayrollAdjustment,
   createExpense,
   createExpenseCategory,
   createPayrollPayment,
@@ -13,8 +14,10 @@ import {
   createMenuCategory,
   createStockEntry,
   createStockLoss,
+  deleteCashSession,
   deleteExpense,
   deleteExpenseCategory,
+  deletePayrollAdjustment,
   deleteTable,
   deleteInventoryCategory,
   deleteInventoryItem,
@@ -23,6 +26,7 @@ import {
   createPayment,
   deleteMenuCategory,
   fetchEmployeeProfiles,
+  fetchCashSessions,
   fetchExpenseCategories,
   fetchExpenses,
   fetchDashboard,
@@ -34,6 +38,7 @@ import {
   fetchMenuItems,
   fetchOrders,
   fetchPayrollPeriods,
+  fetchPayrollAdjustments,
   fetchProfitReport,
   fetchProducts,
   fetchRoles,
@@ -51,6 +56,7 @@ import {
   updateSettings,
   updateStaffUser,
   updateTable,
+  upsertCashSession,
   upsertEmployeeProfile,
   updateDeliveryStatus,
   updateInventoryItem,
@@ -64,6 +70,8 @@ import { printCustomerInvoice } from '../lib/print';
 import {
   Permission,
   CartItem,
+  CashSession,
+  CashSessionInput,
   DashboardData,
   DeliveryForm,
   EmployeeProfile,
@@ -85,6 +93,8 @@ import {
   PosScreen,
   Product,
   ProfitReport,
+  PayrollAdjustment,
+  PayrollAdjustmentInput,
   PayrollEntryInput,
   PayrollPaymentInput,
   PayrollPeriod,
@@ -115,8 +125,10 @@ interface PosState {
   profitReport: ProfitReport | null;
   expenses: Expense[];
   expenseCategories: ExpenseCategory[];
+  cashSessions: CashSession[];
   employeeProfiles: EmployeeProfile[];
   salaryAdvances: SalaryAdvance[];
+  payrollAdjustments: PayrollAdjustment[];
   payrollPeriods: PayrollPeriod[];
   stockRows: StockRow[];
   stockMovements: StockMovement[];
@@ -169,8 +181,12 @@ interface PosState {
   removeExpense: (id: number) => Promise<void>;
   addExpenseCategory: (category: { name: string; description?: string | null }) => Promise<void>;
   removeExpenseCategory: (id: number) => Promise<void>;
+  saveCashSession: (session: CashSessionInput) => Promise<void>;
+  removeCashSession: (id: number) => Promise<void>;
   upsertEmployeePayrollProfile: (profile: EmployeeProfileInput) => Promise<void>;
   addSalaryAdvance: (advance: SalaryAdvanceInput) => Promise<void>;
+  addPayrollAdjustment: (adjustment: PayrollAdjustmentInput) => Promise<void>;
+  removePayrollAdjustment: (id: number) => Promise<void>;
   addPayrollPeriod: (period: PayrollPeriodInput) => Promise<void>;
   savePayrollEntry: (entryId: number, entry: PayrollEntryInput) => Promise<void>;
   addPayrollPayment: (entryId: number, payment: PayrollPaymentInput) => Promise<void>;
@@ -366,8 +382,10 @@ export const usePosStore = create<PosState>((set, get) => ({
   profitReport: null,
   expenses: [],
   expenseCategories: [],
+  cashSessions: [],
   employeeProfiles: [],
   salaryAdvances: [],
+  payrollAdjustments: [],
   payrollPeriods: [],
   stockRows: [],
   stockMovements: [],
@@ -763,6 +781,36 @@ export const usePosStore = create<PosState>((set, get) => ({
       set({ lastError: error instanceof Error ? error.message : 'Suppression categorie depense impossible' });
     }
   },
+  saveCashSession: async (session) => {
+    const state = get();
+    try {
+      const nextSession = await upsertCashSession(session);
+      const exists = state.cashSessions.some((entry) => entry.id === nextSession.id);
+      const cashSessions = exists
+        ? state.cashSessions.map((entry) => (entry.id === nextSession.id ? nextSession : entry))
+        : [nextSession, ...state.cashSessions];
+      set({
+        cashSessions: cashSessions.sort((left, right) => right.businessDate.localeCompare(left.businessDate)),
+        lastError: null
+      });
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Sauvegarde caisse impossible' });
+    }
+  },
+  removeCashSession: async (id) => {
+    const state = get();
+    try {
+      await deleteCashSession(id);
+      set({
+        cashSessions: state.cashSessions.filter((entry) => entry.id !== id),
+        lastError: null
+      });
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Suppression caisse impossible' });
+    }
+  },
   upsertEmployeePayrollProfile: async (profile) => {
     const state = get();
     try {
@@ -790,6 +838,34 @@ export const usePosStore = create<PosState>((set, get) => ({
       await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Creation avance impossible' });
+    }
+  },
+  addPayrollAdjustment: async (adjustment) => {
+    const state = get();
+    try {
+      const nextAdjustment = await createPayrollAdjustment(adjustment);
+      set({
+        payrollAdjustments: [nextAdjustment, ...state.payrollAdjustments],
+        lastError: null
+      });
+      await get().refreshAdminData();
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Creation retenue impossible' });
+    }
+  },
+  removePayrollAdjustment: async (id) => {
+    const state = get();
+    try {
+      await deletePayrollAdjustment(id);
+      set({
+        payrollAdjustments: state.payrollAdjustments.filter((entry) => entry.id !== id),
+        lastError: null
+      });
+      await get().refreshAdminData();
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Suppression retenue impossible' });
     }
   },
   addPayrollPeriod: async (period) => {
@@ -935,16 +1011,16 @@ export const usePosStore = create<PosState>((set, get) => ({
       }
       if (hasPermission('finance.read', 'finance.write')) {
         calls.push(
-          Promise.all([fetchExpenseCategories(), fetchExpenses()]).then(([expenseCategories, expenses]) =>
-            set({ expenseCategories, expenses })
+          Promise.all([fetchExpenseCategories(), fetchExpenses(), fetchCashSessions()]).then(([expenseCategories, expenses, cashSessions]) =>
+            set({ expenseCategories, expenses, cashSessions })
           )
         );
       }
       if (hasPermission('payroll.read', 'payroll.write')) {
         calls.push(
-          Promise.all([fetchEmployeeProfiles(), fetchSalaryAdvances(), fetchPayrollPeriods()]).then(
-            ([employeeProfiles, salaryAdvances, payrollPeriods]) =>
-              set({ employeeProfiles, salaryAdvances, payrollPeriods })
+          Promise.all([fetchEmployeeProfiles(), fetchSalaryAdvances(), fetchPayrollAdjustments(), fetchPayrollPeriods()]).then(
+            ([employeeProfiles, salaryAdvances, payrollAdjustments, payrollPeriods]) =>
+              set({ employeeProfiles, salaryAdvances, payrollAdjustments, payrollPeriods })
           )
         );
       }
@@ -970,8 +1046,10 @@ export const usePosStore = create<PosState>((set, get) => ({
       profitReport: null,
       expenses: [],
       expenseCategories: [],
+      cashSessions: [],
       employeeProfiles: [],
       salaryAdvances: [],
+      payrollAdjustments: [],
       payrollPeriods: [],
       stockRows: [],
       stockMovements: [],
@@ -1058,10 +1136,12 @@ export const usePosStore = create<PosState>((set, get) => ({
       if (hasPermission('finance.read', 'finance.write')) {
         tasks.push(fetchExpenses().then((expenses) => void (updates.expenses = expenses)));
         tasks.push(fetchExpenseCategories().then((expenseCategories) => void (updates.expenseCategories = expenseCategories)));
+        tasks.push(fetchCashSessions().then((cashSessions) => void (updates.cashSessions = cashSessions)));
       }
       if (hasPermission('payroll.read', 'payroll.write')) {
         tasks.push(fetchPayrollPeriods().then((payrollPeriods) => void (updates.payrollPeriods = payrollPeriods)));
         tasks.push(fetchSalaryAdvances().then((salaryAdvances) => void (updates.salaryAdvances = salaryAdvances)));
+        tasks.push(fetchPayrollAdjustments().then((payrollAdjustments) => void (updates.payrollAdjustments = payrollAdjustments)));
       }
       if (hasPermission('inventory.read', 'inventory.write')) {
         tasks.push(fetchStock().then((stockRows) => void (updates.stockRows = stockRows)));
