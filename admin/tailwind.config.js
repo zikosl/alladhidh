@@ -4,14 +4,20 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: '#100b08',
-        panel: '#fffaf0',
-        sand: '#f7e4be',
-        brand: '#e93218',
-        accent: '#f7c928'
+        ink: 'var(--color-text-primary)',
+        panel: 'var(--color-bg)',
+        sand: 'var(--color-surface-secondary)',
+        brand: 'var(--color-primary)',
+        accent: 'var(--color-accent)',
+        flame: 'var(--color-flame)',
+        charcoal: 'var(--color-charcoal)',
+        surface: 'var(--color-surface)',
+        elevated: 'var(--color-surface-elevated)',
+        muted: 'var(--color-text-muted)'
       },
       boxShadow: {
-        soft: '0 18px 42px rgba(52, 27, 13, 0.1)'
+        soft: 'var(--shadow-soft)',
+        card: 'var(--shadow-card)'
       }
     }
   },

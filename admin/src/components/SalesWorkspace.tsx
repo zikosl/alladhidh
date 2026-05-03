@@ -95,7 +95,7 @@ export function SalesWorkspace() {
     <WorkspaceShell
       title="Commandes"
       subtitle="Recherche, suivi, reimpression cuisine et factures client."
-      accent="linear-gradient(135deg, #7c3aed, #8b5cf6)"
+      accent="var(--gradient-sales)"
       icon="📋"
       sectionLabel="Module commandes"
       onBack={() => setCurrentModule('apps')}

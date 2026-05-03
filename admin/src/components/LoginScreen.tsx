@@ -26,12 +26,12 @@ export function LoginScreen() {
           </button>
         </div>
 
-        <section className="premium-panel rounded-[2rem] p-8">
-          <BrandLogo size={74} showName />
-          <h1 className="mt-5 max-w-xl text-3xl font-black tracking-tight text-zinc-950 md:text-4xl">
+        <section className="brand-hero relative overflow-hidden rounded-[2rem] p-8 text-white">
+          <BrandLogo size={74} showName className="[&_div_div:first-child]:text-white [&_div_div:last-child]:text-amber-200" />
+          <h1 className="mt-5 max-w-xl text-3xl font-black tracking-tight text-white md:text-4xl">
             Connexion simple pour gérer {BRAND_NAME}
           </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-zinc-600">
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-white/72">
             Chaque membre voit seulement ses modules utiles: caisse, cuisine, stock, recettes, rapports ou administration.
           </p>
 
@@ -41,9 +41,9 @@ export function LoginScreen() {
               ['POS rapide', 'Caisse, cuisine, livraison et encaissement.'],
               ['Accès contrôlé', 'Rôles, privilèges et comptes équipe.']
             ].map(([title, description]) => (
-              <div key={title} className="premium-card rounded-2xl p-4">
-                <div className="text-sm font-semibold text-zinc-900">{title}</div>
-                <div className="mt-2 text-xs leading-6 text-zinc-500">{description}</div>
+              <div key={title} className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/15">
+                <div className="text-sm font-semibold text-white">{title}</div>
+                <div className="mt-2 text-xs leading-6 text-white/62">{description}</div>
               </div>
             ))}
           </div>

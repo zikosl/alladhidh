@@ -186,7 +186,7 @@ export function SettingsWorkspace() {
     <WorkspaceShell
       title="Parametres"
       subtitle="Restaurant, tickets, equipe, privileges et plan de salle."
-      accent="linear-gradient(135deg, #64748b, #94a3b8)"
+      accent="var(--gradient-settings)"
       icon="⚙️"
       sectionLabel="Module parametres"
       onBack={() => setCurrentModule('apps')}

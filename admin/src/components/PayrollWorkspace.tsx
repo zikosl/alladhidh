@@ -129,7 +129,7 @@ export function PayrollWorkspace() {
     <WorkspaceShell
       title="Paie"
       subtitle="Profils de paie, avances, periodes salariales et paiements du personnel."
-      accent="linear-gradient(135deg, #1d4ed8, #38bdf8)"
+      accent="var(--gradient-payroll)"
       icon="👥"
       sectionLabel="Module paie"
       onBack={() => setCurrentModule('apps')}

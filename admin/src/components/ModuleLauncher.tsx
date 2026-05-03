@@ -20,7 +20,7 @@ const moduleCards: Array<{
     title: 'Stock',
     hint: 'Matières & alertes',
     description: 'Entrées, pertes et ruptures critiques.',
-    accent: 'linear-gradient(135deg, #155e75, #16a34a)'
+    accent: 'var(--gradient-stock)'
   },
   {
     id: 'pos',
@@ -28,7 +28,7 @@ const moduleCards: Array<{
     title: 'Point de vente',
     hint: 'Commande rapide',
     description: 'Caisse, cuisine, paiement et livraison.',
-    accent: 'linear-gradient(135deg, #d9481c, #fb923c)',
+    accent: 'var(--gradient-flame)',
     priority: true
   },
   {
@@ -37,7 +37,7 @@ const moduleCards: Array<{
     title: 'Recettes',
     hint: 'Menu & marges',
     description: 'Articles vendables, coûts et prix.',
-    accent: 'linear-gradient(135deg, #0f766e, #14b8a6)'
+    accent: 'var(--gradient-recipes)'
   },
   {
     id: 'sales',
@@ -45,7 +45,7 @@ const moduleCards: Array<{
     title: 'Commandes',
     hint: 'Tickets & factures',
     description: 'Historique, annulations et impression.',
-    accent: 'linear-gradient(135deg, #7c3aed, #8b5cf6)'
+    accent: 'var(--gradient-sales)'
   },
   {
     id: 'reports',
@@ -53,7 +53,7 @@ const moduleCards: Array<{
     title: 'Rapports',
     hint: 'Ventes & profit',
     description: 'CA, marges, pertes et décisions.',
-    accent: 'linear-gradient(135deg, #111827, #334155)'
+    accent: 'var(--gradient-reports)'
   },
   {
     id: 'finance',
@@ -61,7 +61,7 @@ const moduleCards: Array<{
     title: 'Finance',
     hint: 'Dépenses',
     description: 'Charges, achats stock et trésorerie.',
-    accent: 'linear-gradient(135deg, #0f766e, #14b8a6)'
+    accent: 'var(--gradient-finance)'
   },
   {
     id: 'payroll',
@@ -69,7 +69,7 @@ const moduleCards: Array<{
     title: 'Paie',
     hint: 'Personnel',
     description: 'Avances, périodes et paiements staff.',
-    accent: 'linear-gradient(135deg, #1d4ed8, #38bdf8)'
+    accent: 'var(--gradient-payroll)'
   },
   {
     id: 'settings',
@@ -77,7 +77,7 @@ const moduleCards: Array<{
     title: 'Paramètres',
     hint: 'Accès & système',
     description: 'Rôles, tables, tickets et sécurité.',
-    accent: 'linear-gradient(135deg, #64748b, #94a3b8)'
+    accent: 'var(--gradient-settings)'
   }
 ];
 
@@ -150,10 +150,12 @@ export function ModuleLauncher() {
           </div>
 
           <div className="relative mt-6 max-w-3xl">
-            <div className="text-[10px] font-black uppercase tracking-[0.32em] text-amber-200">Modules restaurant</div>
-            <h1 className="mt-2 text-4xl font-black tracking-[-0.06em] text-white">Piloter le restaurant sans bruit</h1>
+            <div className="inline-flex rounded-full bg-white/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.28em] text-amber-200 ring-1 ring-white/15">
+              Charcoal Grill + Saffron Flame
+            </div>
+            <h1 className="mt-3 text-4xl font-black tracking-[-0.06em] text-white">Piloter le restaurant avec précision</h1>
             <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-white/68">
-              Une page simple: ouvrez le module dont vous avez besoin et avancez sans chercher.
+              Une interface chaude, rapide et claire pour le service, la caisse, le stock et les décisions du jour.
             </p>
           </div>
 

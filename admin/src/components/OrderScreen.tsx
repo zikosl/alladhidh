@@ -304,7 +304,7 @@ export function OrderScreen() {
 
         {lastError && <div className="mt-3"><AlertBanner message={lastError} tone="error" /></div>}
 
-        <div className="mt-3 space-y-1.5 overflow-hidden rounded-[1.35rem] bg-[radial-gradient(circle_at_top_right,rgba(245,182,66,0.25),transparent_34%),linear-gradient(135deg,#15120f,#332015)] p-3 text-white">
+        <div className="mt-3 space-y-1.5 overflow-hidden rounded-[1.35rem] p-3 text-white" style={{ background: 'var(--gradient-charcoal)' }}>
           <div className="flex items-center justify-between text-xs text-white/70">
             <span>Produits</span>
             <span>{formatMoney(subtotal)}</span>

@@ -39,14 +39,14 @@ const toastToneStyles: Record<ToastTone, string> = {
   success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
   error: 'border-red-200 bg-red-50 text-red-700',
   warning: 'border-amber-200 bg-amber-50 text-amber-800',
-  info: 'border-sky-200 bg-sky-50 text-sky-800'
+  info: 'border-orange-200 bg-orange-50 text-orange-800'
 };
 
 const alertToneStyles: Record<ToastTone, string> = {
   success: 'border-emerald-200 bg-emerald-50 text-emerald-800',
   error: 'border-red-200 bg-red-50 text-red-700',
   warning: 'border-amber-200 bg-amber-50 text-amber-800',
-  info: 'border-sky-200 bg-sky-50 text-sky-800'
+  info: 'border-orange-200 bg-orange-50 text-orange-800'
 };
 
 const dialogToneStyles: Record<DialogTone, { icon: string; button: string; badge: string }> = {
@@ -62,8 +62,8 @@ const dialogToneStyles: Record<DialogTone, { icon: string; button: string; badge
   },
   info: {
     icon: 'i',
-    button: 'bg-zinc-950 text-white hover:bg-zinc-800',
-    badge: 'bg-zinc-100 text-zinc-700'
+    button: 'bg-brand text-white hover:bg-brand',
+    badge: 'bg-orange-50 text-orange-700'
   }
 };
 
