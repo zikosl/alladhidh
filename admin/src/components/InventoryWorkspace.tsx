@@ -270,7 +270,7 @@ export function InventoryWorkspace() {
               </p>
             </div>
 
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[220px_160px_150px_150px]">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[220px_160px]">
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -287,19 +287,6 @@ export function InventoryWorkspace() {
                 <option value="low_stock">Stock bas</option>
                 <option value="out_of_stock">Rupture</option>
               </select>
-              <button
-                onClick={() => openEntryModal()}
-                className="rounded-2xl bg-emerald-600 px-3 py-2 text-sm font-black text-white shadow-soft"
-              >
-                Entree stock
-              </button>
-              <button
-                onClick={() => (view === 'alerts' ? openCategoryModal() : openMaterialModal())}
-                disabled={view !== 'alerts' && !selectedCategory}
-                className="rounded-2xl bg-ink px-3 py-2 text-sm font-black text-white shadow-soft"
-              >
-                {view === 'alerts' ? 'Categorie' : 'Nouveau produit'}
-              </button>
             </div>
           </div>
 
@@ -406,9 +393,6 @@ export function InventoryWorkspace() {
                 Chaque entree, vente et perte reste tracee. Le stock affiche est derive de cette liste.
               </p>
             </div>
-            <button onClick={() => openEntryModal()} className="rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white shadow-soft">
-              Entree stock
-            </button>
           </div>
 
           <div className="mt-4 grid gap-3">
@@ -923,7 +907,6 @@ function InventoryTable({
           <tr className="text-left text-[11px] uppercase tracking-[0.14em] text-zinc-500">
             <th className="px-4 py-3">Produit</th>
             <th className="px-4 py-3">Unite</th>
-            <th className="px-4 py-3">Usage</th>
             <th className="px-4 py-3">Stock</th>
             <th className="px-4 py-3">Cout</th>
             <th className="px-4 py-3">Statut</th>
@@ -940,12 +923,6 @@ function InventoryTable({
               <td className="px-4 py-3">
                 <div className="font-semibold text-zinc-950">{displayUnit(item.unit)}</div>
                 <div className="text-xs text-zinc-500">{formatMeasurementType(item.measurementType)}</div>
-              </td>
-              <td className="px-4 py-3">
-                <UsageBadge usageType={item.usageType} />
-                {item.directSale?.isActive ? (
-                  <div className="mt-1 text-xs text-zinc-500">{formatMoney(item.directSale.sellingPrice)} en caisse</div>
-                ) : null}
               </td>
               <td className="px-4 py-3 font-semibold text-zinc-950">{formatQuantity(item)}</td>
               <td className="px-4 py-3">{formatMoney(item.estimatedCost)}</td>
