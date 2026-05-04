@@ -1,4 +1,5 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 type ToastTone = 'success' | 'error' | 'warning' | 'info';
 type DialogTone = 'danger' | 'warning' | 'info';
@@ -181,14 +182,14 @@ function ConfirmDialog({ dialog, onClose }: { dialog: PendingDialog; onClose: (c
     };
   }, []);
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 grid min-h-dvh place-items-center overflow-hidden bg-zinc-950/45 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 grid min-h-dvh place-items-center overflow-hidden bg-[#1a1714]/45 p-4 backdrop-blur-[5px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose(false);
       }}
     >
-      <div className="dialog-panel-motion premium-panel max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl p-4 shadow-2xl">
+      <div className="dialog-panel-motion premium-panel max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-[2rem] border border-[#e8d2af] bg-white p-[1.15rem] shadow-2xl">
         <div className="flex items-start gap-3">
           <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-sm font-black ${styles.badge}`}>
             {styles.icon}
@@ -208,6 +209,7 @@ function ConfirmDialog({ dialog, onClose }: { dialog: PendingDialog; onClose: (c
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
