@@ -1,8 +1,8 @@
-import { ReactNode, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
 import { usePosStore } from '../store/usePosStore';
 import { ExpenseStatus, FinancePaymentMethod, InventoryCategory, InventoryItem, InventoryUsageType, MeasurementType, MeasurementUnit, StockMovement } from '../types/pos';
+import { AppModal } from './AppModal';
 import { useFeedback } from './FeedbackProvider';
 import { WorkspaceShell } from './WorkspaceShell';
 
@@ -425,7 +425,7 @@ export function InventoryWorkspace() {
       )}
 
       {modalMode === 'material' && (
-        <Modal title={editingId ? 'Modifier le produit stock' : 'Nouveau produit stock'} onClose={closeModal}>
+        <AppModal title={editingId ? 'Modifier le produit stock' : 'Nouveau produit stock'} onClose={closeModal}>
           <div className="space-y-4">
             <label className="block">
               <span className="text-xs font-semibold text-zinc-600">Nom du produit</span>
@@ -593,11 +593,11 @@ export function InventoryWorkspace() {
               {editingId ? 'Mettre a jour' : 'Creer le produit'}
             </button>
           </div>
-        </Modal>
+        </AppModal>
       )}
 
       {modalMode === 'entry' && (
-        <Modal title="Entree de stock" onClose={closeModal}>
+        <AppModal title="Entree de stock" onClose={closeModal}>
           <div className="space-y-3">
             <select
               value={entryForm.ingredientId}
@@ -704,11 +704,11 @@ export function InventoryWorkspace() {
               Valider l'entree stock
             </button>
           </div>
-        </Modal>
+        </AppModal>
       )}
 
       {modalMode === 'loss' && (
-        <Modal title="Declarer une perte" onClose={closeModal}>
+        <AppModal title="Declarer une perte" onClose={closeModal}>
           <div className="space-y-3">
             <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
               Cette action cree un mouvement <span className="font-semibold">OUT / perte</span>. Le stock reste calcule uniquement depuis les mouvements.
@@ -776,11 +776,11 @@ export function InventoryWorkspace() {
               </div>
             ) : null}
           </div>
-        </Modal>
+        </AppModal>
       )}
 
       {modalMode === 'category' && (
-        <Modal title="Nouvelle categorie" onClose={closeModal}>
+        <AppModal title="Nouvelle categorie" onClose={closeModal}>
           <div className="space-y-3">
             <label className="block">
               <span className="text-xs font-semibold text-zinc-600">Nom de categorie</span>
@@ -833,7 +833,7 @@ export function InventoryWorkspace() {
               Creer la categorie
             </button>
           </div>
-        </Modal>
+        </AppModal>
       )}
     </WorkspaceShell>
   );
@@ -1081,35 +1081,5 @@ function UsageBadge({ usageType }: { usageType: InventoryUsageType }) {
     >
       {label}
     </span>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 grid min-h-dvh place-items-center overflow-hidden bg-[#1a1714]/45 p-3 backdrop-blur-[5px] sm:p-6"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div className="dialog-panel-motion premium-panel flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-[#e8d2af] bg-white p-[1.05rem] shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-[1.35rem]">
-        <div className="z-10 mb-4 flex shrink-0 items-center justify-between gap-4 rounded-[1.45rem] bg-white/95 py-1.5 pl-1.5 pr-1 backdrop-blur">
-          <h3 className="text-lg font-bold text-zinc-950">{title}</h3>
-          <button onClick={onClose} className="rounded-[1.25rem] bg-[#fffaf1] px-4 py-2.5 text-sm font-black text-zinc-700 transition hover:bg-[#fff4e3]">
-            Fermer
-          </button>
-        </div>
-        <div className="min-h-0 overflow-y-auto pr-1.5">{children}</div>
-      </div>
-    </div>,
-    document.body
   );
 }

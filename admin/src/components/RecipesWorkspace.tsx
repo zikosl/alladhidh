@@ -1,8 +1,8 @@
-import { ReactNode, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
 import { MeasurementUnit, MenuCategory, MenuItem } from '../types/pos';
 import { usePosStore } from '../store/usePosStore';
+import { AppModal } from './AppModal';
 import { useFeedback } from './FeedbackProvider';
 import { WorkspaceShell } from './WorkspaceShell';
 
@@ -286,7 +286,7 @@ export function RecipesWorkspace() {
       )}
 
       {modalMode === 'recipe' && (
-        <Modal title={editingId ? 'Modifier la recette' : 'Nouvelle recette'} onClose={closeModal}>
+        <AppModal title={editingId ? 'Modifier la recette' : 'Nouvelle recette'} onClose={closeModal} maxWidthClassName="max-w-5xl">
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_260px]">
             <div className="space-y-3">
               <div className="rounded-2xl border border-zinc-100 bg-zinc-50/80 p-4">
@@ -487,11 +487,11 @@ export function RecipesWorkspace() {
               </div>
             </aside>
           </div>
-        </Modal>
+        </AppModal>
       )}
 
       {modalMode === 'category' && (
-        <Modal title="Nouvelle categorie menu" onClose={closeModal}>
+        <AppModal title="Nouvelle categorie menu" onClose={closeModal} maxWidthClassName="max-w-5xl">
           <FormField
             label="Nom de categorie"
             value={categoryForm.name}
@@ -511,7 +511,7 @@ export function RecipesWorkspace() {
           >
             Creer la categorie
           </button>
-        </Modal>
+        </AppModal>
       )}
     </WorkspaceShell>
   );
@@ -665,35 +665,5 @@ function TextAreaField({
         className="mt-1 min-h-24 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
       />
     </label>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 grid min-h-dvh place-items-center overflow-hidden bg-[#1a1714]/45 p-3 backdrop-blur-[5px] sm:p-6"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div className="dialog-panel-motion premium-panel flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-[#e8d2af] bg-white p-[1.05rem] shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-[1.35rem]">
-        <div className="z-10 mb-4 flex shrink-0 items-center justify-between gap-4 rounded-[1.45rem] bg-white/95 py-1.5 pl-1.5 pr-1 backdrop-blur">
-          <h3 className="text-lg font-bold text-zinc-950">{title}</h3>
-          <button onClick={onClose} className="rounded-[1.25rem] bg-[#fffaf1] px-4 py-2.5 text-sm font-black text-zinc-700 transition hover:bg-[#fff4e3]">
-            Fermer
-          </button>
-        </div>
-        <div className="min-h-0 overflow-y-auto pr-1.5">{children}</div>
-      </div>
-    </div>,
-    document.body
   );
 }
