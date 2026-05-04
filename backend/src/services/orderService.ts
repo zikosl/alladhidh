@@ -57,7 +57,7 @@ type SaleWithRecipes = Prisma.SaleGetPayload<{
 const orderTypes: OrderType[] = ['dine_in', 'take_away', 'delivery'];
 const orderStatuses: OrderStatus[] = ['pending', 'preparing', 'ready', 'paid', 'cancelled', 'lost'];
 const deliveryStatuses: DeliveryStatus[] = ['pending', 'on_the_way', 'delivered'];
-const paymentMethods: PaymentMethod[] = ['cash', 'card'];
+const paymentMethods: PaymentMethod[] = ['cash'];
 
 function toNumber(value: Prisma.Decimal | string | number | null | undefined): number {
   if (value === null || value === undefined) {

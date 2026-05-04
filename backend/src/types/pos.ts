@@ -1,11 +1,11 @@
 export type OrderType = 'dine_in' | 'take_away' | 'delivery';
 export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'paid' | 'cancelled' | 'lost';
 export type DeliveryStatus = 'pending' | 'on_the_way' | 'delivered';
-export type PaymentMethod = 'cash' | 'card';
+export type PaymentMethod = 'cash';
 export type UserStatus = 'active' | 'disabled';
 export type ExpenseType = 'fixed' | 'variable' | 'exceptional';
 export type ExpenseStatus = 'planned' | 'partial' | 'paid' | 'cancelled';
-export type FinancePaymentMethod = 'cash' | 'card' | 'transfer';
+export type FinancePaymentMethod = 'cash';
 export type ExpenseSourceType = 'manual' | 'stock_purchase' | 'payroll_payment' | 'salary_advance';
 export type EmploymentType = 'monthly' | 'daily' | 'hourly';
 export type PayrollPeriodStatus = 'draft' | 'validated' | 'paid';

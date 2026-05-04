@@ -338,7 +338,7 @@ export function PayrollWorkspace() {
                           <div className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Paiement</div>
                           <div className="mt-3 grid gap-3 md:grid-cols-4">
                             <Field label="Montant" type="number" value={String(paymentDraft.amount)} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, amount: Number(value) } }))} placeholder="" />
-                            <SelectField label="Mode" value={paymentDraft.method} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, method: value as PayrollPaymentInput['method'] } }))} options={[['cash', 'Especes'], ['card', 'Carte'], ['transfer', 'Virement']]} />
+                            <SelectField label="Mode" value={paymentDraft.method} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, method: value as PayrollPaymentInput['method'] } }))} options={[['cash', 'Especes']]} />
                             <Field label="Date" type="date" value={paymentDraft.paidAt ?? ''} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, paidAt: value } }))} placeholder="" />
                             <Field label="Note" value={paymentDraft.note ?? ''} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, note: value } }))} placeholder="Optionnel" />
                           </div>
@@ -398,7 +398,7 @@ export function PayrollWorkspace() {
               <Field label="Montant avance" type="number" value={String(advanceForm.amount || '')} onChange={(value) => setAdvanceForm((current) => ({ ...current, amount: Number(value) }))} placeholder="Ex: 10000" />
               <Field label="Motif" value={advanceForm.reason} onChange={(value) => setAdvanceForm((current) => ({ ...current, reason: value }))} placeholder="Ex: Avance de fin de semaine" />
               <div className="grid gap-3 md:grid-cols-2">
-                <SelectField label="Paiement" value={advanceForm.method ?? 'cash'} onChange={(value) => setAdvanceForm((current) => ({ ...current, method: value as SalaryAdvanceInput['method'] }))} options={[['cash', 'Especes'], ['card', 'Carte'], ['transfer', 'Virement']]} />
+                <SelectField label="Paiement" value={advanceForm.method ?? 'cash'} onChange={(value) => setAdvanceForm((current) => ({ ...current, method: value as SalaryAdvanceInput['method'] }))} options={[['cash', 'Especes']]} />
                 <Field label="Date" type="date" value={advanceForm.date ?? ''} onChange={(value) => setAdvanceForm((current) => ({ ...current, date: value }))} placeholder="" />
               </div>
               <Field label="Note" value={advanceForm.note ?? ''} onChange={(value) => setAdvanceForm((current) => ({ ...current, note: value }))} placeholder="Optionnel" />

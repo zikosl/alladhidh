@@ -243,7 +243,7 @@ async function main() {
           categoryId: expenseCategoryByName.get('Loyer') ?? null,
           type: 'fixed',
           status: 'paid',
-          paymentMethod: 'transfer',
+          paymentMethod: 'cash',
           description: 'Quote-part journaliere du local'
         },
         {
@@ -533,7 +533,7 @@ async function main() {
           data: {
             entryId: entry.id,
             amount: index === 0 ? netSalary - 5000 : netSalary,
-            method: index === 0 ? 'transfer' : 'cash',
+            method: 'cash',
             paidAt: new Date('2026-04-28T10:00:00.000Z'),
             note: 'Paiement de demonstration'
           }

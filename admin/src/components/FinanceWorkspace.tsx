@@ -275,7 +275,7 @@ export function FinanceWorkspace() {
                 <SelectField label="Statut" value={expenseForm.status} onChange={(value) => setExpenseForm((current) => ({ ...current, status: value as ExpenseInput['status'] }))} options={[['planned', 'Planifiee'], ['partial', 'Partielle'], ['paid', 'Payee'], ['cancelled', 'Annulee']]} />
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                <SelectField label="Paiement" value={expenseForm.paymentMethod ?? 'cash'} onChange={(value) => setExpenseForm((current) => ({ ...current, paymentMethod: value as ExpenseInput['paymentMethod'] }))} options={[['cash', 'Especes'], ['card', 'Carte'], ['transfer', 'Virement']]} />
+                <SelectField label="Paiement" value={expenseForm.paymentMethod ?? 'cash'} onChange={(value) => setExpenseForm((current) => ({ ...current, paymentMethod: value as ExpenseInput['paymentMethod'] }))} options={[['cash', 'Especes']]} />
                 <Field label="Date operation" type="date" value={expenseForm.date ?? ''} onChange={(value) => setExpenseForm((current) => ({ ...current, date: value }))} placeholder="" />
               </div>
               <Field label="Fournisseur / beneficiaire" value={expenseForm.supplierName ?? ''} onChange={(value) => setExpenseForm((current) => ({ ...current, supplierName: value }))} placeholder="Ex: Sonelgaz, Grossiste centre" />

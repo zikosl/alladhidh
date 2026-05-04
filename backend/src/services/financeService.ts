@@ -548,7 +548,7 @@ export async function createSalaryAdvance(payload: {
   employeeId: number;
   amount: number;
   reason: string;
-  method?: 'cash' | 'card' | 'transfer';
+  method?: 'cash';
   note?: string | null;
   date?: string | null;
 }): Promise<SalaryAdvanceSummary> {
@@ -592,7 +592,7 @@ export async function createSalaryAdvance(payload: {
       category: systemExpenseCategories.salaryAdvance,
       type: ExpenseType.variable,
       status: ExpenseStatus.paid,
-      paymentMethod: payload.method ?? 'cash',
+      paymentMethod: 'cash',
       supplierName: employee.user.fullName,
       description: `Avance salaire - ${employee.user.fullName} - ${String(payload.reason).trim()}`,
       date,
@@ -1101,7 +1101,7 @@ export async function createPayrollPayment(
   entryId: number,
   payload: {
     amount: number;
-    method: 'cash' | 'card' | 'transfer';
+    method: 'cash';
     paidAt?: string | null;
     note?: string | null;
   }
@@ -1136,7 +1136,7 @@ export async function createPayrollPayment(
       data: {
         entryId,
         amount,
-        method: payload.method,
+        method: 'cash',
         paidAt,
         note: payload.note ? String(payload.note).trim() : null
       }
@@ -1150,7 +1150,7 @@ export async function createPayrollPayment(
       category: systemExpenseCategories.payrollPayment,
       type: ExpenseType.variable,
       status: ExpenseStatus.paid,
-      paymentMethod: payload.method,
+      paymentMethod: 'cash',
       supplierName: entry.employee.user.fullName,
       description: `Paiement salaire - ${entry.employee.user.fullName} - ${entry.period.label}`,
       date: paidAt,

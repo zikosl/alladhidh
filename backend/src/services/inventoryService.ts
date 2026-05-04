@@ -48,7 +48,7 @@ interface StockEntryPayload {
   quantity: number;
   totalPrice: number;
   expenseStatus?: 'planned' | 'partial' | 'paid' | 'cancelled';
-  paymentMethod?: 'cash' | 'card' | 'transfer';
+  paymentMethod?: 'cash';
   supplierName?: string | null;
   date?: string | null;
 }
@@ -639,7 +639,7 @@ export async function createStockEntry(payload: StockEntryPayload): Promise<Inve
       category: systemExpenseCategories.stockPurchase,
       type: ExpenseType.variable,
       status: (payload.expenseStatus ?? 'paid') as ExpenseStatus,
-      paymentMethod: (payload.paymentMethod ?? 'cash') as FinancePaymentMethod,
+      paymentMethod: FinancePaymentMethod.cash,
       supplierName: payload.supplierName ? String(payload.supplierName).trim() : null,
       description: `Achat stock - ${ingredient.name} (${quantity} ${ingredient.unit})`,
       date,

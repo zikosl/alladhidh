@@ -206,7 +206,7 @@ interface PosState {
   cancelOrder: (orderId: number) => Promise<void>;
   markOrderLost: (orderId: number, payload: MarkOrderLostInput) => Promise<void>;
   setKitchenStatus: (orderId: number, status: 'pending' | 'preparing' | 'ready') => Promise<void>;
-  payOrder: (orderId: number, method: 'cash' | 'card') => Promise<void>;
+  payOrder: (orderId: number, method: 'cash') => Promise<void>;
   setDeliveryOrderStatus: (orderId: number, status: 'pending' | 'on_the_way' | 'delivered') => Promise<void>;
 }
 

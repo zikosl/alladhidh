@@ -267,7 +267,7 @@ export async function updateDeliveryStatus(orderId: number, deliveryStatus: stri
   return response.data.data;
 }
 
-export async function createPayment(orderId: number, method: 'cash' | 'card') {
+export async function createPayment(orderId: number, method: 'cash') {
   const response = await api.post<{ success: boolean; data: Order }>('/payments', { orderId, method });
   return response.data.data;
 }

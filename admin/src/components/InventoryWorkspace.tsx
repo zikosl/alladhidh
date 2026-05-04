@@ -652,8 +652,6 @@ export function InventoryWorkspace() {
                   className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
                 >
                   <option value="cash">Especes</option>
-                  <option value="card">Carte</option>
-                  <option value="transfer">Virement</option>
                 </select>
               </label>
               <label className="block">

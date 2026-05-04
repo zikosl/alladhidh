@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { formatMoney, formatOrderStatus, formatOrderType } from '../lib/format';
-import { printCustomerInvoice, printKitchenTicket } from '../lib/print';
+import { printCustomerInvoice } from '../lib/print';
 import { usePosStore } from '../store/usePosStore';
 import { OrderStatus, OrderType } from '../types/pos';
 import { useFeedback } from './FeedbackProvider';
@@ -98,7 +98,7 @@ export function SalesWorkspace() {
   return (
     <WorkspaceShell
       title="Commandes"
-      subtitle="Recherche, suivi, reimpression cuisine et factures client."
+      subtitle="Recherche, suivi et factures client."
       accent="var(--gradient-sales)"
       icon="📋"
       sectionLabel="Module commandes"
@@ -118,13 +118,13 @@ export function SalesWorkspace() {
       </section>
 
       <section className="premium-panel rounded-[1.6rem] p-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+        <div className="flex flex-col gap-3">
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.25em] text-brand">Commandes</div>
             <div className="mt-1 text-xl font-bold text-zinc-950">Historique recent</div>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[220px_150px_150px_150px_150px_150px_150px]">
+          <div className="grid w-full min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-7">
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -246,15 +246,6 @@ export function SalesWorkspace() {
                       Marquer perdue
                     </button>
                   ) : null}
-                  <button
-                    onClick={() => {
-                      printKitchenTicket(order, restaurantSettings);
-                      toast({ title: 'Ticket cuisine pret', message: `Commande #${order.id}`, tone: 'success' });
-                    }}
-                    className="rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-black text-zinc-700"
-                  >
-                    Ticket cuisine
-                  </button>
                   <button
                     onClick={() => {
                       printCustomerInvoice(order, restaurantSettings);

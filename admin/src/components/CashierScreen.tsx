@@ -111,18 +111,12 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
                     Cuisine: {order.status === 'pending' ? 'en attente' : 'en preparation'}
                   </div>
                 ) : null}
-                <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
                     onClick={() => void payOrder(order.id, 'cash')}
                     className="rounded-2xl bg-brand px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 active:translate-y-0"
                   >
                     Especes
-                  </button>
-                  <button
-                    onClick={() => void payOrder(order.id, 'card')}
-                    className="rounded-2xl bg-charcoal px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 active:translate-y-0"
-                  >
-                    Carte
                   </button>
                   <button
                     onClick={() => setLostOrder(order)}
