@@ -7,7 +7,8 @@ export function orderStatusClass(status: OrderStatus) {
     preparing: 'bg-brand/10 text-brand ring-brand/15',
     ready: 'bg-emerald-100 text-emerald-700 ring-emerald-200',
     paid: 'bg-charcoal text-white ring-charcoal',
-    cancelled: 'bg-red-100 text-red-700 ring-red-200'
+    cancelled: 'bg-red-100 text-red-700 ring-red-200',
+    lost: 'bg-red-50 text-red-700 ring-red-100'
   };
   return classes[status];
 }

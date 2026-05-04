@@ -4,6 +4,7 @@ import { printCustomerInvoice, printKitchenTicket } from '../lib/print';
 import { usePosStore } from '../store/usePosStore';
 import { OrderStatus, OrderType } from '../types/pos';
 import { useFeedback } from './FeedbackProvider';
+import { MarkOrderLostModal } from './MarkOrderLostModal';
 import { WorkspaceShell } from './WorkspaceShell';
 
 type StatusFilter = 'all' | OrderStatus;
@@ -17,7 +18,8 @@ const statusOptions: Array<{ value: StatusFilter; label: string }> = [
   { value: 'preparing', label: 'En preparation' },
   { value: 'ready', label: 'Pret' },
   { value: 'paid', label: 'Paye' },
-  { value: 'cancelled', label: 'Annule' }
+  { value: 'cancelled', label: 'Annule' },
+  { value: 'lost', label: 'Perdue' }
 ];
 
 const typeOptions: Array<{ value: TypeFilter; label: string }> = [
@@ -37,7 +39,7 @@ function isSameMonth(left: Date, right: Date) {
 
 export function SalesWorkspace() {
   const { confirm, toast } = useFeedback();
-  const { orders, restaurantSettings, cancelOrder, setCurrentModule } = usePosStore();
+  const { orders, employeeProfiles, restaurantSettings, cancelOrder, markOrderLost, setCurrentModule } = usePosStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
@@ -45,6 +47,7 @@ export function SalesWorkspace() {
   const [periodFilter, setPeriodFilter] = useState<OrdersPeriodFilter>('today');
   const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10));
   const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [lostOrder, setLostOrder] = useState<(typeof orders)[number] | null>(null);
 
   const filteredOrders = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -65,7 +68,7 @@ export function SalesWorkspace() {
       const matchesPayment =
         paymentFilter === 'all' ||
         (paymentFilter === 'paid' && order.status === 'paid') ||
-        (paymentFilter === 'unpaid' && order.status !== 'paid' && order.status !== 'cancelled');
+        (paymentFilter === 'unpaid' && order.status !== 'paid' && order.status !== 'cancelled' && order.status !== 'lost');
       const matchesSearch =
         !needle ||
         String(order.id).includes(needle) ||
@@ -78,15 +81,16 @@ export function SalesWorkspace() {
   }, [dateFrom, dateTo, orders, paymentFilter, periodFilter, search, statusFilter, typeFilter]);
 
   const totals = useMemo(() => {
-    const payable = filteredOrders.filter((order) => order.status !== 'cancelled');
+    const payable = filteredOrders.filter((order) => order.status !== 'cancelled' && order.status !== 'lost');
     const paid = filteredOrders.filter((order) => order.status === 'paid');
     return {
       all: filteredOrders.length,
       active: filteredOrders.filter((order) => ['pending', 'preparing', 'ready'].includes(order.status)).length,
       paid: paid.length,
       cancelled: filteredOrders.filter((order) => order.status === 'cancelled').length,
+      lost: filteredOrders.filter((order) => order.status === 'lost').length,
       revenue: paid.reduce((sum, order) => sum + order.totalPrice, 0),
-      pendingRevenue: filteredOrders.filter((order) => order.status !== 'paid' && order.status !== 'cancelled').reduce((sum, order) => sum + order.totalPrice, 0),
+      pendingRevenue: filteredOrders.filter((order) => order.status !== 'paid' && order.status !== 'cancelled' && order.status !== 'lost').reduce((sum, order) => sum + order.totalPrice, 0),
       averageTicket: payable.length > 0 ? payable.reduce((sum, order) => sum + order.totalPrice, 0) / payable.length : 0
     };
   }, [filteredOrders]);
@@ -103,11 +107,12 @@ export function SalesWorkspace() {
       activeView="orders"
       onChangeView={() => undefined}
     >
-      <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
         <Metric label="Affichees" value={String(totals.all)} />
         <Metric label="Actives" value={String(totals.active)} />
         <Metric label="Payees" value={String(totals.paid)} />
         <Metric label="Annulees" value={String(totals.cancelled)} />
+        <Metric label="Perdues" value={String(totals.lost)} />
         <Metric label="CA paye" value={formatMoney(totals.revenue)} />
         <Metric label="A encaisser" value={formatMoney(totals.pendingRevenue)} />
       </section>
@@ -216,7 +221,7 @@ export function SalesWorkspace() {
                   ))}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {order.status !== 'paid' && order.status !== 'cancelled' ? (
+                  {order.status !== 'paid' && order.status !== 'cancelled' && order.status !== 'lost' ? (
                     <button
                       onClick={() => {
                         void confirm({
@@ -231,6 +236,14 @@ export function SalesWorkspace() {
                       className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-600"
                     >
                       Annuler
+                    </button>
+                  ) : null}
+                  {order.status !== 'paid' && order.status !== 'cancelled' && order.status !== 'lost' ? (
+                    <button
+                      onClick={() => setLostOrder(order)}
+                      className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-600"
+                    >
+                      Marquer perdue
                     </button>
                   ) : null}
                   <button
@@ -263,6 +276,17 @@ export function SalesWorkspace() {
           ) : null}
         </div>
       </section>
+      {lostOrder ? (
+        <MarkOrderLostModal
+          order={lostOrder}
+          employees={employeeProfiles}
+          onClose={() => setLostOrder(null)}
+          onConfirm={async (payload) => {
+            await markOrderLost(lostOrder.id, payload);
+            setLostOrder(null);
+          }}
+        />
+      ) : null}
     </WorkspaceShell>
   );
 }
@@ -282,7 +306,8 @@ function StatusBadge({ status }: { status: OrderStatus }) {
     preparing: 'bg-brand/10 text-brand',
     ready: 'bg-emerald-50 text-emerald-700',
     paid: 'bg-charcoal text-white',
-    cancelled: 'bg-red-50 text-red-600'
+    cancelled: 'bg-red-50 text-red-600',
+    lost: 'bg-red-50 text-red-700'
   };
   return <span className={`rounded-full px-3 py-1 text-xs font-semibold ${toneClass[status]}`}>{formatOrderStatus(status)}</span>;
 }

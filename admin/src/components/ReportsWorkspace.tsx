@@ -644,6 +644,8 @@ function formatStatus(status: OrderStatus) {
       return 'Paye';
     case 'cancelled':
       return 'Annule';
+    case 'lost':
+      return 'Perdue';
   }
 }
 

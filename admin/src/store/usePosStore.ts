@@ -48,6 +48,7 @@ import {
   fetchStockMovements,
   fetchStaffUsers,
   fetchTables,
+  markOrderLost as markOrderLostRequest,
   resetStaffPassword,
   updateExpense,
   updatePayrollEntry,
@@ -87,6 +88,7 @@ import {
   MenuCategory,
   MenuItem,
   MenuItemInput,
+  MarkOrderLostInput,
   ModuleId,
   Order,
   OrderType,
@@ -202,6 +204,7 @@ interface PosState {
   refreshAdminData: () => Promise<void>;
   submitOrder: () => Promise<void>;
   cancelOrder: (orderId: number) => Promise<void>;
+  markOrderLost: (orderId: number, payload: MarkOrderLostInput) => Promise<void>;
   setKitchenStatus: (orderId: number, status: 'pending' | 'preparing' | 'ready') => Promise<void>;
   payOrder: (orderId: number, method: 'cash' | 'card') => Promise<void>;
   setDeliveryOrderStatus: (orderId: number, status: 'pending' | 'on_the_way' | 'delivered') => Promise<void>;
@@ -1231,6 +1234,20 @@ export const usePosStore = create<PosState>((set, get) => ({
       await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Annulation commande impossible' });
+    }
+  },
+  markOrderLost: async (orderId, payload) => {
+    try {
+      const updatedOrder = await markOrderLostRequest(orderId, payload);
+      set((state) => ({
+        orders: state.orders.map((order) => (order.id === orderId ? updatedOrder : order)),
+        kitchenOrders: state.kitchenOrders.filter((order) => order.id !== orderId),
+        lastError: null
+      }));
+      await get().refreshAdminData();
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Declaration perte commande impossible' });
     }
   },
   payOrder: async (orderId, method) => {

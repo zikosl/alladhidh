@@ -3,13 +3,14 @@ import {
   PaymentMethod as PrismaPaymentMethod,
   Prisma,
   PrismaClient,
+  PayrollAdjustmentType,
   SaleStatus as PrismaSaleStatus,
   SaleType as PrismaSaleType,
   StockMovementReason,
   StockMovementType
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { DeliveryStatus, OrderStatus, OrderSummary, OrderType, PaymentMethod, CreateOrderInput } from '../types/pos';
+import { DeliveryStatus, OrderStatus, OrderSummary, OrderType, PaymentMethod, CreateOrderInput, MarkOrderLostInput } from '../types/pos';
 import { HttpError } from '../utils/httpError';
 import { requireField, toNonNegativeNumber, toPositiveNumber } from '../utils/validation';
 
@@ -54,7 +55,7 @@ type SaleWithRecipes = Prisma.SaleGetPayload<{
 }>;
 
 const orderTypes: OrderType[] = ['dine_in', 'take_away', 'delivery'];
-const orderStatuses: OrderStatus[] = ['pending', 'preparing', 'ready', 'paid', 'cancelled'];
+const orderStatuses: OrderStatus[] = ['pending', 'preparing', 'ready', 'paid', 'cancelled', 'lost'];
 const deliveryStatuses: DeliveryStatus[] = ['pending', 'on_the_way', 'delivered'];
 const paymentMethods: PaymentMethod[] = ['cash', 'card'];
 
@@ -422,8 +423,12 @@ export async function updateOrderStatus(orderId: number, status: string): Promis
   return prisma.$transaction(async (client) => {
     const existing = await getOrderWithRecipesOrThrow(client, orderId);
 
-    if (existing.status === PrismaSaleStatus.cancelled) {
-      throw new HttpError(400, 'Cancelled orders cannot be changed');
+    if (status === 'lost') {
+      throw new HttpError(400, 'Use the lost order endpoint to mark an order as lost');
+    }
+
+    if (existing.status === PrismaSaleStatus.cancelled || existing.status === PrismaSaleStatus.lost) {
+      throw new HttpError(400, 'Closed orders cannot be changed');
     }
 
     if (status === 'cancelled') {
@@ -486,8 +491,8 @@ export async function createPayment(orderId: number, method: string): Promise<Or
   return prisma.$transaction(async (client) => {
     const existing = await getOrderOrThrow(client, orderId);
 
-    if (existing.status === PrismaSaleStatus.cancelled) {
-      throw new HttpError(400, 'Cancelled orders cannot be paid');
+    if (existing.status === PrismaSaleStatus.cancelled || existing.status === PrismaSaleStatus.lost) {
+      throw new HttpError(400, 'Closed orders cannot be paid');
     }
 
     if (existing.status === PrismaSaleStatus.paid) {
@@ -506,6 +511,68 @@ export async function createPayment(orderId: number, method: string): Promise<Or
       where: { id: orderId },
       data: {
         status: PrismaSaleStatus.paid
+      },
+      include: {
+        saleItems: {
+          include: {
+            product: true
+          }
+        }
+      }
+    });
+
+    return mapOrder(updated);
+  });
+}
+
+export async function markOrderLost(orderId: number, payload: MarkOrderLostInput = {}): Promise<OrderSummary> {
+  const deductFromPayroll = Boolean(payload.deductFromPayroll);
+  const amount = payload.amount === null || payload.amount === undefined ? null : toPositiveNumber(payload.amount, 'amount');
+
+  return prisma.$transaction(async (client) => {
+    const existing = await getOrderOrThrow(client, orderId);
+
+    if (existing.status === PrismaSaleStatus.cancelled) {
+      throw new HttpError(400, 'Cancelled orders cannot be marked as lost');
+    }
+
+    if (existing.status === PrismaSaleStatus.lost) {
+      throw new HttpError(400, 'Order is already marked as lost');
+    }
+
+    if (existing.status === PrismaSaleStatus.paid) {
+      throw new HttpError(400, 'Paid orders cannot be marked as lost');
+    }
+
+    if (deductFromPayroll) {
+      if (!payload.employeeId) {
+        throw new HttpError(400, 'Employee is required when deducting from payroll');
+      }
+
+      const employee = await client.employeeProfile.findUnique({
+        where: { id: Number(payload.employeeId) }
+      });
+      if (!employee || !employee.isActive) {
+        throw new HttpError(404, 'Active employee not found');
+      }
+
+      await client.payrollAdjustment.create({
+        data: {
+          employeeId: employee.id,
+          type: PayrollAdjustmentType.penalty,
+          amount: amount ?? existing.totalPrice,
+          reason: `Commande perdue #${orderId}`,
+          note: payload.note ? String(payload.note).trim() : 'Perte imputee depuis la caisse',
+          date: new Date()
+        }
+      });
+    }
+
+    const updated = await client.sale.update({
+      where: { id: orderId },
+      data: {
+        status: PrismaSaleStatus.lost,
+        notes: [existing.notes, payload.note ? `Perte: ${String(payload.note).trim()}` : 'Perte declaree'].filter(Boolean).join('\n')
       },
       include: {
         saleItems: {

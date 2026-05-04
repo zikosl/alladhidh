@@ -1,7 +1,7 @@
 export type ModuleId = 'apps' | 'inventory' | 'pos' | 'recipes' | 'sales' | 'reports' | 'finance' | 'payroll' | 'settings';
 export type PosScreen = 'order' | 'kitchen' | 'cashier' | 'delivery';
 export type OrderType = 'dine_in' | 'take_away' | 'delivery';
-export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'paid' | 'cancelled';
+export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'paid' | 'cancelled' | 'lost';
 export type DeliveryStatus = 'pending' | 'on_the_way' | 'delivered';
 export type PaymentMethod = 'cash' | 'card';
 export type UserStatus = 'active' | 'disabled';
@@ -248,6 +248,13 @@ export interface PayrollAdjustmentInput {
   reason: string;
   note?: string | null;
   date?: string | null;
+}
+
+export interface MarkOrderLostInput {
+  employeeId?: number | null;
+  deductFromPayroll?: boolean;
+  amount?: number | null;
+  note?: string | null;
 }
 
 export interface PayrollPayment {

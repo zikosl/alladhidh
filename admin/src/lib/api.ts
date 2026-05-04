@@ -22,6 +22,7 @@ import {
   MenuCategory,
   MenuItem,
   MenuItemInput,
+  MarkOrderLostInput,
   Order,
   Permission,
   Product,
@@ -253,6 +254,11 @@ export async function updateOrderStatus(orderId: number, status: string) {
 
 export async function cancelOrder(orderId: number) {
   const response = await api.patch<{ success: boolean; data: Order }>(`/orders/${orderId}/cancel`);
+  return response.data.data;
+}
+
+export async function markOrderLost(orderId: number, payload: MarkOrderLostInput) {
+  const response = await api.patch<{ success: boolean; data: Order }>(`/orders/${orderId}/lost`, payload);
   return response.data.data;
 }
 

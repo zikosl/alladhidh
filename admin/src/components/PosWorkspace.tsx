@@ -17,7 +17,7 @@ const posTabs: Array<{ id: VisiblePosScreen; label: string; hint: string }> = [
 export function PosWorkspace() {
   const { posScreen, setPosScreen, setCurrentModule, categories, selectedCategory, setSelectedCategory, orders } = usePosStore();
   const { hasPermission } = useAuthStore();
-  const [cashierStatus, setCashierStatus] = useState<'all' | 'pending' | 'preparing' | 'ready' | 'paid'>('all');
+  const [cashierStatus, setCashierStatus] = useState<'all' | 'pending' | 'preparing' | 'ready' | 'paid' | 'lost'>('all');
   const [cashierType, setCashierType] = useState<'all' | OrderType>('all');
   const [cashierSearch, setCashierSearch] = useState('');
   const [deliveryStatus, setDeliveryStatus] = useState<'all' | DeliveryStatus>('all');
@@ -28,7 +28,7 @@ export function PosWorkspace() {
     [orders]
   );
   const readyToPayTotal = useMemo(
-    () => orders.filter((order) => order.status !== 'paid' && order.status !== 'cancelled').reduce((sum, order) => sum + order.totalPrice, 0),
+    () => orders.filter((order) => order.status !== 'paid' && order.status !== 'cancelled' && order.status !== 'lost').reduce((sum, order) => sum + order.totalPrice, 0),
     [orders]
   );
   const deliveryActiveCount = useMemo(
@@ -38,7 +38,7 @@ export function PosWorkspace() {
   const tabCounters = useMemo(
     () => ({
       order: activeOrdersCount,
-      cashier: orders.filter((order) => order.status !== 'paid' && order.status !== 'cancelled').length,
+      cashier: orders.filter((order) => order.status !== 'paid' && order.status !== 'cancelled' && order.status !== 'lost').length,
       delivery: deliveryActiveCount
     }),
     [activeOrdersCount, deliveryActiveCount, orders]
@@ -96,11 +96,12 @@ export function PosWorkspace() {
                 { id: 'ready', label: 'Pretes a encaisser' },
                 { id: 'pending', label: 'En attente' },
                 { id: 'preparing', label: 'En preparation' },
-                { id: 'paid', label: 'Payees' }
+                { id: 'paid', label: 'Payees' },
+                { id: 'lost', label: 'Perdues' }
               ].map((state) => (
                 <button
                   key={state.id}
-                  onClick={() => setCashierStatus(state.id as 'all' | 'pending' | 'preparing' | 'ready' | 'paid')}
+                  onClick={() => setCashierStatus(state.id as 'all' | 'pending' | 'preparing' | 'ready' | 'paid' | 'lost')}
                   className={`w-full rounded-2xl px-3 py-2 text-left text-xs font-black transition ${
                     cashierStatus === state.id ? 'bg-zinc-950 text-white shadow-lg shadow-zinc-950/10' : 'mesh-chip text-zinc-700 hover:bg-white'
                   }`}

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requirePermission } from '../lib/authMiddleware';
 import { asyncHandler } from '../lib/asyncHandler';
-import { createOrder, createPayment, listOrders, updateDeliveryStatus, updateOrderStatus } from '../services/orderService';
+import { createOrder, createPayment, listOrders, markOrderLost, updateDeliveryStatus, updateOrderStatus } from '../services/orderService';
 
 export const ordersRouter = Router();
 
@@ -37,6 +37,15 @@ ordersRouter.patch(
   requirePermission('sales.read', 'pos.cashier', 'pos.use', 'pos.kitchen'),
   asyncHandler(async (req, res) => {
     const data = await updateOrderStatus(Number(req.params.id), 'cancelled');
+    res.json({ success: true, data });
+  })
+);
+
+ordersRouter.patch(
+  '/:id/lost',
+  requirePermission('sales.read', 'pos.cashier'),
+  asyncHandler(async (req, res) => {
+    const data = await markOrderLost(Number(req.params.id), req.body);
     res.json({ success: true, data });
   })
 );

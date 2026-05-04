@@ -167,8 +167,8 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
     })
   ]);
 
-  const nonCancelledSales = sales.filter((sale) => sale.status !== 'cancelled');
-  const previousNonCancelledSales = previousSales.filter((sale) => sale.status !== 'cancelled');
+  const nonCancelledSales = sales.filter((sale) => sale.status !== 'cancelled' && sale.status !== 'lost');
+  const previousNonCancelledSales = previousSales.filter((sale) => sale.status !== 'cancelled' && sale.status !== 'lost');
   const totalSalesCurrent = sum(nonCancelledSales.map((sale) => Number(sale.totalPrice)));
   const totalSalesPrevious = sum(previousNonCancelledSales.map((sale) => Number(sale.totalPrice)));
   const activeExpenses = expenses.filter((expense) => expense.status !== 'cancelled');
@@ -249,7 +249,7 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
 
     statusBreakdownMap.set(sale.status as OrderStatus, (statusBreakdownMap.get(sale.status as OrderStatus) ?? 0) + 1);
 
-    if (sale.status !== 'cancelled') {
+    if (sale.status !== 'cancelled' && sale.status !== 'lost') {
       const byDay = salesPerDayMap.get(saleDate) ?? { ordersCount: 0, totalSales: 0 };
       byDay.ordersCount += 1;
       byDay.totalSales += totalPrice;
@@ -609,7 +609,7 @@ export async function getProfitReport(filters?: Partial<ReportFilters>) {
   const sales = await prisma.sale.findMany({
     where: {
       createdAt: { gte: range.start, lte: range.end },
-      status: { not: 'cancelled' }
+      status: { notIn: ['cancelled', 'lost'] }
     },
     include: { saleItems: { include: { product: true } } }
   });

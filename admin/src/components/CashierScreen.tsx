@@ -1,23 +1,25 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { formatMoney, formatOrderType } from '../lib/format';
 import { usePosStore } from '../store/usePosStore';
-import { OrderType } from '../types/pos';
+import { Order, OrderType } from '../types/pos';
+import { MarkOrderLostModal } from './MarkOrderLostModal';
 import { OrderStatusBadge, OrderTypeBadge } from './posUi';
 
 interface CashierScreenProps {
-  statusFilter: 'all' | 'pending' | 'preparing' | 'ready' | 'paid';
+  statusFilter: 'all' | 'pending' | 'preparing' | 'ready' | 'paid' | 'lost';
   typeFilter: 'all' | OrderType;
   search: string;
   onSearchChange: (value: string) => void;
 }
 
 export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange }: CashierScreenProps) {
-  const { orders, payOrder } = usePosStore();
+  const { orders, employeeProfiles, markOrderLost, payOrder } = usePosStore();
+  const [lostOrder, setLostOrder] = useState<Order | null>(null);
 
   const activeOrders = useMemo(
     () =>
       orders.filter((order) => {
-        const matchesStatus = statusFilter === 'all' ? order.status !== 'paid' && order.status !== 'cancelled' : order.status === statusFilter;
+        const matchesStatus = statusFilter === 'all' ? order.status !== 'paid' && order.status !== 'cancelled' && order.status !== 'lost' : order.status === statusFilter;
         const matchesType = typeFilter === 'all' || order.type === typeFilter;
         const needle = search.trim().toLowerCase();
         const matchesSearch =
@@ -32,7 +34,7 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
   const cashierStats = useMemo(
     () => ({
       ready: activeOrders.filter((order) => order.status === 'ready').length,
-      waiting: activeOrders.filter((order) => order.status !== 'ready' && order.status !== 'paid').length,
+      waiting: activeOrders.filter((order) => order.status !== 'ready' && order.status !== 'paid' && order.status !== 'lost').length,
       paid: activeOrders.filter((order) => order.status === 'paid').length,
       total: activeOrders.reduce((sum, order) => sum + Number(order.totalPrice), 0)
     }),
@@ -109,7 +111,7 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
                     Cuisine: {order.status === 'pending' ? 'en attente' : 'en preparation'}
                   </div>
                 ) : null}
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-3 gap-2">
                   <button
                     onClick={() => void payOrder(order.id, 'cash')}
                     className="rounded-2xl bg-brand px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 active:translate-y-0"
@@ -122,6 +124,12 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
                   >
                     Carte
                   </button>
+                  <button
+                    onClick={() => setLostOrder(order)}
+                    className="rounded-2xl bg-red-50 px-4 py-3 text-sm font-black text-red-600 ring-1 ring-red-100 transition hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                    Perdue
+                  </button>
                 </div>
               </>
             )}
@@ -133,6 +141,17 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
           </div>
         )}
       </div>
+      {lostOrder ? (
+        <MarkOrderLostModal
+          order={lostOrder}
+          employees={employeeProfiles}
+          onClose={() => setLostOrder(null)}
+          onConfirm={async (payload) => {
+            await markOrderLost(lostOrder.id, payload);
+            setLostOrder(null);
+          }}
+        />
+      ) : null}
     </section>
   );
 }

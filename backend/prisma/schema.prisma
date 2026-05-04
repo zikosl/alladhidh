@@ -36,6 +36,7 @@ enum SaleStatus {
   ready
   paid
   cancelled
+  lost
 
   @@map("sale_status")
 }
