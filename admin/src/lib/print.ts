@@ -62,32 +62,67 @@ function baseStyles() {
   `;
 }
 
+function waitForImages(documentRef: Document) {
+  const images = Array.from(documentRef.images);
+  if (images.length === 0) return Promise.resolve();
+
+  return Promise.all(
+    images.map(
+      (image) =>
+        new Promise<void>((resolve) => {
+          if (image.complete) {
+            resolve();
+            return;
+          }
+
+          image.onload = () => resolve();
+          image.onerror = () => resolve();
+        })
+    )
+  ).then(() => undefined);
+}
+
 function openPrintWindow(title: string, html: string) {
   const frame = document.createElement('iframe');
   frame.title = title;
   frame.style.position = 'fixed';
-  frame.style.right = '0';
-  frame.style.bottom = '0';
-  frame.style.width = '0';
-  frame.style.height = '0';
+  frame.style.left = '0';
+  frame.style.top = '0';
+  frame.style.width = '1px';
+  frame.style.height = '1px';
+  frame.style.opacity = '0';
+  frame.style.pointerEvents = 'none';
   frame.style.border = '0';
   document.body.appendChild(frame);
 
   const documentRef = frame.contentWindow?.document;
   if (!documentRef) {
     frame.remove();
-    return;
+    return false;
   }
 
   documentRef.open();
   documentRef.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8" /><title>${escapeHtml(title)}</title><style>${baseStyles()}</style></head><body>${html}</body></html>`);
   documentRef.close();
 
-  setTimeout(() => {
-    frame.contentWindow?.focus();
-    frame.contentWindow?.print();
-    setTimeout(() => frame.remove(), 700);
-  }, 150);
+  const cleanup = () => {
+    if (frame.parentElement) frame.remove();
+  };
+
+  waitForImages(documentRef).then(() => {
+    window.setTimeout(() => {
+      try {
+        frame.contentWindow?.addEventListener('afterprint', cleanup, { once: true });
+        frame.contentWindow?.focus();
+        frame.contentWindow?.print();
+        window.setTimeout(cleanup, 60_000);
+      } catch {
+        cleanup();
+      }
+    }, 80);
+  });
+
+  return true;
 }
 
 export function printKitchenTicket(order: Order, settings?: RestaurantSettings | null) {
@@ -112,7 +147,7 @@ export function printKitchenTicket(order: Order, settings?: RestaurantSettings |
     ? `<div class="logo-wrap"><img class="logo" src="${escapeHtml(TICKET_LOGO_URL)}" alt="Logo" /></div>`
     : '';
 
-  openPrintWindow(
+  return openPrintWindow(
     `Ticket cuisine #${order.id}`,
     `
       <div class="ticket">
@@ -161,7 +196,7 @@ export function printCustomerInvoice(order: Order, settings?: RestaurantSettings
     )
     .join('');
 
-  openPrintWindow(
+  return openPrintWindow(
     `${settings?.receiptTitle ?? 'Facture client'} #${order.id}`,
     `
       <div class="ticket">

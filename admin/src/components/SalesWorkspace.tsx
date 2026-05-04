@@ -248,12 +248,16 @@ export function SalesWorkspace() {
                   ) : null}
                   <button
                     onClick={() => {
-                      printCustomerInvoice(order, restaurantSettings);
-                      toast({ title: 'Facture prete', message: `Commande #${order.id}`, tone: 'success' });
+                      const didStartPrint = printCustomerInvoice(order, restaurantSettings);
+                      toast(
+                        didStartPrint
+                          ? { title: 'Facture prete', message: `Commande #${order.id}`, tone: 'success' }
+                          : { title: 'Impression impossible', message: "Le navigateur a bloque l'ouverture de la facture.", tone: 'error' }
+                      );
                     }}
                     className="rounded-full bg-ink px-3 py-1.5 text-xs font-black text-white"
                   >
-                    Facture
+                    Imprimer facture
                   </button>
                 </div>
               </div>
