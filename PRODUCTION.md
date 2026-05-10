@@ -21,17 +21,29 @@ Edit `.env.production` and set strong values for:
 - `CADDY_SITE_ADDRESS`
 - `CLIENT_ORIGIN`
 
-For a local production smoke test, keep:
+For a local production / Chrome PWA install test, keep:
 
 ```env
 CADDY_SITE_ADDRESS=:80
-CLIENT_ORIGIN=*
+HOST_BIND=127.0.0.1
+HTTP_PORT=8080
+HTTPS_PORT=8443
+CLIENT_ORIGIN=http://localhost:8080
+```
+
+Then open:
+
+```text
+http://localhost:8080
 ```
 
 For a real domain:
 
 ```env
 CADDY_SITE_ADDRESS=example.com
+HOST_BIND=0.0.0.0
+HTTP_PORT=80
+HTTPS_PORT=443
 CLIENT_ORIGIN=https://example.com
 ```
 
