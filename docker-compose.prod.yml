@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-restaurant_pos}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your production environment}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
     volumes:
       - postgres_prod_data:/var/lib/postgresql/data
     healthcheck:
@@ -14,7 +14,7 @@ services:
       timeout: 5s
       retries: 8
     networks:
-      - private
+      - privates
 
   backend-migrate:
     build:
