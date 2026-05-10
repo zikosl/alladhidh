@@ -14,6 +14,8 @@ import { ThemeProvider } from './components/ThemeProvider';
 import { usePosStore } from './store/usePosStore';
 import { useAuthStore } from './store/useAuthStore';
 
+type InstallPromptEvent = WindowEventMap['restaurant-pos:pwa-install-ready']['detail'];
+
 export default function App() {
   return (
     <ThemeProvider>
@@ -30,6 +32,8 @@ function AppContent() {
   const { toast } = useFeedback();
   const lastToastRef = useRef<string | null>(null);
   const [backendBusy, setBackendBusy] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [updateRegistration, setUpdateRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
     bootstrap();
@@ -57,6 +61,23 @@ function AppContent() {
     window.addEventListener('restaurant-pos:backend-busy', handleBackendBusy);
 
     return () => window.removeEventListener('restaurant-pos:backend-busy', handleBackendBusy);
+  }, []);
+
+  useEffect(() => {
+    const handleInstallReady = (event: WindowEventMap['restaurant-pos:pwa-install-ready']) => {
+      setInstallPrompt(event.detail);
+    };
+    const handleUpdateReady = (event: WindowEventMap['restaurant-pos:pwa-update-ready']) => {
+      setUpdateRegistration(event.detail);
+    };
+
+    window.addEventListener('restaurant-pos:pwa-install-ready', handleInstallReady);
+    window.addEventListener('restaurant-pos:pwa-update-ready', handleUpdateReady);
+
+    return () => {
+      window.removeEventListener('restaurant-pos:pwa-install-ready', handleInstallReady);
+      window.removeEventListener('restaurant-pos:pwa-update-ready', handleUpdateReady);
+    };
   }, []);
 
   useEffect(() => {
@@ -139,7 +160,80 @@ function AppContent() {
           </div>
         ) : null}
 
+        <PwaPrompt
+          installPrompt={installPrompt}
+          updateRegistration={updateRegistration}
+          onDismissInstall={() => setInstallPrompt(null)}
+          onInstall={async () => {
+            if (!installPrompt) return;
+            await installPrompt.prompt();
+            const choice = await installPrompt.userChoice;
+            setInstallPrompt(null);
+            toast({
+              title: choice.outcome === 'accepted' ? 'Application installee' : 'Installation annulee',
+              message: choice.outcome === 'accepted' ? 'اللذيذ est disponible depuis votre ecran.' : "Vous pourrez l'installer plus tard.",
+              tone: choice.outcome === 'accepted' ? 'success' : 'info'
+            });
+          }}
+          onDismissUpdate={() => setUpdateRegistration(null)}
+          onUpdate={() => {
+            updateRegistration?.waiting?.postMessage({ type: 'SKIP_WAITING' });
+            setUpdateRegistration(null);
+          }}
+        />
         <BackendBusyOverlay visible={backendBusy || submitting} submitting={submitting} />
+      </div>
+    </div>
+  );
+}
+
+function PwaPrompt({
+  installPrompt,
+  updateRegistration,
+  onInstall,
+  onDismissInstall,
+  onUpdate,
+  onDismissUpdate
+}: {
+  installPrompt: InstallPromptEvent | null;
+  updateRegistration: ServiceWorkerRegistration | null;
+  onInstall: () => void | Promise<void>;
+  onDismissInstall: () => void;
+  onUpdate: () => void;
+  onDismissUpdate: () => void;
+}) {
+  if (!installPrompt && !updateRegistration) return null;
+
+  const isUpdate = Boolean(updateRegistration);
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[80] w-[min(360px,calc(100vw-2rem))] rounded-[1.35rem] border border-[color:var(--color-border)] bg-[color:var(--color-surface-elevated)] p-3 text-[color:var(--color-text-primary)] shadow-card">
+      <div className="flex items-start gap-3">
+        <img src="/logo.png" alt="اللذيذ" className="h-11 w-11 shrink-0 rounded-2xl object-contain" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold">
+            {isUpdate ? 'Nouvelle version disponible' : 'Installer اللذيذ POS'}
+          </div>
+          <div className="mt-1 text-xs leading-5 text-[color:var(--color-text-secondary)]">
+            {isUpdate ? 'Rechargez pour utiliser la derniere version.' : 'Acces rapide, plein ecran et experience plus stable sur tablette.'}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={isUpdate ? onUpdate : onInstall}
+              className="rounded-full bg-brand px-3 py-2 text-xs font-semibold text-white shadow-soft transition hover:bg-brand-strong active:scale-[0.98]"
+            >
+              {isUpdate ? 'Mettre a jour' : 'Installer'}
+            </button>
+            <button
+              type="button"
+              onClick={isUpdate ? onDismissUpdate : onDismissInstall}
+              className="rounded-full border border-[color:var(--color-border)] px-3 py-2 text-xs font-semibold text-[color:var(--color-text-secondary)] transition hover:bg-[color:var(--color-surface-secondary)] active:scale-[0.98]"
+            >
+              Plus tard
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

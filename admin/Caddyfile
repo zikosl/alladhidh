@@ -15,6 +15,12 @@
 		reverse_proxy {$API_PROXY_TARGET:backend:3000}
 	}
 
+	@pwaFiles path /sw.js /manifest.webmanifest /offline.html
+	header @pwaFiles Cache-Control "no-cache"
+
+	@versionedAssets path /assets/*
+	header @versionedAssets Cache-Control "public, max-age=31536000, immutable"
+
 	handle {
 		root * /usr/share/caddy
 		try_files {path} /index.html

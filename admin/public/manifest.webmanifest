@@ -1,0 +1,65 @@
+{
+  "name": "اللذيذ - Caisse restaurant",
+  "short_name": "اللذيذ POS",
+  "description": "Application POS et gestion restaurant pour commandes, stock, recettes, ventes, finance et paie.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "dir": "ltr",
+  "lang": "fr-DZ",
+  "background_color": "#11100E",
+  "theme_color": "#F45A24",
+  "categories": ["business", "food", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Ouvrir la caisse",
+      "short_name": "Caisse",
+      "description": "Acceder rapidement au point de vente.",
+      "url": "/pos",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Controle stock",
+      "short_name": "Stock",
+      "description": "Verifier le stock et les entrees.",
+      "url": "/stock",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Commandes",
+      "short_name": "Commandes",
+      "description": "Voir les commandes et imprimer les factures.",
+      "url": "/ventes",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
