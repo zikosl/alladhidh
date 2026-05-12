@@ -3,11 +3,12 @@ export type PosScreen = 'order' | 'kitchen' | 'cashier' | 'delivery';
 export type OrderType = 'dine_in' | 'take_away' | 'delivery';
 export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'paid' | 'cancelled' | 'lost';
 export type DeliveryStatus = 'pending' | 'on_the_way' | 'delivered';
-export type PaymentMethod = 'cash';
+export type PaymentMethod = 'cash' | 'card' | 'transfer';
+export type AlertStatus = 'pending' | 'completed' | 'overdue';
 export type UserStatus = 'active' | 'disabled';
 export type ExpenseType = 'fixed' | 'variable' | 'exceptional';
 export type ExpenseStatus = 'planned' | 'partial' | 'paid' | 'cancelled';
-export type FinancePaymentMethod = 'cash';
+export type FinancePaymentMethod = 'cash' | 'card' | 'transfer';
 export type ExpenseSourceType = 'manual' | 'stock_purchase' | 'payroll_payment' | 'salary_advance';
 export type EmploymentType = 'monthly' | 'daily' | 'hourly';
 export type PayrollPeriodStatus = 'draft' | 'validated' | 'paid';
@@ -419,8 +420,34 @@ export interface Order {
   deliveryFee: number;
   deliveryStatus: DeliveryStatus | null;
   totalPrice: number;
+  paidAmount: number;
+  remainingAmount: number;
+  paymentStatus: 'unpaid' | 'partial' | 'paid';
   createdAt: string;
   items: OrderItem[];
+}
+
+export interface AlertReminder {
+  id: number;
+  title: string;
+  description: string | null;
+  dueAt: string;
+  date: string;
+  time: string;
+  status: AlertStatus;
+  createdById: number | null;
+  createdByName: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AlertReminderInput {
+  title: string;
+  description?: string | null;
+  date: string;
+  time: string;
+  status?: AlertStatus;
 }
 
 export interface DashboardData {

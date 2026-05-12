@@ -9,7 +9,7 @@ paymentsRouter.post(
   '/',
   requirePermission('pos.cashier'),
   asyncHandler(async (req, res) => {
-    const data = await createPayment(Number(req.body.orderId), String(req.body.method));
+    const data = await createPayment(Number(req.body.orderId), String(req.body.method), req.body.amount);
     res.json({ success: true, data });
   })
 );

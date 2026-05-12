@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import {
   cancelOrder as cancelOrderRequest,
+  completeAlert,
+  createAlert,
   createPayrollAdjustment,
   createExpense,
   createExpenseCategory,
@@ -30,6 +32,7 @@ import {
   fetchExpenseCategories,
   fetchExpenses,
   fetchDashboard,
+  fetchAlerts,
   fetchInventoryCategories,
   fetchInventoryItems,
   fetchPermissions,
@@ -69,6 +72,8 @@ import { initialInventoryItems, initialMenuItems } from '../lib/mockData';
 import { resolveNavigationPath, writeNavigationPath } from '../lib/navigation';
 import { printCustomerInvoice } from '../lib/print';
 import {
+  AlertReminder,
+  AlertReminderInput,
   Permission,
   CartItem,
   CashSession,
@@ -92,6 +97,7 @@ import {
   ModuleId,
   Order,
   OrderType,
+  PaymentMethod,
   PosScreen,
   Product,
   ProfitReport,
@@ -123,6 +129,7 @@ interface PosState {
   products: Product[];
   orders: Order[];
   kitchenOrders: Order[];
+  alerts: AlertReminder[];
   dashboard: DashboardData | null;
   profitReport: ProfitReport | null;
   expenses: Expense[];
@@ -169,6 +176,8 @@ interface PosState {
   clearCart: () => void;
   holdCart: () => void;
   restoreHeldCart: () => void;
+  addAlert: (alert: AlertReminderInput) => Promise<void>;
+  markAlertCompleted: (id: number) => Promise<void>;
   upsertInventoryItem: (item: InventoryItemInput) => Promise<void>;
   addInventoryCategory: (category: { name: string; description?: string | null; usageType?: InventoryUsageType }) => Promise<void>;
   removeInventoryCategory: (id: number) => Promise<void>;
@@ -206,7 +215,7 @@ interface PosState {
   cancelOrder: (orderId: number) => Promise<void>;
   markOrderLost: (orderId: number, payload: MarkOrderLostInput) => Promise<void>;
   setKitchenStatus: (orderId: number, status: 'pending' | 'preparing' | 'ready') => Promise<void>;
-  payOrder: (orderId: number, method: 'cash') => Promise<void>;
+  payOrder: (orderId: number, method: PaymentMethod, amount?: number | null) => Promise<void>;
   setDeliveryOrderStatus: (orderId: number, status: 'pending' | 'on_the_way' | 'delivered') => Promise<void>;
 }
 
@@ -382,6 +391,7 @@ export const usePosStore = create<PosState>((set, get) => ({
   products: [],
   orders: [],
   kitchenOrders: [],
+  alerts: [],
   dashboard: null,
   profitReport: null,
   expenses: [],
@@ -523,6 +533,27 @@ export const usePosStore = create<PosState>((set, get) => ({
       deliveryForm: held.deliveryForm,
       lastError: null
     });
+  },
+  addAlert: async (alert) => {
+    const state = get();
+    try {
+      const nextAlert = await createAlert(alert);
+      set({ alerts: [nextAlert, ...state.alerts], lastError: null });
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Creation rappel impossible' });
+    }
+  },
+  markAlertCompleted: async (id) => {
+    const state = get();
+    try {
+      const updatedAlert = await completeAlert(id);
+      set({
+        alerts: state.alerts.map((alert) => (alert.id === id ? updatedAlert : alert)),
+        lastError: null
+      });
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Validation rappel impossible' });
+    }
   },
   upsertInventoryItem: async (item) => {
     const state = get();
@@ -997,7 +1028,7 @@ export const usePosStore = create<PosState>((set, get) => ({
               restaurantSettings,
               deliveryForm: {
                 ...state.deliveryForm,
-                deliveryFee: 0
+                deliveryFee: restaurantSettings.defaultDeliveryFee ?? 0
               }
             }))
           )
@@ -1020,6 +1051,8 @@ export const usePosStore = create<PosState>((set, get) => ({
             set({ expenseCategories, expenses, cashSessions })
           )
         );
+      } else if (hasPermission('pos.cashier', 'pos.use')) {
+        calls.push(fetchCashSessions().then((cashSessions) => set({ cashSessions })));
       }
       if (hasPermission('payroll.read', 'payroll.write')) {
         calls.push(
@@ -1047,6 +1080,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       products: [],
       orders: [],
       kitchenOrders: [],
+      alerts: [],
       dashboard: null,
       profitReport: null,
       expenses: [],
@@ -1079,6 +1113,10 @@ export const usePosStore = create<PosState>((set, get) => ({
 
       if (hasPermission('sales.read', 'pos.cashier', 'pos.delivery')) {
         nextState.orders = await fetchOrders();
+      }
+
+      if (hasPermission('alerts.read', 'alerts.write')) {
+        nextState.alerts = await fetchAlerts();
       }
 
       if (hasPermission('pos.kitchen')) {
@@ -1131,6 +1169,9 @@ export const usePosStore = create<PosState>((set, get) => ({
       if (hasPermission('sales.read', 'pos.cashier', 'pos.delivery')) {
         tasks.push(fetchOrders().then((orders) => void (updates.orders = orders)));
       }
+      if (hasPermission('alerts.read', 'alerts.write')) {
+        tasks.push(fetchAlerts().then((alerts) => void (updates.alerts = alerts)));
+      }
       if (hasPermission('pos.kitchen')) {
         tasks.push(fetchKitchenOrders().then((kitchenOrders) => void (updates.kitchenOrders = kitchenOrders)));
       }
@@ -1141,6 +1182,8 @@ export const usePosStore = create<PosState>((set, get) => ({
       if (hasPermission('finance.read', 'finance.write')) {
         tasks.push(fetchExpenses().then((expenses) => void (updates.expenses = expenses)));
         tasks.push(fetchExpenseCategories().then((expenseCategories) => void (updates.expenseCategories = expenseCategories)));
+        tasks.push(fetchCashSessions().then((cashSessions) => void (updates.cashSessions = cashSessions)));
+      } else if (hasPermission('pos.cashier', 'pos.use')) {
         tasks.push(fetchCashSessions().then((cashSessions) => void (updates.cashSessions = cashSessions)));
       }
       if (hasPermission('payroll.read', 'payroll.write')) {
@@ -1200,7 +1243,7 @@ export const usePosStore = create<PosState>((set, get) => ({
         customerName: state.orderType === 'dine_in' ? null : state.deliveryForm.customerName || null,
         phone: state.orderType === 'dine_in' ? null : state.deliveryForm.phone || null,
         address: state.orderType === 'delivery' ? state.deliveryForm.address : null,
-        deliveryFee: 0,
+        deliveryFee: state.orderType === 'delivery' ? state.deliveryForm.deliveryFee : 0,
         notes: state.notes || null,
         items: state.cart.map((item) => ({
           productId: item.productId,
@@ -1250,10 +1293,12 @@ export const usePosStore = create<PosState>((set, get) => ({
       set({ lastError: error instanceof Error ? error.message : 'Declaration perte commande impossible' });
     }
   },
-  payOrder: async (orderId, method) => {
+  payOrder: async (orderId, method, amount) => {
     try {
-      const updatedOrder = await createPayment(orderId, method);
-      printCustomerInvoice(updatedOrder, get().restaurantSettings);
+      const updatedOrder = await createPayment(orderId, method, amount);
+      if (updatedOrder.status === 'paid') {
+        printCustomerInvoice(updatedOrder, get().restaurantSettings);
+      }
       set((state) => ({
         orders: state.orders.map((order) => (order.id === orderId ? updatedOrder : order)),
         kitchenOrders: state.kitchenOrders.map((order) => (order.id === orderId ? updatedOrder : order)),

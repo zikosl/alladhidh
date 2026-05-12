@@ -44,8 +44,17 @@ enum SaleStatus {
 enum PaymentMethod {
   cash
   card
+  transfer
 
   @@map("payment_method")
+}
+
+enum AlertStatus {
+  pending
+  completed
+  overdue
+
+  @@map("alert_status")
 }
 
 enum DeliveryStatus {
@@ -206,6 +215,7 @@ model User {
   role         Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
   openedCashSessions CashSession[] @relation("CashSessionOpenedBy")
   closedCashSessions CashSession[] @relation("CashSessionClosedBy")
+  alerts Alert[]
 
   @@index([roleId], map: "idx_users_role_id")
   @@map("users")
@@ -428,6 +438,23 @@ model Payment {
   sale      Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@map("payments")
+}
+
+model Alert {
+  id          Int         @id @default(autoincrement())
+  title       String      @db.VarChar(140)
+  description String?     @db.VarChar(500)
+  dueAt       DateTime    @map("due_at")
+  status      AlertStatus @default(pending)
+  createdById Int?        @map("created_by_id")
+  completedAt DateTime?   @map("completed_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  createdBy   User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([status, dueAt], map: "idx_alerts_status_due_at")
+  @@index([createdById], map: "idx_alerts_created_by")
+  @@map("alerts")
 }
 
 model EmployeeProfile {

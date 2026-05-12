@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { formatMoney, formatOrderType } from '../lib/format';
 import { usePosStore } from '../store/usePosStore';
-import { Order, OrderType } from '../types/pos';
+import { Order, OrderType, PaymentMethod } from '../types/pos';
+import { AppModal } from './AppModal';
+import { useFeedback } from './FeedbackProvider';
 import { MarkOrderLostModal } from './MarkOrderLostModal';
 import { OrderStatusBadge, OrderTypeBadge } from './posUi';
 
@@ -13,8 +15,12 @@ interface CashierScreenProps {
 }
 
 export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange }: CashierScreenProps) {
+  const { confirm } = useFeedback();
   const { orders, employeeProfiles, markOrderLost, payOrder } = usePosStore();
   const [lostOrder, setLostOrder] = useState<Order | null>(null);
+  const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paymentAmount, setPaymentAmount] = useState('');
 
   const activeOrders = useMemo(
     () =>
@@ -85,7 +91,10 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
               </div>
               <div className="text-right">
                 <div className="text-[10px] font-bold text-zinc-500">{order.tableNumber ? `Table ${order.tableNumber}` : order.customerName ?? 'Client'}</div>
-                <div className="mt-1 text-xl font-black text-zinc-950">{formatMoney(order.totalPrice)}</div>
+                <div className="mt-1 text-xl font-black text-zinc-950">{formatMoney(order.remainingAmount ?? order.totalPrice)}</div>
+                {order.paymentStatus === 'partial' ? (
+                  <div className="mt-1 text-[11px] font-black text-brand">Partiel: {formatMoney(order.paidAmount)} paye</div>
+                ) : null}
               </div>
             </div>
 
@@ -113,10 +122,14 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
                 ) : null}
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => void payOrder(order.id, 'cash')}
+                    onClick={() => {
+                      setPaymentOrder(order);
+                      setPaymentAmount(String(order.remainingAmount || order.totalPrice));
+                      setPaymentMethod('cash');
+                    }}
                     className="rounded-2xl bg-brand px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 active:translate-y-0"
                   >
-                    Especes
+                    Encaisser
                   </button>
                   <button
                     onClick={() => setLostOrder(order)}
@@ -145,6 +158,61 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
             setLostOrder(null);
           }}
         />
+      ) : null}
+      {paymentOrder ? (
+        <AppModal title={`Paiement commande #${paymentOrder.id}`} onClose={() => setPaymentOrder(null)} maxWidthClassName="max-w-xl">
+          <div className="space-y-3">
+            <div className="rounded-2xl bg-zinc-50 p-3 text-sm font-semibold text-zinc-700">
+              <div className="flex justify-between"><span>Total</span><span>{formatMoney(paymentOrder.totalPrice)}</span></div>
+              <div className="mt-1 flex justify-between"><span>Deja paye</span><span>{formatMoney(paymentOrder.paidAmount)}</span></div>
+              <div className="mt-1 flex justify-between text-zinc-950"><span>Reste</span><span>{formatMoney(paymentOrder.remainingAmount)}</span></div>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {[
+                ['cash', 'Especes'],
+                ['card', 'Carte'],
+                ['transfer', 'Virement']
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => setPaymentMethod(value as PaymentMethod)}
+                  className={`rounded-2xl px-3 py-2 text-sm font-black ${paymentMethod === value ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-700'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <label className="block">
+              <span className="text-xs font-semibold text-zinc-600">Montant encaisse</span>
+              <input
+                type="number"
+                min="0"
+                max={paymentOrder.remainingAmount}
+                value={paymentAmount}
+                onChange={(event) => setPaymentAmount(event.target.value)}
+                className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm font-semibold outline-none"
+              />
+            </label>
+            <button
+              onClick={() => {
+                const amount = Number(paymentAmount);
+                void confirm({
+                  title: 'Valider le paiement ?',
+                  message: `${formatMoney(amount)} par ${paymentMethod === 'cash' ? 'especes' : paymentMethod === 'card' ? 'carte' : 'virement'}.`,
+                  confirmLabel: 'Valider paiement',
+                  tone: 'info'
+                }).then((confirmed) => {
+                  if (!confirmed) return;
+                  void payOrder(paymentOrder.id, paymentMethod, amount).then(() => setPaymentOrder(null));
+                });
+              }}
+              disabled={Number(paymentAmount) <= 0 || Number(paymentAmount) > paymentOrder.remainingAmount}
+              className="w-full rounded-2xl bg-brand px-4 py-3 text-sm font-black text-white disabled:bg-zinc-300"
+            >
+              Valider paiement
+            </button>
+          </div>
+        </AppModal>
       ) : null}
     </section>
   );

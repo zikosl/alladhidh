@@ -13,9 +13,11 @@ import { prisma } from '../lib/prisma';
 import { DeliveryStatus, OrderStatus, OrderSummary, OrderType, PaymentMethod, CreateOrderInput, MarkOrderLostInput } from '../types/pos';
 import { HttpError } from '../utils/httpError';
 import { requireField, toNonNegativeNumber, toPositiveNumber } from '../utils/validation';
+import { getOpenCashSessionForToday } from './financeService';
 
 type SaleWithItems = Prisma.SaleGetPayload<{
   include: {
+    payments: true;
     saleItems: {
       include: {
         product: true;
@@ -57,7 +59,7 @@ type SaleWithRecipes = Prisma.SaleGetPayload<{
 const orderTypes: OrderType[] = ['dine_in', 'take_away', 'delivery'];
 const orderStatuses: OrderStatus[] = ['pending', 'preparing', 'ready', 'paid', 'cancelled', 'lost'];
 const deliveryStatuses: DeliveryStatus[] = ['pending', 'on_the_way', 'delivered'];
-const paymentMethods: PaymentMethod[] = ['cash'];
+const paymentMethods: PaymentMethod[] = ['cash', 'card', 'transfer'];
 
 function toNumber(value: Prisma.Decimal | string | number | null | undefined): number {
   if (value === null || value === undefined) {
@@ -102,6 +104,10 @@ function validatePaymentMethod(method: string): asserts method is PaymentMethod 
 
 function mapOrder(order: SaleWithItems): OrderSummary {
   const items = [...order.saleItems].sort((left, right) => left.id - right.id);
+  const paidAmount = order.payments.reduce((sum, payment) => sum + toNumber(payment.amount), 0);
+  const totalPrice = toNumber(order.totalPrice);
+  const remainingAmount = Math.max(totalPrice - paidAmount, 0);
+  const paymentStatus = paidAmount <= 0 ? 'unpaid' : remainingAmount <= 0.001 ? 'paid' : 'partial';
 
   return {
     id: order.id,
@@ -114,7 +120,10 @@ function mapOrder(order: SaleWithItems): OrderSummary {
     notes: order.notes,
     deliveryFee: toNumber(order.deliveryFee),
     deliveryStatus: order.deliveryStatus as DeliveryStatus | null,
-    totalPrice: toNumber(order.totalPrice),
+    totalPrice,
+    paidAmount,
+    remainingAmount,
+    paymentStatus,
     createdAt: order.createdAt.toISOString(),
     items: items.map((item) => ({
       id: item.id,
@@ -134,7 +143,8 @@ async function getOrderOrThrow(client: PrismaClient | Prisma.TransactionClient, 
         include: {
           product: true
         }
-      }
+      },
+      payments: true
     }
   });
 
@@ -210,7 +220,8 @@ export async function listOrders(): Promise<OrderSummary[]> {
         include: {
           product: true
         }
-      }
+      },
+      payments: true
     }
   });
 
@@ -230,7 +241,8 @@ export async function getKitchenOrders(): Promise<OrderSummary[]> {
         include: {
           product: true
         }
-      }
+      },
+      payments: true
     }
   });
 
@@ -260,6 +272,11 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderSummary
 
   if (input.type === 'delivery' && input.deliveryStatus) {
     validateDeliveryStatus(input.deliveryStatus);
+  }
+
+  const openCashSession = await getOpenCashSessionForToday();
+  if (!openCashSession) {
+    throw new HttpError(400, 'Ouvrez la caisse avant de prendre une commande');
   }
 
   return prisma.$transaction(
@@ -372,7 +389,7 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderSummary
         }
       }
 
-      const deliveryFee = 0;
+      const deliveryFee = input.type === 'delivery' ? toNonNegativeNumber(input.deliveryFee ?? 0, 'deliveryFee') : 0;
       const createdSale = await client.sale.create({
         data: {
           type: input.type as PrismaSaleType,
@@ -445,6 +462,7 @@ export async function updateOrderStatus(orderId: number, status: string): Promis
         status: status as PrismaSaleStatus
       },
       include: {
+        payments: true,
         saleItems: {
           include: {
             product: true
@@ -473,6 +491,7 @@ export async function updateDeliveryStatus(orderId: number, deliveryStatus: stri
         deliveryStatus: deliveryStatus as PrismaDeliveryStatus
       },
       include: {
+        payments: true,
         saleItems: {
           include: {
             product: true
@@ -485,7 +504,7 @@ export async function updateDeliveryStatus(orderId: number, deliveryStatus: stri
   });
 }
 
-export async function createPayment(orderId: number, method: string): Promise<OrderSummary> {
+export async function createPayment(orderId: number, method: string, amount?: number | null): Promise<OrderSummary> {
   validatePaymentMethod(method);
 
   return prisma.$transaction(async (client) => {
@@ -495,24 +514,33 @@ export async function createPayment(orderId: number, method: string): Promise<Or
       throw new HttpError(400, 'Closed orders cannot be paid');
     }
 
-    if (existing.status === PrismaSaleStatus.paid) {
+    const paidAmount = existing.payments.reduce((sum, payment) => sum + toNumber(payment.amount), 0);
+    const remainingAmount = Math.max(toNumber(existing.totalPrice) - paidAmount, 0);
+    if (remainingAmount <= 0.001 || existing.status === PrismaSaleStatus.paid) {
       throw new HttpError(400, 'Order is already paid');
+    }
+
+    const paymentAmount = amount === null || amount === undefined ? remainingAmount : toPositiveNumber(amount, 'amount');
+    if (paymentAmount - remainingAmount > 0.001) {
+      throw new HttpError(400, 'Le paiement depasse le restant a encaisser');
     }
 
     await client.payment.create({
       data: {
         saleId: orderId,
         method: method as PrismaPaymentMethod,
-        amount: existing.totalPrice
+        amount: paymentAmount
       }
     });
 
+    const nextRemaining = remainingAmount - paymentAmount;
     const updated = await client.sale.update({
       where: { id: orderId },
       data: {
-        status: PrismaSaleStatus.paid
+        status: nextRemaining <= 0.001 ? PrismaSaleStatus.paid : existing.status
       },
       include: {
+        payments: true,
         saleItems: {
           include: {
             product: true
@@ -575,6 +603,7 @@ export async function markOrderLost(orderId: number, payload: MarkOrderLostInput
         notes: [existing.notes, payload.note ? `Perte: ${String(payload.note).trim()}` : 'Perte declaree'].filter(Boolean).join('\n')
       },
       include: {
+        payments: true,
         saleItems: {
           include: {
             product: true

@@ -15,8 +15,12 @@ const posTabs: Array<{ id: VisiblePosScreen; label: string; hint: string }> = [
 ];
 
 export function PosWorkspace() {
-  const { posScreen, setPosScreen, setCurrentModule, categories, selectedCategory, setSelectedCategory, orders } = usePosStore();
-  const { hasPermission } = useAuthStore();
+  const { posScreen, setPosScreen, setCurrentModule, categories, selectedCategory, setSelectedCategory, orders, cashSessions, saveCashSession } = usePosStore();
+  const { hasPermission, user } = useAuthStore();
+  const today = new Date().toISOString().slice(0, 10);
+  const openCashSession = cashSessions.find((session) => session.businessDate === today && session.status === 'open');
+  const canOpenCashSession = hasPermission('pos.cashier', 'finance.write');
+  const [openingAmount, setOpeningAmount] = useState('');
   const [cashierStatus, setCashierStatus] = useState<'all' | 'pending' | 'preparing' | 'ready' | 'paid' | 'lost'>('all');
   const [cashierType, setCashierType] = useState<'all' | OrderType>('all');
   const [cashierSearch, setCashierSearch] = useState('');
@@ -233,7 +237,54 @@ export function PosWorkspace() {
           </div>
         </section>
 
-        {posScreen === 'order' && <OrderScreen />}
+        {posScreen === 'order' && (
+          openCashSession ? (
+            <OrderScreen />
+          ) : (
+            <section className="premium-panel rounded-[1.7rem] p-5">
+              <div className="mx-auto max-w-xl text-center">
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-3xl bg-brand/10 text-2xl">💵</div>
+                <h2 className="mt-3 text-xl font-black text-zinc-950">Ouvrir la caisse</h2>
+                <p className="mt-2 text-sm font-semibold text-zinc-500">
+                  La prise de commande est bloquee tant que la caisse du jour n'est pas ouverte.
+                </p>
+                <div className="mt-4 rounded-3xl bg-zinc-50 p-3 text-left ring-1 ring-zinc-100">
+                  <label className="block">
+                    <span className="text-xs font-semibold text-zinc-600">Fond de caisse initial</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={openingAmount}
+                      onChange={(event) => setOpeningAmount(event.target.value)}
+                      placeholder="Ex: 10000"
+                      className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm font-semibold outline-none"
+                    />
+                  </label>
+                  <button
+                    onClick={() =>
+                      void saveCashSession({
+                        businessDate: today,
+                        openingAmount: Number(openingAmount) || 0,
+                        status: 'open',
+                        openedById: user?.id ?? null,
+                        notes: 'Ouverture depuis POS'
+                      })
+                    }
+                    disabled={!canOpenCashSession}
+                    className="mt-3 w-full rounded-2xl bg-brand px-4 py-3 text-sm font-black text-white disabled:bg-zinc-300"
+                  >
+                    {canOpenCashSession ? 'Ouvrir la caisse' : 'Caisse non ouverte'}
+                  </button>
+                  {!canOpenCashSession ? (
+                    <div className="mt-2 text-center text-xs font-semibold text-zinc-500">
+                      Demandez au caissier ou manager d'ouvrir la caisse.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+          )
+        )}
         {posScreen === 'cashier' && (
           <CashierScreen
             statusFilter={cashierStatus}

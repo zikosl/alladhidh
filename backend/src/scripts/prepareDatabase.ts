@@ -21,7 +21,9 @@ async function main() {
     ['settings.write', 'Edition parametres', 'parametres'],
     ['staff.manage', 'Gestion equipe', 'parametres'],
     ['roles.manage', 'Gestion roles', 'parametres'],
-    ['tables.manage', 'Gestion tables', 'parametres']
+    ['tables.manage', 'Gestion tables', 'parametres'],
+    ['alerts.read', 'Lecture rappels', 'alertes'],
+    ['alerts.write', 'Gestion rappels', 'alertes']
   ] as const;
 
   for (const [code, label, module] of permissions) {
@@ -50,9 +52,11 @@ async function main() {
       'payroll.read',
       'payroll.write',
       'settings.read',
-      'tables.manage'
+      'tables.manage',
+      'alerts.read',
+      'alerts.write'
     ],
-    Caissier: ['pos.use', 'pos.cashier', 'sales.read'],
+    Caissier: ['pos.use', 'pos.cashier', 'sales.read', 'alerts.read'],
     Cuisinier: ['pos.kitchen'],
     Serveur: ['pos.use'],
     Livreur: ['pos.delivery']

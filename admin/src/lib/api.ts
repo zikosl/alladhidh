@@ -2,6 +2,8 @@ import axios, { InternalAxiosRequestConfig } from 'axios';
 import {
   AuthLoginResponse,
   AuthUser,
+  AlertReminder,
+  AlertReminderInput,
   CashSession,
   CashSessionInput,
   DashboardData,
@@ -25,6 +27,7 @@ import {
   MarkOrderLostInput,
   Order,
   Permission,
+  PaymentMethod,
   Product,
   ProfitReport,
   ReportFilters,
@@ -267,8 +270,23 @@ export async function updateDeliveryStatus(orderId: number, deliveryStatus: stri
   return response.data.data;
 }
 
-export async function createPayment(orderId: number, method: 'cash') {
-  const response = await api.post<{ success: boolean; data: Order }>('/payments', { orderId, method });
+export async function createPayment(orderId: number, method: PaymentMethod, amount?: number | null) {
+  const response = await api.post<{ success: boolean; data: Order }>('/payments', { orderId, method, amount });
+  return response.data.data;
+}
+
+export async function fetchAlerts() {
+  const response = await api.get<{ success: boolean; data: AlertReminder[] }>('/alerts');
+  return response.data.data;
+}
+
+export async function createAlert(payload: AlertReminderInput) {
+  const response = await api.post<{ success: boolean; data: AlertReminder }>('/alerts', payload);
+  return response.data.data;
+}
+
+export async function completeAlert(id: number) {
+  const response = await api.patch<{ success: boolean; data: AlertReminder }>(`/alerts/${id}/complete`);
   return response.data.data;
 }
 

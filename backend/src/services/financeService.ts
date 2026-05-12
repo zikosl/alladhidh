@@ -1,4 +1,4 @@
-import { CashSessionStatus, ExpenseSourceType, ExpenseStatus, ExpenseType, PayrollAdjustmentType, Prisma } from '@prisma/client';
+import { CashSessionStatus, ExpenseSourceType, ExpenseStatus, ExpenseType, FinancePaymentMethod, PayrollAdjustmentType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { systemExpenseCategories, upsertLinkedExpense } from './expenseSyncService';
 import {
@@ -408,6 +408,24 @@ export async function listCashSessions(): Promise<CashSessionSummary[]> {
   return withTotals;
 }
 
+export async function getOpenCashSessionForToday(): Promise<CashSessionSummary | null> {
+  const businessDate = startOfDay(new Date());
+  const row = await prisma.cashSession.findFirst({
+    where: {
+      businessDate,
+      status: CashSessionStatus.open
+    },
+    include: {
+      openedBy: true,
+      closedBy: true
+    },
+    orderBy: { openedAt: 'desc' }
+  });
+  if (!row) return null;
+  const totals = await calculateCashSessionTotals(row.businessDate, Number(row.openingAmount), row.closingAmount === null ? null : Number(row.closingAmount));
+  return mapCashSession(row, totals);
+}
+
 export async function upsertCashSession(payload: {
   id?: number;
   businessDate: string;
@@ -548,7 +566,7 @@ export async function createSalaryAdvance(payload: {
   employeeId: number;
   amount: number;
   reason: string;
-  method?: 'cash';
+  method?: FinancePaymentMethod;
   note?: string | null;
   date?: string | null;
 }): Promise<SalaryAdvanceSummary> {
@@ -592,7 +610,7 @@ export async function createSalaryAdvance(payload: {
       category: systemExpenseCategories.salaryAdvance,
       type: ExpenseType.variable,
       status: ExpenseStatus.paid,
-      paymentMethod: 'cash',
+      paymentMethod: payload.method ?? FinancePaymentMethod.cash,
       supplierName: employee.user.fullName,
       description: `Avance salaire - ${employee.user.fullName} - ${String(payload.reason).trim()}`,
       date,
@@ -1101,7 +1119,7 @@ export async function createPayrollPayment(
   entryId: number,
   payload: {
     amount: number;
-    method: 'cash';
+    method: FinancePaymentMethod;
     paidAt?: string | null;
     note?: string | null;
   }
@@ -1136,7 +1154,7 @@ export async function createPayrollPayment(
       data: {
         entryId,
         amount,
-        method: 'cash',
+        method: payload.method ?? FinancePaymentMethod.cash,
         paidAt,
         note: payload.note ? String(payload.note).trim() : null
       }
@@ -1150,7 +1168,7 @@ export async function createPayrollPayment(
       category: systemExpenseCategories.payrollPayment,
       type: ExpenseType.variable,
       status: ExpenseStatus.paid,
-      paymentMethod: 'cash',
+      paymentMethod: payload.method ?? FinancePaymentMethod.cash,
       supplierName: entry.employee.user.fullName,
       description: `Paiement salaire - ${entry.employee.user.fullName} - ${entry.period.label}`,
       date: paidAt,

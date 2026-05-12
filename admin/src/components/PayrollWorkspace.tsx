@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
 import { usePosStore } from '../store/usePosStore';
 import { EmployeeProfileInput, PayrollAdjustmentInput, PayrollEntryInput, PayrollPaymentInput, PayrollPeriodInput, PayrollPeriodStatus, SalaryAdvanceInput } from '../types/pos';
+import { useFeedback } from './FeedbackProvider';
 import { WorkspaceShell } from './WorkspaceShell';
 
 type PayrollView = 'employees' | 'periods' | 'advances' | 'adjustments';
@@ -44,6 +45,7 @@ const emptyAdjustmentForm: PayrollAdjustmentInput = {
 };
 
 export function PayrollWorkspace() {
+  const { confirm } = useFeedback();
   const {
     setCurrentModule,
     staffUsers,
@@ -338,7 +340,7 @@ export function PayrollWorkspace() {
                           <div className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Paiement</div>
                           <div className="mt-3 grid gap-3 md:grid-cols-4">
                             <Field label="Montant" type="number" value={String(paymentDraft.amount)} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, amount: Number(value) } }))} placeholder="" />
-                            <SelectField label="Mode" value={paymentDraft.method} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, method: value as PayrollPaymentInput['method'] } }))} options={[['cash', 'Especes']]} />
+                            <SelectField label="Mode" value={paymentDraft.method} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, method: value as PayrollPaymentInput['method'] } }))} options={[['cash', 'Especes'], ['card', 'Carte'], ['transfer', 'Virement']]} />
                             <Field label="Date" type="date" value={paymentDraft.paidAt ?? ''} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, paidAt: value } }))} placeholder="" />
                             <Field label="Note" value={paymentDraft.note ?? ''} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, note: value } }))} placeholder="Optionnel" />
                           </div>
@@ -353,12 +355,20 @@ export function PayrollWorkspace() {
                           <button
                             disabled={!canPayEntry}
                             onClick={async () => {
-                              await addPayrollPayment(entry.id, paymentDraft);
-                              setPayrollPaymentDrafts((current) => {
-                                const next = { ...current };
-                                delete next[entry.id];
-                                return next;
+                              const confirmed = await confirm({
+                                title: 'Valider le paiement salaire ?',
+                                message: `${formatMoney(paymentDraft.amount)} pour ${entry.employeeName}.`,
+                                confirmLabel: 'Valider paiement',
+                                tone: 'info'
                               });
+                              if (confirmed) {
+                                await addPayrollPayment(entry.id, paymentDraft);
+                                setPayrollPaymentDrafts((current) => {
+                                  const next = { ...current };
+                                  delete next[entry.id];
+                                  return next;
+                                });
+                              }
                             }}
                             className="mt-3 rounded-2xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
                           >
@@ -398,7 +408,7 @@ export function PayrollWorkspace() {
               <Field label="Montant avance" type="number" value={String(advanceForm.amount || '')} onChange={(value) => setAdvanceForm((current) => ({ ...current, amount: Number(value) }))} placeholder="Ex: 10000" />
               <Field label="Motif" value={advanceForm.reason} onChange={(value) => setAdvanceForm((current) => ({ ...current, reason: value }))} placeholder="Ex: Avance de fin de semaine" />
               <div className="grid gap-3 md:grid-cols-2">
-                <SelectField label="Paiement" value={advanceForm.method ?? 'cash'} onChange={(value) => setAdvanceForm((current) => ({ ...current, method: value as SalaryAdvanceInput['method'] }))} options={[['cash', 'Especes']]} />
+                <SelectField label="Paiement" value={advanceForm.method ?? 'cash'} onChange={(value) => setAdvanceForm((current) => ({ ...current, method: value as SalaryAdvanceInput['method'] }))} options={[['cash', 'Especes'], ['card', 'Carte'], ['transfer', 'Virement']]} />
                 <Field label="Date" type="date" value={advanceForm.date ?? ''} onChange={(value) => setAdvanceForm((current) => ({ ...current, date: value }))} placeholder="" />
               </div>
               <Field label="Note" value={advanceForm.note ?? ''} onChange={(value) => setAdvanceForm((current) => ({ ...current, note: value }))} placeholder="Optionnel" />
@@ -475,6 +485,18 @@ export function PayrollWorkspace() {
                 <Field label="Montant" type="number" value={String(adjustmentForm.amount || '')} onChange={(value) => setAdjustmentForm((current) => ({ ...current, amount: Number(value) }))} placeholder="Ex: 1500" />
               </div>
               <Field label="Motif" value={adjustmentForm.reason} onChange={(value) => setAdjustmentForm((current) => ({ ...current, reason: value }))} placeholder="Ex: Retard, casse, absence..." />
+              <div className="grid gap-2 sm:grid-cols-3">
+                {['Absence', 'Retard', 'Retenue personnalisee'].map((reason) => (
+                  <button
+                    key={reason}
+                    type="button"
+                    onClick={() => setAdjustmentForm((current) => ({ ...current, reason }))}
+                    className="rounded-2xl bg-zinc-100 px-3 py-2 text-xs font-black text-zinc-700"
+                  >
+                    {reason}
+                  </button>
+                ))}
+              </div>
               <Field label="Date" type="date" value={adjustmentForm.date ?? ''} onChange={(value) => setAdjustmentForm((current) => ({ ...current, date: value }))} placeholder="" />
               <Field label="Note" value={adjustmentForm.note ?? ''} onChange={(value) => setAdjustmentForm((current) => ({ ...current, note: value }))} placeholder="Optionnel" />
               <div className="rounded-2xl bg-brand/10 px-3 py-2 text-xs font-semibold text-brand ring-1 ring-brand/15">

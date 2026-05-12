@@ -225,7 +225,7 @@ adminRouter.delete(
 
 adminRouter.get(
   '/finance/cash-sessions',
-  requirePermission('finance.read', 'finance.write'),
+  requirePermission('finance.read', 'finance.write', 'pos.cashier', 'pos.use'),
   asyncHandler(async (_req, res) => {
     const data = await listCashSessions();
     res.json({ success: true, data });
@@ -234,9 +234,9 @@ adminRouter.get(
 
 adminRouter.post(
   '/finance/cash-sessions',
-  requirePermission('finance.write'),
+  requirePermission('finance.write', 'pos.cashier'),
   asyncHandler(async (req, res) => {
-    const data = await upsertCashSession(req.body);
+    const data = await upsertCashSession({ ...req.body, openedById: req.body.openedById ?? req.authUser?.id ?? null });
     res.status(201).json({ success: true, data });
   })
 );
@@ -245,7 +245,11 @@ adminRouter.put(
   '/finance/cash-sessions/:id',
   requirePermission('finance.write'),
   asyncHandler(async (req, res) => {
-    const data = await upsertCashSession({ ...req.body, id: Number(req.params.id) });
+    const data = await upsertCashSession({
+      ...req.body,
+      id: Number(req.params.id),
+      closedById: req.body.closedById ?? req.authUser?.id ?? null
+    });
     res.json({ success: true, data });
   })
 );

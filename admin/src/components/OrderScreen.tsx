@@ -54,7 +54,8 @@ export function OrderScreen() {
   }, [cart]);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const total = subtotal;
+  const deliveryFee = orderType === 'delivery' ? Math.max(Number(deliveryForm.deliveryFee) || 0, 0) : 0;
+  const total = subtotal + deliveryFee;
   const cartItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const missingTable = orderType === 'dine_in' && !tableNumber.trim();
   const missingDelivery =
@@ -188,6 +189,14 @@ export function OrderScreen() {
                       placeholder="Adresse"
                       className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none md:col-span-2"
                     />
+                    <input
+                      type="number"
+                      min="0"
+                      value={deliveryForm.deliveryFee}
+                      onChange={(event) => setDeliveryForm({ deliveryFee: Number(event.target.value) })}
+                      placeholder="Frais livraison"
+                      className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none md:col-span-2"
+                    />
                   </>
                 )}
               </div>
@@ -212,7 +221,11 @@ export function OrderScreen() {
                 }}
               >
                 <div className="relative z-10 flex items-start justify-between gap-2">
-                  <div className="grid h-10 w-10 place-items-center rounded-2xl text-xl text-white shadow-lg shadow-zinc-950/10" style={{ backgroundColor: product.color }}>{product.icon}</div>
+                  {product.image ? (
+                    <img src={product.image} alt={product.name} className="h-12 w-12 rounded-2xl object-cover shadow-lg shadow-zinc-950/10" />
+                  ) : (
+                    <div className="grid h-10 w-10 place-items-center rounded-2xl text-xl text-white shadow-lg shadow-zinc-950/10" style={{ backgroundColor: product.color }}>{product.icon}</div>
+                  )}
                   {quantity > 0 ? (
                     <div className="rounded-full bg-zinc-950 px-2.5 py-1 text-[11px] font-black text-white">x{quantity}</div>
                   ) : (
@@ -309,6 +322,12 @@ export function OrderScreen() {
             <span>Produits</span>
             <span>{formatMoney(subtotal)}</span>
           </div>
+          {orderType === 'delivery' ? (
+            <div className="flex items-center justify-between text-xs text-white/70">
+              <span>Livraison</span>
+              <span>{formatMoney(deliveryFee)}</span>
+            </div>
+          ) : null}
           <div className="flex items-center justify-between text-lg font-black">
             <span>Total</span>
             <span>{formatMoney(total)}</span>

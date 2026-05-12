@@ -2,7 +2,7 @@
 setlocal
 
 REM === Change this path ===
-set "PROJECT_DIR=C:\Users\X\Documents\folder"
+set "PROJECT_DIR=C:\Users\KING LOOP\Documents\alladhidh"
 
 echo Moving to project folder...
 cd /d "%PROJECT_DIR%" || (

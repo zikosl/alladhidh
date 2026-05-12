@@ -14,7 +14,7 @@ services:
       timeout: 5s
       retries: 8
     networks:
-      - privates
+      - private
 
   backend-migrate:
     build:
@@ -24,8 +24,8 @@ services:
     restart: "no"
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your production environment}@postgres:5432/${POSTGRES_DB:-restaurant_pos}?schema=public
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in your production environment}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-restaurant_pos}?schema=public
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
       LOW_STOCK_THRESHOLD: ${LOW_STOCK_THRESHOLD:-1000}
     depends_on:
       postgres:
@@ -43,7 +43,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your production environment}@postgres:5432/${POSTGRES_DB:-restaurant_pos}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@postgres:5432/${POSTGRES_DB:-restaurant_pos}?schema=public
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:8080}
       LOW_STOCK_THRESHOLD: ${LOW_STOCK_THRESHOLD:-1000}
       JSON_BODY_LIMIT: ${JSON_BODY_LIMIT:-1mb}

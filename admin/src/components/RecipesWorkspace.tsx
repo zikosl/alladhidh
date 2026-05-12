@@ -135,6 +135,15 @@ export function RecipesWorkspace() {
     closeModal();
   }
 
+  function handleImageFile(file: File | null) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setForm((current) => ({ ...current, image: typeof reader.result === 'string' ? reader.result : current.image }));
+    };
+    reader.readAsDataURL(file);
+  }
+
   return (
     <WorkspaceShell
       title="Recettes / Menu"
@@ -353,6 +362,15 @@ export function RecipesWorkspace() {
                       placeholder="Collez un lien image ou laissez vide"
                       className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
                     />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => handleImageFile(event.target.files?.[0] ?? null)}
+                      className="mt-2 w-full rounded-2xl border border-dashed border-zinc-200 bg-white px-3 py-3 text-sm outline-none file:mr-3 file:rounded-full file:border-0 file:bg-zinc-950 file:px-3 file:py-1.5 file:text-xs file:font-black file:text-white"
+                    />
+                    {form.image ? (
+                      <img src={form.image} alt="Apercu recette" className="mt-3 h-32 w-full rounded-2xl object-cover ring-1 ring-zinc-100" />
+                    ) : null}
                   </label>
                 </div>
               </div>

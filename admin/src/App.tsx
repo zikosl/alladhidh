@@ -27,7 +27,18 @@ export default function App() {
 }
 
 function AppContent() {
-  const { currentModule, loading, submitting, lastError, hydrate, refreshLiveData, syncNavigationFromUrl } = usePosStore();
+  const {
+    currentModule,
+    loading,
+    submitting,
+    lastError,
+    alerts,
+    addAlert,
+    markAlertCompleted,
+    hydrate,
+    refreshLiveData,
+    syncNavigationFromUrl
+  } = usePosStore();
   const { user, initialized, bootstrap } = useAuthStore();
   const { toast } = useFeedback();
   const lastToastRef = useRef<string | null>(null);
@@ -160,6 +171,7 @@ function AppContent() {
           </div>
         ) : null}
 
+        <AlertsPanel alerts={alerts} onAdd={addAlert} onComplete={markAlertCompleted} />
         <PwaPrompt
           installPrompt={installPrompt}
           updateRegistration={updateRegistration}
@@ -183,6 +195,97 @@ function AppContent() {
         />
         <BackendBusyOverlay visible={backendBusy || submitting} submitting={submitting} />
       </div>
+    </div>
+  );
+}
+
+function AlertsPanel({
+  alerts,
+  onAdd,
+  onComplete
+}: {
+  alerts: ReturnType<typeof usePosStore.getState>['alerts'];
+  onAdd: ReturnType<typeof usePosStore.getState>['addAlert'];
+  onComplete: ReturnType<typeof usePosStore.getState>['markAlertCompleted'];
+}) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [time, setTime] = useState('09:00');
+  const pendingCount = alerts.filter((alert) => alert.status !== 'completed').length;
+  const history = alerts.slice(0, 12);
+
+  return (
+    <div className="fixed right-4 top-4 z-[75]">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="relative grid h-11 w-11 place-items-center rounded-2xl bg-zinc-950 text-lg text-white shadow-card"
+        aria-label="Rappels"
+      >
+        🔔
+        {pendingCount > 0 ? (
+          <span className="absolute -right-1 -top-1 rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-black text-white">
+            {pendingCount}
+          </span>
+        ) : null}
+      </button>
+      {open ? (
+        <div className="mt-2 w-[min(380px,calc(100vw-2rem))] rounded-[1.4rem] border border-[color:var(--color-border)] bg-[color:var(--color-surface-elevated)] p-3 shadow-card">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-[color:var(--color-text-primary)]">Rappels</div>
+              <div className="text-xs text-[color:var(--color-text-secondary)]">{pendingCount} actif(s)</div>
+            </div>
+            <button type="button" onClick={() => setOpen(false)} className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">
+              Fermer
+            </button>
+          </div>
+          <div className="mt-3 grid gap-2">
+            <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Titre rappel" className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" />
+            <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Description optionnelle" className="min-h-16 rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" />
+            <div className="grid grid-cols-2 gap-2">
+              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" />
+              <input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none" />
+            </div>
+            <button
+              type="button"
+              disabled={!title.trim()}
+              onClick={() => {
+                void onAdd({ title, description: description || null, date, time });
+                setTitle('');
+                setDescription('');
+              }}
+              className="rounded-2xl bg-brand px-3 py-2 text-sm font-black text-white disabled:bg-zinc-300"
+            >
+              Ajouter rappel
+            </button>
+          </div>
+          <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+            {history.map((alert) => (
+              <div key={alert.id} className="rounded-2xl bg-zinc-50 p-3 ring-1 ring-zinc-100">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-black text-zinc-950">{alert.title}</div>
+                    <div className="mt-1 text-xs font-semibold text-zinc-500">{new Date(alert.dueAt).toLocaleString('fr-DZ')}</div>
+                    {alert.description ? <div className="mt-1 text-xs text-zinc-500">{alert.description}</div> : null}
+                  </div>
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-black ${alert.status === 'overdue' ? 'bg-red-50 text-red-600' : alert.status === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                    {alert.status === 'overdue' ? 'Retard' : alert.status === 'completed' ? 'Fait' : 'A faire'}
+                  </span>
+                </div>
+                {alert.status !== 'completed' ? (
+                  <button type="button" onClick={() => void onComplete(alert.id)} className="mt-2 rounded-full bg-zinc-950 px-3 py-1.5 text-xs font-black text-white">
+                    Marquer fait
+                  </button>
+                ) : null}
+              </div>
+            ))}
+            {history.length === 0 ? <div className="rounded-2xl bg-zinc-50 p-4 text-center text-xs font-semibold text-zinc-500">Aucun rappel.</div> : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
 import { adminRouter } from './routes/admin';
+import { alertsRouter } from './routes/alerts';
 import { authRouter } from './routes/auth';
 import { dashboardRouter } from './routes/dashboard';
 import { inventoryRouter } from './routes/inventory';
@@ -60,6 +61,7 @@ app.get('/ready', async (_req, res, next) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api', requireAuth);
+app.use('/api/alerts', alertsRouter);
 app.use('/api/inventory', inventoryRouter);
 app.use('/api/menu-items', menuRouter);
 app.use('/api/recipes', menuRouter);
