@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
+import { numberInputValue, parseNumberInput } from '../lib/numberInput';
 import { EmployeeProfile, MarkOrderLostInput, Order } from '../types/pos';
 import { AppModal } from './AppModal';
 
@@ -78,8 +79,8 @@ export function MarkOrderLostModal({ order, employees, onClose, onConfirm }: Mar
               <input
                 type="number"
                 min={1}
-                value={amount}
-                onChange={(event) => setAmount(Number(event.target.value))}
+                value={numberInputValue(amount)}
+                onChange={(event) => setAmount(parseNumberInput(event.target.value))}
                 className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm font-semibold outline-none"
               />
             </label>

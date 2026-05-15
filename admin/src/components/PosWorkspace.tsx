@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CashierScreen } from './CashierScreen';
 import { DeliveryScreen } from './DeliveryScreen';
 import { OrderScreen } from './OrderScreen';
+import { numberInputValue } from '../lib/numberInput';
 import { usePosStore } from '../store/usePosStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { DeliveryStatus, OrderType, PosScreen } from '../types/pos';
@@ -14,11 +15,37 @@ const posTabs: Array<{ id: VisiblePosScreen; label: string; hint: string }> = [
   { id: 'delivery', label: 'Livraison', hint: 'Suivi' }
 ];
 
+function minutes(value: Date) {
+  return value.getHours() * 60 + value.getMinutes();
+}
+
+function clockMinutes(value: string) {
+  const [hours, mins] = value.split(':').map(Number);
+  return hours * 60 + mins;
+}
+
+function currentShift(shiftTemplates: ReturnType<typeof usePosStore.getState>['shiftTemplates']) {
+  const now = new Date();
+  const current = minutes(now);
+  return shiftTemplates.find((shift) => {
+    if (!shift.isActive) return false;
+    const start = clockMinutes(shift.startTime);
+    const end = clockMinutes(shift.endTime);
+    const crossesMidnight = end <= start;
+    const activeDay = crossesMidnight && current < end ? new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getDay() : now.getDay();
+    if (!shift.activeDays.includes(activeDay)) return false;
+    return crossesMidnight ? current >= start || current < end : current >= start && current < end;
+  }) ?? null;
+}
+
 export function PosWorkspace() {
-  const { posScreen, setPosScreen, setCurrentModule, categories, selectedCategory, setSelectedCategory, orders, cashSessions, saveCashSession } = usePosStore();
+  const { posScreen, setPosScreen, setCurrentModule, categories, selectedCategory, setSelectedCategory, orders, cashSessions, shiftTemplates, saveCashSession } = usePosStore();
   const { hasPermission, user } = useAuthStore();
   const today = new Date().toISOString().slice(0, 10);
-  const openCashSession = cashSessions.find((session) => session.businessDate === today && session.status === 'open');
+  const activeShift = currentShift(shiftTemplates);
+  const openCashSession = activeShift
+    ? cashSessions.find((session) => session.status === 'open' && session.shiftTemplateId === activeShift.id)
+    : null;
   const canOpenCashSession = hasPermission('pos.cashier', 'finance.write');
   const [openingAmount, setOpeningAmount] = useState('');
   const [cashierStatus, setCashierStatus] = useState<'all' | 'pending' | 'preparing' | 'ready' | 'paid' | 'lost'>('all');
@@ -233,7 +260,7 @@ export function PosWorkspace() {
           <div className="mt-3 grid gap-2 md:grid-cols-3">
             <PosMetric label="Commandes actives" value={String(activeOrdersCount)} />
             <PosMetric label="A encaisser" value={`${Math.round(readyToPayTotal).toLocaleString('fr-DZ')} DZD`} />
-            <PosMetric label="Livraisons" value={String(deliveryActiveCount)} />
+            <PosMetric label="Service" value={activeShift ? activeShift.name : 'Aucun'} danger={!activeShift} />
           </div>
         </section>
 
@@ -246,15 +273,18 @@ export function PosWorkspace() {
                 <div className="mx-auto grid h-14 w-14 place-items-center rounded-3xl bg-brand/10 text-2xl">💵</div>
                 <h2 className="mt-3 text-xl font-black text-zinc-950">Ouvrir la caisse</h2>
                 <p className="mt-2 text-sm font-semibold text-zinc-500">
-                  La prise de commande est bloquee tant que la caisse du jour n'est pas ouverte.
+                  La prise de commande est bloquee tant que la caisse du shift courant n'est pas ouverte.
                 </p>
+                <div className="mt-3 rounded-2xl bg-white px-3 py-2 text-xs font-black text-zinc-700 ring-1 ring-zinc-100">
+                  Shift: {activeShift ? `${activeShift.name} · ${activeShift.startTime}-${activeShift.endTime}` : 'Aucun shift actif maintenant'}
+                </div>
                 <div className="mt-4 rounded-3xl bg-zinc-50 p-3 text-left ring-1 ring-zinc-100">
                   <label className="block">
                     <span className="text-xs font-semibold text-zinc-600">Fond de caisse initial</span>
                     <input
                       type="number"
                       min="0"
-                      value={openingAmount}
+                      value={numberInputValue(openingAmount)}
                       onChange={(event) => setOpeningAmount(event.target.value)}
                       placeholder="Ex: 10000"
                       className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm font-semibold outline-none"
@@ -264,16 +294,17 @@ export function PosWorkspace() {
                     onClick={() =>
                       void saveCashSession({
                         businessDate: today,
+                        shiftTemplateId: activeShift?.id ?? null,
                         openingAmount: Number(openingAmount) || 0,
                         status: 'open',
                         openedById: user?.id ?? null,
                         notes: 'Ouverture depuis POS'
                       })
                     }
-                    disabled={!canOpenCashSession}
+                    disabled={!canOpenCashSession || !activeShift}
                     className="mt-3 w-full rounded-2xl bg-brand px-4 py-3 text-sm font-black text-white disabled:bg-zinc-300"
                   >
-                    {canOpenCashSession ? 'Ouvrir la caisse' : 'Caisse non ouverte'}
+                    {canOpenCashSession && activeShift ? 'Ouvrir la caisse' : 'Caisse non ouverte'}
                   </button>
                   {!canOpenCashSession ? (
                     <div className="mt-2 text-center text-xs font-semibold text-zinc-500">

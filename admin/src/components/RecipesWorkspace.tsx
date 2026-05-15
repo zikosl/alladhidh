@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
+import { numberInputValue, parseNumberInput } from '../lib/numberInput';
 import { MeasurementUnit, MenuCategory, MenuItem } from '../types/pos';
 import { usePosStore } from '../store/usePosStore';
 import { AppModal } from './AppModal';
@@ -337,8 +338,8 @@ export function RecipesWorkspace() {
                     <input
                       type="number"
                       min="0"
-                      value={form.estimatedCost}
-                      onChange={(event) => setForm((current) => ({ ...current, estimatedCost: Number(event.target.value) }))}
+                      value={numberInputValue(form.estimatedCost)}
+                      onChange={(event) => setForm((current) => ({ ...current, estimatedCost: parseNumberInput(event.target.value) }))}
                       placeholder="Ex: 420"
                       className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
                     />
@@ -348,8 +349,8 @@ export function RecipesWorkspace() {
                     <input
                       type="number"
                       min="0"
-                      value={form.sellingPrice}
-                      onChange={(event) => setForm((current) => ({ ...current, sellingPrice: Number(event.target.value) }))}
+                      value={numberInputValue(form.sellingPrice)}
+                      onChange={(event) => setForm((current) => ({ ...current, sellingPrice: parseNumberInput(event.target.value) }))}
                       placeholder="Ex: 1200"
                       className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
                     />
@@ -436,12 +437,12 @@ export function RecipesWorkspace() {
                         <input
                           type="number"
                           min="0"
-                          value={ingredient.amountUsed}
+                          value={numberInputValue(ingredient.amountUsed)}
                           onChange={(event) =>
                             setForm((current) => ({
                               ...current,
                               ingredients: current.ingredients.map((entry, entryIndex) =>
-                                entryIndex === index ? { ...entry, amountUsed: Number(event.target.value) } : entry
+                                entryIndex === index ? { ...entry, amountUsed: parseNumberInput(event.target.value) } : entry
                               )
                             }))
                           }

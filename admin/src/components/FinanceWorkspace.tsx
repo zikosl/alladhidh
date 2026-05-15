@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchDashboard } from '../lib/api';
+import { numberInputValue, parseNumberInput } from '../lib/numberInput';
 import { WorkspaceShell } from './WorkspaceShell';
 import { usePosStore } from '../store/usePosStore';
-import { CashSessionInput, DashboardData, ExpenseInput, ExpenseSourceType, ReportFilters } from '../types/pos';
+import { CashSessionInput, DashboardData, ExpenseInput, ExpenseSourceType, FinanceTransaction, ReportFilters } from '../types/pos';
 import { formatMoney } from '../lib/format';
 import { useFeedback } from './FeedbackProvider';
 
 type FinanceView = 'journal' | 'caisse' | 'categories';
 type FinancePeriodFilter = 'today' | 'month' | 'custom';
 type FinanceStatusFilter = 'all' | ExpenseInput['status'];
-type FinanceSourceFilter = 'all' | ExpenseSourceType;
+type FinanceSourceFilter = 'all' | ExpenseSourceType | 'finance' | 'pos' | 'stock' | 'payroll' | 'caisse' | 'orders';
 
 const emptyExpenseForm: ExpenseInput = {
   amount: 0,
@@ -26,6 +27,7 @@ const emptyExpenseForm: ExpenseInput = {
 
 const emptyCashSessionForm: CashSessionInput = {
   businessDate: new Date().toISOString().slice(0, 10),
+  shiftTemplateId: null,
   openingAmount: 0,
   closingAmount: null,
   status: 'open',
@@ -69,8 +71,10 @@ export function FinanceWorkspace() {
     setCurrentModule,
     dashboard,
     expenses,
+    financeTransactions,
     expenseCategories,
     cashSessions,
+    shiftTemplates,
     upsertExpense,
     removeExpense,
     addExpenseCategory,
@@ -93,7 +97,7 @@ export function FinanceWorkspace() {
   const [financeDashboard, setFinanceDashboard] = useState<DashboardData | null>(dashboard);
   const canSaveExpense = expenseForm.amount > 0 && Boolean(expenseForm.categoryId);
   const canSaveCategory = expenseCategoryForm.name.trim().length > 0;
-  const canSaveCashSession = Boolean(cashSessionForm.businessDate) && cashSessionForm.openingAmount >= 0;
+  const canSaveCashSession = Boolean(cashSessionForm.businessDate) && Boolean(cashSessionForm.shiftTemplateId) && cashSessionForm.openingAmount >= 0;
 
   useEffect(() => {
     setFinanceDashboard(dashboard);
@@ -155,21 +159,42 @@ export function FinanceWorkspace() {
     });
   }, [categoryFilter, dateFrom, dateTo, expenses, periodFilter, sourceFilter, statusFilter]);
 
+  const filteredTransactions = useMemo(() => {
+    const now = new Date();
+    return financeTransactions.filter((transaction) => {
+      const date = new Date(transaction.occurredAt);
+      const isoDate = dateOnly(transaction.occurredAt);
+      const matchesPeriod =
+        periodFilter === 'today'
+          ? isSameDay(date, now)
+          : periodFilter === 'month'
+            ? isSameMonth(date, now)
+            : (!dateFrom || isoDate >= dateFrom) && (!dateTo || isoDate <= dateTo);
+      const matchesSource = sourceFilter === 'all' || transaction.sourceModule === sourceFilter || transaction.sourceType === sourceFilter;
+      return matchesPeriod && matchesSource;
+    });
+  }, [dateFrom, dateTo, financeTransactions, periodFilter, sourceFilter]);
+
   const financeStats = useMemo(() => {
-    return filteredExpenses.reduce(
-      (acc, expense) => {
-        if (expense.status === 'paid') {
-          acc.paid += expense.amount;
+    return filteredTransactions.reduce(
+      (acc, transaction) => {
+        if (transaction.status === 'cancelled') return acc;
+        if (transaction.direction === 'in') {
+          acc.in += transaction.amount;
         }
-        if (expense.status !== 'paid' && expense.status !== 'cancelled') {
-          acc.pending += expense.amount;
+        if (transaction.direction === 'out') {
+          acc.out += transaction.amount;
+        }
+        if (transaction.status !== 'paid') {
+          acc.pending += transaction.amount;
           acc.pendingCount += 1;
         }
         return acc;
       },
-      { paid: 0, pending: 0, pendingCount: 0 }
+      { in: 0, out: 0, net: 0, pending: 0, pendingCount: 0 }
     );
-  }, [filteredExpenses]);
+  }, [filteredTransactions]);
+  financeStats.net = financeStats.in - financeStats.out;
 
   const cashSessionStats = useMemo(() => {
     return cashSessions.reduce(
@@ -218,6 +243,7 @@ export function FinanceWorkspace() {
       id: session.id,
       businessDate: session.businessDate,
       openingAmount: session.openingAmount,
+      shiftTemplateId: session.shiftTemplateId,
       closingAmount: session.closingAmount,
       status: session.status,
       notes: session.notes ?? ''
@@ -247,11 +273,11 @@ export function FinanceWorkspace() {
       onChangeView={(next) => setView(next as FinanceView)}
     >
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <MetricPanel label="Paye" value={formatMoney(financeStats.paid)} hint="Regle dans la selection active" />
-        <MetricPanel label="En attente" value={formatMoney(financeStats.pending)} hint={`${financeStats.pendingCount} depense(s) a suivre`} />
+        <MetricPanel label="Entrees" value={formatMoney(financeStats.in)} hint="Encaissements dans la selection" />
+        <MetricPanel label="Sorties" value={formatMoney(financeStats.out)} hint="Achats, charges et paie" />
+        <MetricPanel label="Net finance" value={formatMoney(financeStats.net)} hint={`${filteredTransactions.length} operation(s) tracee(s)`} />
         <MetricPanel label="Ce mois" value={formatMoney(currentMonthExpenses)} hint="Total depenses du mois courant" />
         <MetricPanel label="Tresorerie nette" value={formatMoney(financeDashboard?.financials.cashBenefitTotal ?? 0)} hint="Encaissements - sorties sur la periode" />
-        <MetricPanel label="Caisse attendue" value={formatMoney(financeDashboard?.financials.cashDrawerExpectedTotal ?? cashSessionStats.expected)} hint={`${cashSessionStats.openSessions} caisse(s) ouverte(s)`} />
       </div>
 
       {view === 'journal' ? (
@@ -260,7 +286,7 @@ export function FinanceWorkspace() {
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Depenses</div>
             <h2 className="mt-1 text-xl font-bold text-zinc-950">{editingExpenseId ? 'Modifier une depense' : 'Nouvelle depense'}</h2>
             <div className="mt-4 space-y-3">
-              <Field label="Montant" type="number" value={String(expenseForm.amount || '')} onChange={(value) => setExpenseForm((current) => ({ ...current, amount: Number(value) }))} placeholder="Ex: 12000" />
+              <Field label="Montant" type="number" value={numberInputValue(expenseForm.amount)} onChange={(value) => setExpenseForm((current) => ({ ...current, amount: parseNumberInput(value) }))} placeholder="Ex: 12000" />
               <SelectField
                 label="Categorie"
                 value={String(expenseForm.categoryId ?? 0)}
@@ -304,8 +330,8 @@ export function FinanceWorkspace() {
           </div>
 
           <div className="premium-panel rounded-[1.6rem] p-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Journal</div>
-            <h2 className="mt-1 text-xl font-bold text-zinc-950">Depenses & suivi</h2>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Grand livre</div>
+            <h2 className="mt-1 text-xl font-bold text-zinc-950">Toutes les operations finance</h2>
             <div className="mt-4 rounded-2xl border border-zinc-100 bg-zinc-50 p-3">
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
                 <SelectField
@@ -347,15 +373,17 @@ export function FinanceWorkspace() {
                   onChange={(value) => setSourceFilter(value as FinanceSourceFilter)}
                   options={[
                     ['all', 'Toutes'],
-                    ['manual', 'Manuelle'],
-                    ['stock_purchase', 'Stock'],
-                    ['payroll_payment', 'Paie'],
-                    ['salary_advance', 'Avance']
+                    ['finance', 'Finance'],
+                    ['pos', 'POS'],
+                    ['stock', 'Stock'],
+                    ['payroll', 'Paie'],
+                    ['caisse', 'Caisse'],
+                    ['orders', 'Commandes']
                   ]}
                 />
               </div>
               <div className="mt-3 text-xs font-semibold text-zinc-500">
-                {filteredExpenses.length} depense(s) affichee(s)
+                {filteredTransactions.length} operation(s) affichee(s)
               </div>
             </div>
             {financeDashboard?.charts.cashBenefitPerDay.length ? (
@@ -377,6 +405,46 @@ export function FinanceWorkspace() {
               </div>
             ) : null}
             <div className="mt-4 space-y-3">
+              {filteredTransactions.map((transaction) => (
+                <article key={transaction.id} className="premium-card rounded-2xl p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-sm font-semibold text-zinc-950">{formatFinanceTransactionType(transaction.type)}</div>
+                        <FinanceDirectionBadge transaction={transaction} />
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                        <span>{new Date(transaction.occurredAt).toLocaleString('fr-DZ')}</span>
+                        <span>{formatFinanceModule(transaction.sourceModule)}</span>
+                        <span>{formatFinanceStatus(transaction.status)}</span>
+                        {transaction.paymentMethod ? <span>{formatPaymentMethod(transaction.paymentMethod)}</span> : null}
+                      </div>
+                      {transaction.sourceLabel ? <div className="mt-2 text-xs font-semibold text-zinc-500">Source: {transaction.sourceLabel}</div> : null}
+                      {transaction.employeeName ? <div className="mt-2 text-xs font-semibold text-zinc-500">Employe: {transaction.employeeName}</div> : null}
+                      {transaction.description ? <div className="mt-2 text-sm text-zinc-700">{transaction.description}</div> : null}
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-lg font-black ${transaction.direction === 'in' ? 'text-emerald-700' : transaction.direction === 'out' ? 'text-red-600' : 'text-zinc-950'}`}>
+                        {transaction.direction === 'in' ? '+' : transaction.direction === 'out' ? '-' : ''}
+                        {formatMoney(transaction.amount)}
+                      </div>
+                      <div className="mt-2 rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-500">
+                        Auto journal
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+              {filteredTransactions.length === 0 ? (
+                <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500">
+                  Aucune operation finance ne correspond aux filtres.
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-6 border-t border-zinc-100 pt-4">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Depenses detaillees</div>
+              <div className="mt-3 space-y-3">
               {filteredExpenses.map((expense) => (
                 <article key={expense.id} className="premium-card rounded-2xl p-4">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -427,6 +495,7 @@ export function FinanceWorkspace() {
                   Aucune depense ne correspond aux filtres.
                 </div>
               ) : null}
+              </div>
             </div>
           </div>
         </section>
@@ -436,15 +505,24 @@ export function FinanceWorkspace() {
         <section className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
           <div className="premium-panel rounded-[1.6rem] p-4">
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Caisse</div>
-            <h2 className="mt-1 text-xl font-bold text-zinc-950">{editingCashSessionId ? 'Modifier la caisse' : 'Ouvrir la journee'}</h2>
+            <h2 className="mt-1 text-xl font-bold text-zinc-950">{editingCashSessionId ? 'Modifier la caisse' : 'Ouvrir un service'}</h2>
             <div className="mt-4 space-y-3">
               <Field label="Date caisse" type="date" value={cashSessionForm.businessDate} onChange={(value) => setCashSessionForm((current) => ({ ...current, businessDate: value }))} placeholder="" />
-              <Field label="Fond de caisse" type="number" value={String(cashSessionForm.openingAmount || '')} onChange={(value) => setCashSessionForm((current) => ({ ...current, openingAmount: Number(value) }))} placeholder="Ex: 30000" />
-              <Field label="Cloture comptee" type="number" value={cashSessionForm.closingAmount === null || cashSessionForm.closingAmount === undefined ? '' : String(cashSessionForm.closingAmount)} onChange={(value) => setCashSessionForm((current) => ({ ...current, closingAmount: value === '' ? null : Number(value), status: value === '' ? 'open' : 'closed' }))} placeholder="Optionnel en fin de journee" />
+              <SelectField
+                label="Service"
+                value={String(cashSessionForm.shiftTemplateId ?? 0)}
+                onChange={(value) => setCashSessionForm((current) => ({ ...current, shiftTemplateId: Number(value) || null }))}
+                options={[
+                  ['0', 'Choisir un service'],
+                  ...shiftTemplates.filter((shift) => shift.isActive).map((shift) => [String(shift.id), `${shift.name} · ${shift.startTime}-${shift.endTime}`] as [string, string])
+                ]}
+              />
+              <Field label="Fond de caisse" type="number" value={numberInputValue(cashSessionForm.openingAmount)} onChange={(value) => setCashSessionForm((current) => ({ ...current, openingAmount: parseNumberInput(value) }))} placeholder="Ex: 30000" />
+              <Field label="Cloture comptee" type="number" value={cashSessionForm.closingAmount === null || cashSessionForm.closingAmount === undefined ? '' : numberInputValue(cashSessionForm.closingAmount)} onChange={(value) => setCashSessionForm((current) => ({ ...current, closingAmount: value === '' ? null : parseNumberInput(value), status: value === '' ? 'open' : 'closed' }))} placeholder="Optionnel en fin de journee" />
               <SelectField label="Statut" value={cashSessionForm.status ?? 'open'} onChange={(value) => setCashSessionForm((current) => ({ ...current, status: value as CashSessionInput['status'] }))} options={[['open', 'Ouverte'], ['closed', 'Cloturee']]} />
               <Field label="Note" value={cashSessionForm.notes ?? ''} onChange={(value) => setCashSessionForm((current) => ({ ...current, notes: value }))} placeholder="Ex: rendu monnaie, ecart explique..." />
               <div className="rounded-2xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-                La caisse attendue est calculee automatiquement: fond + especes encaissees - sorties especes.
+                La caisse attendue est calculee automatiquement sur le service: fond + especes encaissees - sorties especes.
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -455,7 +533,7 @@ export function FinanceWorkspace() {
                   }}
                   className="rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
                 >
-                  {editingCashSessionId ? 'Mettre a jour' : 'Enregistrer caisse'}
+                  {editingCashSessionId ? 'Mettre a jour' : 'Ouvrir le service'}
                 </button>
                 <button onClick={resetCashSessionForm} className="rounded-2xl bg-zinc-100 px-4 py-3 text-sm font-black text-zinc-700">Reinitialiser</button>
               </div>
@@ -478,9 +556,13 @@ export function FinanceWorkspace() {
                   <article key={session.id} className="premium-card rounded-2xl p-4">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div>
-                        <div className="text-sm font-semibold text-zinc-950">{new Date(session.businessDate).toLocaleDateString('fr-DZ')}</div>
+                        <div className="text-sm font-semibold text-zinc-950">
+                          {session.shiftName ?? 'Service manuel'} · {new Date(session.businessDate).toLocaleDateString('fr-DZ')}
+                        </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
                           <CashStatusBadge status={session.status} />
+                          {session.shiftStartAt && session.shiftEndAt ? <span>{new Date(session.shiftStartAt).toLocaleTimeString('fr-DZ', { hour: '2-digit', minute: '2-digit' })}-{new Date(session.shiftEndAt).toLocaleTimeString('fr-DZ', { hour: '2-digit', minute: '2-digit' })}</span> : null}
+                          {session.closedBySystem ? <span>Cloture auto</span> : null}
                           <span>In {formatMoney(session.cashIn)}</span>
                           <span>Out {formatMoney(session.cashOut)}</span>
                         </div>
@@ -609,13 +691,17 @@ function SourceBadge({ sourceType }: { sourceType: ExpenseSourceType }) {
     manual: 'Manuelle',
     stock_purchase: 'Auto stock',
     payroll_payment: 'Auto paie',
-    salary_advance: 'Auto avance'
+    salary_advance: 'Auto avance',
+    employee_account_payment: 'Compte paie',
+    employee_account_acompte: 'A compte'
   };
   const toneClass: Record<ExpenseSourceType, string> = {
     manual: 'bg-white text-zinc-600',
     stock_purchase: 'bg-emerald-50 text-emerald-700',
     payroll_payment: 'bg-brand/10 text-brand',
-    salary_advance: 'bg-amber-50 text-amber-700'
+    salary_advance: 'bg-amber-50 text-amber-700',
+    employee_account_payment: 'bg-brand/10 text-brand',
+    employee_account_acompte: 'bg-amber-50 text-amber-700'
   };
   return (
     <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${toneClass[sourceType]}`}>
@@ -634,6 +720,72 @@ function CashStatusBadge({ status }: { status: 'open' | 'closed' }) {
     closed: 'bg-emerald-50 text-emerald-700'
   };
   return <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${toneClass[status]}`}>{labels[status]}</span>;
+}
+
+function formatFinanceTransactionType(type: FinanceTransaction['type']) {
+  const labels: Record<FinanceTransaction['type'], string> = {
+    sale_payment: 'Encaissement vente',
+    stock_purchase: 'Achat stock',
+    manual_expense: 'Depense',
+    payroll_payment: 'Paiement salaire',
+    salary_advance: 'Avance salaire',
+    payroll_adjustment: 'Retenue / penalite',
+    cash_opening: 'Ouverture caisse',
+    cash_closing: 'Cloture caisse',
+    cash_difference: 'Ecart caisse',
+    order_loss: 'Commande perdue',
+    refund: 'Remboursement'
+  };
+  return labels[type];
+}
+
+function formatFinanceModule(module: string) {
+  const labels: Record<string, string> = {
+    finance: 'Finance',
+    pos: 'POS',
+    stock: 'Stock',
+    payroll: 'Paie',
+    caisse: 'Caisse',
+    orders: 'Commandes'
+  };
+  return labels[module] ?? module;
+}
+
+function formatFinanceStatus(status: FinanceTransaction['status']) {
+  const labels: Record<FinanceTransaction['status'], string> = {
+    pending: 'En attente',
+    partial: 'Partiel',
+    paid: 'Valide',
+    cancelled: 'Annule'
+  };
+  return labels[status];
+}
+
+function formatPaymentMethod(method: NonNullable<FinanceTransaction['paymentMethod']>) {
+  const labels: Record<NonNullable<FinanceTransaction['paymentMethod']>, string> = {
+    cash: 'Especes',
+    card: 'Carte',
+    transfer: 'Virement'
+  };
+  return labels[method];
+}
+
+function FinanceDirectionBadge({ transaction }: { transaction: FinanceTransaction }) {
+  const labels: Record<FinanceTransaction['direction'], string> = {
+    in: 'Entree',
+    out: 'Sortie',
+    neutral: 'Neutre'
+  };
+  const toneClass: Record<FinanceTransaction['direction'], string> = {
+    in: 'bg-emerald-50 text-emerald-700',
+    out: 'bg-red-50 text-red-600',
+    neutral: 'bg-zinc-100 text-zinc-600'
+  };
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${toneClass[transaction.direction]}`}>
+      {labels[transaction.direction]}
+    </span>
+  );
 }
 
 function Field({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; type?: string }) {

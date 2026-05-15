@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
+import { numberInputValue, parseNumberInput } from '../lib/numberInput';
 import { usePosStore } from '../store/usePosStore';
 import { AlertBanner, useFeedback } from './FeedbackProvider';
 import { useTheme } from './ThemeProvider';
@@ -192,8 +193,8 @@ export function OrderScreen() {
                     <input
                       type="number"
                       min="0"
-                      value={deliveryForm.deliveryFee}
-                      onChange={(event) => setDeliveryForm({ deliveryFee: Number(event.target.value) })}
+                      value={numberInputValue(deliveryForm.deliveryFee)}
+                      onChange={(event) => setDeliveryForm({ deliveryFee: parseNumberInput(event.target.value) })}
                       placeholder="Frais livraison"
                       className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none md:col-span-2"
                     />
@@ -207,37 +208,74 @@ export function OrderScreen() {
         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {filteredProducts.map((product) => {
             const quantity = cartQuantityByProduct.get(product.id) ?? 0;
-            const productBackground = isDark
-              ? `linear-gradient(155deg, ${product.color}33 0%, rgba(18,15,13,0.94) 66%)`
-              : `linear-gradient(155deg, ${product.color}22 0%, rgba(255,255,255,0.95) 62%)`;
+            const productBackground = product.image
+              ? undefined
+              : isDark
+                ? `radial-gradient(circle at 78% 72%, ${product.color}38 0%, transparent 36%), linear-gradient(155deg, ${product.color}28 0%, rgba(18,15,13,0.96) 68%)`
+                : `radial-gradient(circle at 78% 72%, ${product.color}22 0%, transparent 34%), linear-gradient(155deg, ${product.color}18 0%, rgba(255,255,255,0.96) 66%)`;
 
             return (
               <button
                 key={product.id}
                 onClick={() => addToCart(product)}
-                className="premium-card group min-h-[132px] rounded-[1.55rem] p-3.5 text-left transition hover:-translate-y-1"
+                className={`group relative min-h-[154px] overflow-hidden rounded-[1.7rem] p-3.5 text-left shadow-soft ring-1 transition hover:-translate-y-1 active:translate-y-0 ${
+                  product.image
+                    ? 'bg-zinc-950 text-white ring-white/10'
+                    : 'premium-card text-zinc-950'
+                }`}
                 style={{
                   background: productBackground
                 }}
               >
+                {product.image ? (
+                  <>
+                    <img
+                      src={product.image}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(17,16,14,0.20)_0%,rgba(17,16,14,0.72)_58%,rgba(17,16,14,0.96)_100%)]" />
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_76%,rgba(244,90,36,0.34)_0%,rgba(255,209,47,0.12)_24%,transparent_52%)]" />
+                    <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/50 to-transparent" />
+                  </>
+                ) : (
+                  <div className="pointer-events-none absolute right-[-30px] top-8 h-32 w-32 rounded-full opacity-60 blur-2xl" style={{ backgroundColor: product.color }} />
+                )}
                 <div className="relative z-10 flex items-start justify-between gap-2">
-                  {product.image ? (
-                    <img src={product.image} alt={product.name} className="h-12 w-12 rounded-2xl object-cover shadow-lg shadow-zinc-950/10" />
-                  ) : (
-                    <div className="grid h-10 w-10 place-items-center rounded-2xl text-xl text-white shadow-lg shadow-zinc-950/10" style={{ backgroundColor: product.color }}>{product.icon}</div>
-                  )}
+                  <div className={`grid h-11 w-11 place-items-center rounded-2xl text-lg shadow-lg ${
+                    product.image ? 'bg-black/35 text-white ring-1 ring-white/12 backdrop-blur-md' : 'text-white shadow-zinc-950/10'
+                  }`} style={product.image ? undefined : { backgroundColor: product.color }}>
+                    {product.icon}
+                  </div>
                   {quantity > 0 ? (
-                    <div className="rounded-full bg-zinc-950 px-2.5 py-1 text-[11px] font-black text-white">x{quantity}</div>
+                    <div className="rounded-full bg-brand px-2.5 py-1 text-[11px] font-black text-white shadow-lg shadow-brand/30">x{quantity}</div>
                   ) : (
-                    <div className="max-w-[110px] truncate rounded-full bg-white/75 px-2.5 py-1 text-[10px] font-bold text-zinc-700">
+                    <div className={`max-w-[120px] truncate rounded-full px-2.5 py-1 text-[10px] font-bold ${
+                      product.image ? 'bg-white/14 text-cream ring-1 ring-white/12 backdrop-blur-md' : 'bg-white/75 text-zinc-700'
+                    }`}>
                       {product.category}
                     </div>
                   )}
                 </div>
-                <div className="relative z-10 mt-5 line-clamp-2 text-sm font-black leading-tight text-zinc-950">{product.name}</div>
+                <div className={`relative z-10 mt-8 line-clamp-2 text-base font-black leading-tight tracking-[-0.02em] ${
+                  product.image ? 'text-cream drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)]' : 'text-zinc-950'
+                }`}>
+                  {product.name}
+                </div>
                 <div className="relative z-10 mt-3 flex items-center justify-between">
-                  <div className="text-sm font-black text-zinc-950">{formatMoney(product.price)}</div>
-                  <div className="grid h-8 w-8 place-items-center rounded-full bg-zinc-950 text-sm font-black text-white">+</div>
+                  <div className={`text-base font-black ${
+                    product.image ? 'text-cream drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)]' : 'text-zinc-950'
+                  }`}>
+                    {formatMoney(product.price)}
+                  </div>
+                  <div className={`grid h-9 w-9 place-items-center rounded-full text-base font-black shadow-lg transition group-hover:scale-105 ${
+                    product.image
+                      ? 'bg-white/12 text-white ring-1 ring-white/12 backdrop-blur-md shadow-black/20'
+                      : 'bg-zinc-950 text-white shadow-zinc-950/15'
+                  }`}>
+                    +
+                  </div>
                 </div>
               </button>
             );

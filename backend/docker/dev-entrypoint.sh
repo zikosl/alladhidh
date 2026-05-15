@@ -15,7 +15,7 @@ npm run db:push
 echo "Preparing database schema..."
 npm run db:prepare
 
-echo "Seeding database if needed..."
-npm run db:seed
+# echo "Seeding database if needed..."
+# npm run db:seed
 
 exec npm run dev

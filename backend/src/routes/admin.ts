@@ -18,7 +18,10 @@ import {
 } from '../services/adminService';
 import {
   upsertEmployeeProfile,
+  bulkCreateEmployeeAccountTransactions,
+  createEmployeeAccountTransaction,
   createPayrollAdjustment,
+  createEmployeeAccountPayment,
   createExpense,
   createExpenseCategory,
   createPayrollPayment,
@@ -28,17 +31,24 @@ import {
   deleteExpense,
   deleteExpenseCategory,
   deletePayrollAdjustment,
+  listFinanceTransactions,
   listCashSessions,
   listEmployeeProfiles,
+  listEmployeeAccountSummaries,
   listExpenseCategories,
   listExpenses,
+  getPayrollSettings,
   listPayrollAdjustments,
   listPayrollPeriods,
   listSalaryAdvances,
+  listShiftTemplates,
   upsertCashSession,
   updateExpense,
   updatePayrollEntry,
-  updatePayrollPeriodStatus
+  updatePayrollSettings,
+  updatePayrollPeriodStatus,
+  upsertShiftTemplate,
+  deleteShiftTemplate
 } from '../services/financeService';
 
 export const adminRouter = Router();
@@ -196,6 +206,22 @@ adminRouter.get(
   })
 );
 
+adminRouter.get(
+  '/finance/transactions',
+  requirePermission('finance.read', 'finance.write'),
+  asyncHandler(async (req, res) => {
+    const data = await listFinanceTransactions({
+      dateFrom: req.query.dateFrom ? String(req.query.dateFrom) : undefined,
+      dateTo: req.query.dateTo ? String(req.query.dateTo) : undefined,
+      type: req.query.type ? String(req.query.type) : undefined,
+      direction: req.query.direction ? String(req.query.direction) : undefined,
+      status: req.query.status ? String(req.query.status) : undefined,
+      sourceModule: req.query.sourceModule ? String(req.query.sourceModule) : undefined
+    });
+    res.json({ success: true, data });
+  })
+);
+
 adminRouter.post(
   '/finance/expenses',
   requirePermission('finance.write'),
@@ -229,6 +255,42 @@ adminRouter.get(
   asyncHandler(async (_req, res) => {
     const data = await listCashSessions();
     res.json({ success: true, data });
+  })
+);
+
+adminRouter.get(
+  '/finance/shifts',
+  requirePermission('finance.read', 'finance.write', 'pos.cashier', 'pos.use'),
+  asyncHandler(async (_req, res) => {
+    const data = await listShiftTemplates();
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.post(
+  '/finance/shifts',
+  requirePermission('finance.write'),
+  asyncHandler(async (req, res) => {
+    const data = await upsertShiftTemplate(req.body);
+    res.status(201).json({ success: true, data });
+  })
+);
+
+adminRouter.put(
+  '/finance/shifts/:id',
+  requirePermission('finance.write'),
+  asyncHandler(async (req, res) => {
+    const data = await upsertShiftTemplate({ ...req.body, id: Number(req.params.id) });
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.delete(
+  '/finance/shifts/:id',
+  requirePermission('finance.write'),
+  asyncHandler(async (req, res) => {
+    await deleteShiftTemplate(Number(req.params.id));
+    res.json({ success: true });
   })
 );
 
@@ -278,6 +340,61 @@ adminRouter.put(
   asyncHandler(async (req, res) => {
     const data = await upsertEmployeeProfile(req.body);
     res.json({ success: true, data });
+  })
+);
+
+adminRouter.get(
+  '/payroll/settings',
+  requirePermission('payroll.read', 'payroll.write'),
+  asyncHandler(async (_req, res) => {
+    const data = await getPayrollSettings();
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.put(
+  '/payroll/settings',
+  requirePermission('payroll.write'),
+  asyncHandler(async (req, res) => {
+    const data = await updatePayrollSettings(req.body);
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.get(
+  '/payroll/accounts',
+  requirePermission('payroll.read', 'payroll.write'),
+  asyncHandler(async (_req, res) => {
+    const data = await listEmployeeAccountSummaries();
+    res.json({ success: true, data });
+  })
+);
+
+adminRouter.post(
+  '/payroll/accounts/transactions',
+  requirePermission('payroll.write'),
+  asyncHandler(async (req, res) => {
+    await createEmployeeAccountTransaction(req.body);
+    const data = await listEmployeeAccountSummaries();
+    res.status(201).json({ success: true, data });
+  })
+);
+
+adminRouter.post(
+  '/payroll/accounts/bulk',
+  requirePermission('payroll.write'),
+  asyncHandler(async (req, res) => {
+    const data = await bulkCreateEmployeeAccountTransactions(req.body);
+    res.status(201).json({ success: true, data });
+  })
+);
+
+adminRouter.post(
+  '/payroll/employees/:id/pay',
+  requirePermission('payroll.write'),
+  asyncHandler(async (req, res) => {
+    const data = await createEmployeeAccountPayment(Number(req.params.id), req.body);
+    res.status(201).json({ success: true, data });
   })
 );
 

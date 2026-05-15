@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { formatMoney, formatOrderType } from '../lib/format';
+import { printCustomerInvoice } from '../lib/print';
 import { usePosStore } from '../store/usePosStore';
 import { Order, OrderType, PaymentMethod } from '../types/pos';
 import { AppModal } from './AppModal';
@@ -15,8 +16,8 @@ interface CashierScreenProps {
 }
 
 export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange }: CashierScreenProps) {
-  const { confirm } = useFeedback();
-  const { orders, employeeProfiles, markOrderLost, payOrder } = usePosStore();
+  const { confirm, toast } = useFeedback();
+  const { orders, employeeProfiles, restaurantSettings, markOrderLost, payOrder } = usePosStore();
   const [lostOrder, setLostOrder] = useState<Order | null>(null);
   const [paymentOrder, setPaymentOrder] = useState<Order | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
@@ -110,8 +111,11 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
             </div>
 
             {order.status === 'paid' ? (
-              <div className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-center text-xs font-black text-emerald-700 ring-1 ring-emerald-100">
-                Commande deja payee
+              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div className="rounded-xl bg-emerald-50 px-3 py-2 text-center text-xs font-black text-emerald-700 ring-1 ring-emerald-100">
+                  Commande deja payee
+                </div>
+                <PrintInvoiceButton order={order} settings={restaurantSettings} onToast={toast} />
               </div>
             ) : (
               <>
@@ -120,7 +124,8 @@ export function CashierScreen({ statusFilter, typeFilter, search, onSearchChange
                     Cuisine: {order.status === 'pending' ? 'en attente' : 'en preparation'}
                   </div>
                 ) : null}
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <PrintInvoiceButton order={order} settings={restaurantSettings} onToast={toast} />
                   <button
                     onClick={() => {
                       setPaymentOrder(order);
@@ -239,5 +244,31 @@ function CashierMetric({
       <div className="truncate text-sm font-black leading-none">{value}</div>
       <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.14em]">{label}</div>
     </div>
+  );
+}
+
+function PrintInvoiceButton({
+  order,
+  settings,
+  onToast
+}: {
+  order: Order;
+  settings: ReturnType<typeof usePosStore.getState>['restaurantSettings'];
+  onToast: ReturnType<typeof useFeedback>['toast'];
+}) {
+  return (
+    <button
+      onClick={() => {
+        const didStartPrint = printCustomerInvoice(order, settings);
+        onToast(
+          didStartPrint
+            ? { title: 'Facture prete', message: `Commande #${order.id}`, tone: 'success' }
+            : { title: 'Impression impossible', message: "Le navigateur a bloque l'ouverture de la facture.", tone: 'error' }
+        );
+      }}
+      className="rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-black text-white shadow-soft transition hover:-translate-y-0.5 active:translate-y-0"
+    >
+      Facture
+    </button>
   );
 }

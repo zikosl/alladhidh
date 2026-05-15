@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { printCustomerInvoice, printKitchenTicket } from '../lib/print';
 import { BRAND_NAME, resolveBrandLogoUrl } from '../lib/brand';
+import { numberInputValue, parseNumberInput } from '../lib/numberInput';
 import { WorkspaceShell } from './WorkspaceShell';
 import { usePosStore } from '../store/usePosStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { RestaurantSettings, RestaurantTableInput, StaffUserInput } from '../types/pos';
+import { RestaurantSettings, RestaurantTableInput, ShiftTemplateInput, StaffUserInput } from '../types/pos';
 import { useFeedback } from './FeedbackProvider';
 
-type SettingsView = 'general' | 'tickets' | 'staff' | 'roles' | 'tables';
+type SettingsView = 'general' | 'tickets' | 'staff' | 'roles' | 'tables' | 'shifts';
 
 const defaultSettings: RestaurantSettings = {
   restaurantName: BRAND_NAME,
@@ -52,6 +53,15 @@ const emptyTableForm: RestaurantTableInput = {
   isActive: true
 };
 
+const emptyShiftForm: ShiftTemplateInput = {
+  name: '',
+  startTime: '08:00',
+  endTime: '16:00',
+  activeDays: [0, 1, 2, 3, 4, 5, 6],
+  autoCloseMinutes: 15,
+  isActive: true
+};
+
 export function SettingsWorkspace() {
   const { confirm, toast } = useFeedback();
   const {
@@ -61,6 +71,7 @@ export function SettingsWorkspace() {
     roles,
     permissions,
     restaurantTables,
+    shiftTemplates,
     orders,
     refreshAdminData,
     saveRestaurantSettings,
@@ -68,7 +79,9 @@ export function SettingsWorkspace() {
     resetStaffPasswordForUser,
     saveRolePermissions,
     upsertRestaurantTable,
-    removeRestaurantTable
+    removeRestaurantTable,
+    saveShiftTemplate,
+    removeShiftTemplate
   } = usePosStore();
   const { hasPermission } = useAuthStore();
 
@@ -79,6 +92,8 @@ export function SettingsWorkspace() {
   const [passwordReset, setPasswordReset] = useState<{ userId: number | null; value: string }>({ userId: null, value: '' });
   const [tableForm, setTableForm] = useState<RestaurantTableInput>(emptyTableForm);
   const [editingTableId, setEditingTableId] = useState<number | null>(null);
+  const [shiftForm, setShiftForm] = useState<ShiftTemplateInput>(emptyShiftForm);
+  const [editingShiftId, setEditingShiftId] = useState<number | null>(null);
 
   useEffect(() => {
     void refreshAdminData();
@@ -110,6 +125,9 @@ export function SettingsWorkspace() {
     }
     if (hasPermission('tables.manage')) {
       items.push({ id: 'tables', label: 'Tables', hint: 'Salle & zones' });
+    }
+    if (hasPermission('finance.write')) {
+      items.push({ id: 'shifts', label: 'Services', hint: 'Horaires caisse' });
     }
     return items;
   }, [hasPermission]);
@@ -182,6 +200,34 @@ export function SettingsWorkspace() {
     setTableForm(emptyTableForm);
   }
 
+  function editShift(shiftId: number) {
+    const shift = shiftTemplates.find((entry) => entry.id === shiftId);
+    if (!shift) return;
+    setEditingShiftId(shift.id);
+    setShiftForm({
+      id: shift.id,
+      name: shift.name,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
+      activeDays: shift.activeDays,
+      autoCloseMinutes: shift.autoCloseMinutes,
+      isActive: shift.isActive
+    });
+  }
+
+  function resetShiftForm() {
+    setEditingShiftId(null);
+    setShiftForm(emptyShiftForm);
+  }
+
+  function toggleShiftDay(day: number) {
+    setShiftForm((current) => {
+      const hasDay = current.activeDays.includes(day);
+      const activeDays = hasDay ? current.activeDays.filter((entry) => entry !== day) : [...current.activeDays, day];
+      return { ...current, activeDays: activeDays.sort((left, right) => left - right) };
+    });
+  }
+
   return (
     <WorkspaceShell
       title="Parametres"
@@ -203,8 +249,8 @@ export function SettingsWorkspace() {
               <Field label="Devise" value={settingsForm.currency} onChange={(value) => setSettingsForm((current) => ({ ...current, currency: value }))} placeholder="DZD" />
               <Field
                 label="Seuil alerte stock"
-                value={String(settingsForm.lowStockThreshold)}
-                onChange={(value) => setSettingsForm((current) => ({ ...current, lowStockThreshold: Number(value) }))}
+                value={numberInputValue(settingsForm.lowStockThreshold)}
+                onChange={(value) => setSettingsForm((current) => ({ ...current, lowStockThreshold: parseNumberInput(value) }))}
                 placeholder="Ex: 1000"
                 type="number"
               />
@@ -472,7 +518,7 @@ export function SettingsWorkspace() {
             <div className="mt-4 space-y-3">
               <Field label="Nom / numero" value={tableForm.name} onChange={(value) => setTableForm((current) => ({ ...current, name: value }))} placeholder="Ex: A1, Terrasse 4" />
               <Field label="Zone" value={tableForm.zone ?? ''} onChange={(value) => setTableForm((current) => ({ ...current, zone: value }))} placeholder="Ex: Salle principale" />
-              <Field label="Capacite" type="number" value={String(tableForm.capacity)} onChange={(value) => setTableForm((current) => ({ ...current, capacity: Number(value) }))} placeholder="Ex: 4" />
+              <Field label="Capacite" type="number" value={numberInputValue(tableForm.capacity)} onChange={(value) => setTableForm((current) => ({ ...current, capacity: parseNumberInput(value) }))} placeholder="Ex: 4" />
               <Toggle label="Table active" checked={tableForm.isActive} onChange={(checked) => setTableForm((current) => ({ ...current, isActive: checked }))} />
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -522,6 +568,130 @@ export function SettingsWorkspace() {
                   </div>
                 </article>
               ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {view === 'shifts' && (
+        <section className="grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
+          <div className="premium-panel rounded-[1.6rem] p-4">
+            <SectionTitle label="Services" title={editingShiftId ? 'Modifier un service' : 'Nouveau service'} />
+            <p className="mt-2 text-sm text-zinc-500">
+              La caisse s'ouvre par service. A la fin de l'horaire, elle se cloture automatiquement apres le delai choisi.
+            </p>
+            <div className="mt-4 space-y-3">
+              <Field label="Nom du service" value={shiftForm.name} onChange={(value) => setShiftForm((current) => ({ ...current, name: value }))} placeholder="Ex: Matin, Soir, Nuit" />
+              <div className="grid gap-3 md:grid-cols-2">
+                <Field label="Debut" type="time" value={shiftForm.startTime} onChange={(value) => setShiftForm((current) => ({ ...current, startTime: value }))} placeholder="" />
+                <Field label="Fin" type="time" value={shiftForm.endTime} onChange={(value) => setShiftForm((current) => ({ ...current, endTime: value }))} placeholder="" />
+              </div>
+              <Field
+                label="Cloture auto apres fin"
+                type="number"
+                value={numberInputValue(shiftForm.autoCloseMinutes)}
+                onChange={(value) => setShiftForm((current) => ({ ...current, autoCloseMinutes: parseNumberInput(value) }))}
+                placeholder="Ex: 15 minutes"
+              />
+              <div>
+                <span className="text-xs font-semibold text-zinc-600">Jours actifs</span>
+                <div className="mt-2 grid grid-cols-4 gap-2">
+                  {[
+                    [0, 'Dim'],
+                    [1, 'Lun'],
+                    [2, 'Mar'],
+                    [3, 'Mer'],
+                    [4, 'Jeu'],
+                    [5, 'Ven'],
+                    [6, 'Sam']
+                  ].map(([day, label]) => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => toggleShiftDay(Number(day))}
+                      className={`rounded-2xl px-3 py-2 text-xs font-bold transition ${
+                        shiftForm.activeDays.includes(Number(day))
+                          ? 'bg-ink text-white shadow-soft'
+                          : 'bg-zinc-50 text-zinc-600 ring-1 ring-zinc-100 hover:bg-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <Toggle label="Service actif" checked={shiftForm.isActive} onChange={(checked) => setShiftForm((current) => ({ ...current, isActive: checked }))} />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                disabled={!shiftForm.name.trim() || shiftForm.activeDays.length === 0}
+                onClick={async () => {
+                  await saveShiftTemplate(shiftForm);
+                  resetShiftForm();
+                }}
+                className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
+              >
+                {editingShiftId ? 'Mettre a jour' : 'Creer le service'}
+              </button>
+              <button onClick={resetShiftForm} className="rounded-2xl bg-zinc-100 px-4 py-3 text-sm font-black text-zinc-700">
+                Reinitialiser
+              </button>
+            </div>
+          </div>
+
+          <div className="premium-panel rounded-[1.6rem] p-4">
+            <SectionTitle label="Planning" title="Services de caisse" />
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {shiftTemplates.map((shift) => (
+                <article key={shift.id} className="premium-card rounded-2xl p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-lg font-bold text-zinc-950">{shift.name}</div>
+                      <div className="mt-1 text-xs font-semibold text-zinc-500">
+                        {shift.startTime} → {shift.endTime}
+                      </div>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${shift.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-zinc-200 text-zinc-600'}`}>
+                      {shift.isActive ? 'Actif' : 'Inactif'}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {shift.activeDays.map((day) => (
+                      <span key={day} className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-bold text-zinc-600">
+                        {['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'][day]}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-3 rounded-2xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                    Cloture auto: {shift.autoCloseMinutes} min apres la fin
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button onClick={() => editShift(shift.id)} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-zinc-700">
+                      Modifier
+                    </button>
+                    <button
+                      onClick={() => {
+                        void confirm({
+                          title: 'Supprimer ce service ?',
+                          message: `"${shift.name}" sera desactive s'il contient deja des caisses.`,
+                          confirmLabel: 'Supprimer',
+                          tone: 'danger'
+                        }).then((confirmed) => {
+                          if (confirmed) void removeShiftTemplate(shift.id);
+                        });
+                      }}
+                      className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-600"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                </article>
+              ))}
+              {shiftTemplates.length === 0 ? (
+                <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500 md:col-span-2">
+                  Aucun service configure. Creez au moins un horaire pour ouvrir la caisse POS.
+                </div>
+              ) : null}
             </div>
           </div>
         </section>

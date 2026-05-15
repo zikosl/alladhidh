@@ -9,11 +9,27 @@ export type UserStatus = 'active' | 'disabled';
 export type ExpenseType = 'fixed' | 'variable' | 'exceptional';
 export type ExpenseStatus = 'planned' | 'partial' | 'paid' | 'cancelled';
 export type FinancePaymentMethod = 'cash' | 'card' | 'transfer';
-export type ExpenseSourceType = 'manual' | 'stock_purchase' | 'payroll_payment' | 'salary_advance';
+export type ExpenseSourceType = 'manual' | 'stock_purchase' | 'payroll_payment' | 'salary_advance' | 'employee_account_payment' | 'employee_account_acompte';
 export type EmploymentType = 'monthly' | 'daily' | 'hourly';
 export type PayrollPeriodStatus = 'draft' | 'validated' | 'paid';
 export type PayrollAdjustmentType = 'deduction' | 'penalty';
+export type PayrollPaymentMode = 'daily' | 'weekly' | 'monthly';
+export type EmployeeAccountTransactionType = 'acompte' | 'personal_deduction' | 'lost_deduction' | 'payment' | 'bonus';
 export type CashSessionStatus = 'open' | 'closed';
+export type FinanceTransactionType =
+  | 'sale_payment'
+  | 'stock_purchase'
+  | 'manual_expense'
+  | 'payroll_payment'
+  | 'salary_advance'
+  | 'payroll_adjustment'
+  | 'cash_opening'
+  | 'cash_closing'
+  | 'cash_difference'
+  | 'order_loss'
+  | 'refund';
+export type FinanceDirection = 'in' | 'out' | 'neutral';
+export type FinanceTransactionStatus = 'pending' | 'partial' | 'paid' | 'cancelled';
 export type MeasurementType = 'portion' | 'weight' | 'volume';
 export type InventoryUsageType = 'recipe_only' | 'direct_sale' | 'both';
 export type ProductSourceType = 'recipe' | 'direct_stock';
@@ -185,9 +201,9 @@ export interface ExpenseInput {
 
 export interface EmployeeProfile {
   id: number;
-  userId: number;
+  userId: number | null;
   fullName: string;
-  username: string;
+  username: string | null;
   roleName: string;
   position: string | null;
   employmentType: EmploymentType;
@@ -199,7 +215,8 @@ export interface EmployeeProfile {
 
 export interface EmployeeProfileInput {
   id?: number;
-  userId: number;
+  userId?: number | null;
+  fullName?: string | null;
   position?: string | null;
   employmentType: EmploymentType;
   baseSalary: number;
@@ -226,6 +243,65 @@ export interface SalaryAdvanceInput {
   method?: FinancePaymentMethod;
   note?: string | null;
   date?: string | null;
+}
+
+export interface PayrollSettings {
+  paymentMode: PayrollPaymentMode;
+  defaultDailyAmount: number;
+  monthlyDivisor: number;
+  allowNegativeBalance: boolean;
+  autoDeductAcompte: boolean;
+}
+
+export interface EmployeeAccountTransaction {
+  id: number;
+  employeeId: number;
+  employeeName: string;
+  type: EmployeeAccountTransactionType;
+  amount: number;
+  impact: number;
+  label: string;
+  note: string | null;
+  occurredAt: string;
+  createdAt: string;
+}
+
+export interface EmployeeAccount {
+  employeeId: number;
+  userId: number;
+  fullName: string;
+  roleName: string;
+  position: string | null;
+  employmentType: EmploymentType;
+  baseSalary: number;
+  isActive: boolean;
+  dueAmount: number;
+  accountBalance: number;
+  finalPayment: number;
+  acompteTotal: number;
+  deductionTotal: number;
+  paidTotal: number;
+  bonusTotal: number;
+  lastTransactionAt: string | null;
+  transactions: EmployeeAccountTransaction[];
+}
+
+export interface EmployeeAccountTransactionInput {
+  employeeId: number;
+  type: EmployeeAccountTransactionType;
+  amount: number;
+  label?: string | null;
+  note?: string | null;
+  occurredAt?: string | null;
+}
+
+export interface EmployeeAccountBulkInput {
+  employeeIds: number[];
+  type: EmployeeAccountTransactionType;
+  amount?: number | null;
+  label?: string | null;
+  note?: string | null;
+  occurredAt?: string | null;
 }
 
 export interface PayrollAdjustment {
@@ -301,6 +377,12 @@ export interface PayrollPeriod {
 export interface CashSession {
   id: number;
   businessDate: string;
+  shiftTemplateId: number | null;
+  shiftName: string | null;
+  shiftStartAt: string | null;
+  shiftEndAt: string | null;
+  autoCloseAt: string | null;
+  closedBySystem: boolean;
   openingAmount: number;
   closingAmount: number | null;
   cashIn: number;
@@ -320,12 +402,59 @@ export interface CashSession {
 export interface CashSessionInput {
   id?: number;
   businessDate: string;
+  shiftTemplateId?: number | null;
   openingAmount: number;
   closingAmount?: number | null;
   status?: CashSessionStatus;
   openedById?: number | null;
   closedById?: number | null;
   notes?: string | null;
+}
+
+export interface ShiftTemplate {
+  id: number;
+  name: string;
+  startTime: string;
+  endTime: string;
+  activeDays: number[];
+  autoCloseMinutes: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShiftTemplateInput {
+  id?: number;
+  name: string;
+  startTime: string;
+  endTime: string;
+  activeDays: number[];
+  autoCloseMinutes: number;
+  isActive: boolean;
+}
+
+export interface FinanceTransaction {
+  id: number;
+  type: FinanceTransactionType;
+  direction: FinanceDirection;
+  amount: number;
+  status: FinanceTransactionStatus;
+  paymentMethod: FinancePaymentMethod | null;
+  sourceModule: string;
+  sourceType: string;
+  sourceId: number | null;
+  sourceLabel: string | null;
+  description: string | null;
+  cashSessionId: number | null;
+  cashSessionLabel: string | null;
+  employeeId: number | null;
+  employeeName: string | null;
+  orderId: number | null;
+  expenseId: number | null;
+  createdById: number | null;
+  createdByName: string | null;
+  occurredAt: string;
+  createdAt: string;
 }
 
 export interface PayrollPeriodInput {

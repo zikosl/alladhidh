@@ -180,8 +180,8 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
   const paidExpenseCurrent = sum(activeExpenses.filter((expense) => expense.status === 'paid').map((expense) => Number(expense.amount)));
   const paidExpensePrevious = sum(previousActiveExpenses.filter((expense) => expense.status === 'paid').map((expense) => Number(expense.amount)));
   const stockPurchaseExpenseCurrent = sum(activeExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.stock_purchase).map((expense) => Number(expense.amount)));
-  const payrollPaymentExpenseCurrent = sum(activeExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.payroll_payment).map((expense) => Number(expense.amount)));
-  const salaryAdvanceExpenseCurrent = sum(activeExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.salary_advance).map((expense) => Number(expense.amount)));
+  const payrollPaymentExpenseCurrent = sum(activeExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.payroll_payment || expense.sourceType === ExpenseSourceType.employee_account_payment).map((expense) => Number(expense.amount)));
+  const salaryAdvanceExpenseCurrent = sum(activeExpenses.filter((expense) => expense.sourceType === ExpenseSourceType.salary_advance || expense.sourceType === ExpenseSourceType.employee_account_acompte).map((expense) => Number(expense.amount)));
   const paidCashExpenseCurrent = sum(activeExpenses.filter((expense) => expense.status === 'paid' && expense.paymentMethod === 'cash').map((expense) => Number(expense.amount)));
   const cashRevenueCurrent = sum(salePayments.map((payment) => Number(payment.amount)));
   const cashRevenuePrevious = sum(previousSalePayments.map((payment) => Number(payment.amount)));
@@ -376,7 +376,7 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
     for (const entry of period.entries) {
       const existing = payrollByEmployeeMap.get(entry.employeeId) ?? {
         employeeId: entry.employeeId,
-        employeeName: entry.employee.user.fullName,
+        employeeName: (entry.employee.user?.fullName ?? entry.employee.fullName ?? 'Employe'),
         payrollTotal: 0,
         paidTotal: 0,
         deductionsTotal: 0,
@@ -390,7 +390,7 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
     const employeeId = payment.entry.employeeId;
     const existing = payrollByEmployeeMap.get(employeeId) ?? {
       employeeId,
-      employeeName: payment.entry.employee.user.fullName,
+      employeeName: payment.entry.employee.user?.fullName ?? payment.entry.employee.fullName ?? 'Employe',
       payrollTotal: 0,
       paidTotal: 0,
       deductionsTotal: 0,
@@ -403,7 +403,7 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
     const employeeId = adjustment.employeeId;
     const existing = payrollByEmployeeMap.get(employeeId) ?? {
       employeeId,
-      employeeName: adjustment.employee.user.fullName,
+      employeeName: (adjustment.employee.user?.fullName ?? adjustment.employee.fullName ?? 'Employe'),
       payrollTotal: 0,
       paidTotal: 0,
       deductionsTotal: 0,
@@ -468,10 +468,10 @@ export async function getDashboardData(filters?: Partial<ReportFilters>) {
     if (expense.sourceType === ExpenseSourceType.stock_purchase) {
       row.stockPurchases += amount;
     }
-    if (expense.sourceType === ExpenseSourceType.payroll_payment) {
+    if (expense.sourceType === ExpenseSourceType.payroll_payment || expense.sourceType === ExpenseSourceType.employee_account_payment) {
       row.payrollPaid += amount;
     }
-    if (expense.sourceType === ExpenseSourceType.salary_advance) {
+    if (expense.sourceType === ExpenseSourceType.salary_advance || expense.sourceType === ExpenseSourceType.employee_account_acompte) {
       row.salaryAdvances += amount;
     }
   }

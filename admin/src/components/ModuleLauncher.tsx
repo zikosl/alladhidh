@@ -14,72 +14,72 @@ const moduleCards: Array<{
   accent: string;
   priority?: boolean;
 }> = [
-  {
-    id: 'inventory',
-    icon: '📦',
-    title: 'Stock',
-    hint: 'Matières & alertes',
-    description: 'Entrées, pertes et ruptures critiques.',
-    accent: 'var(--gradient-stock)'
-  },
-  {
-    id: 'pos',
-    icon: '🧾',
-    title: 'Point de vente',
-    hint: 'Commande rapide',
-    description: 'Caisse, cuisine, paiement et livraison.',
-    accent: 'var(--gradient-flame)',
-    priority: true
-  },
-  {
-    id: 'recipes',
-    icon: '🍔',
-    title: 'Recettes',
-    hint: 'Menu & marges',
-    description: 'Articles vendables, coûts et prix.',
-    accent: 'var(--gradient-recipes)'
-  },
-  {
-    id: 'sales',
-    icon: '📋',
-    title: 'Commandes',
-    hint: 'Tickets & factures',
-    description: 'Historique, annulations et impression.',
-    accent: 'var(--gradient-sales)'
-  },
-  {
-    id: 'reports',
-    icon: '📊',
-    title: 'Rapports',
-    hint: 'Ventes & profit',
-    description: 'CA, marges, pertes et décisions.',
-    accent: 'var(--gradient-reports)'
-  },
-  {
-    id: 'finance',
-    icon: '💸',
-    title: 'Finance',
-    hint: 'Dépenses',
-    description: 'Charges, achats stock et trésorerie.',
-    accent: 'var(--gradient-finance)'
-  },
-  {
-    id: 'payroll',
-    icon: '👥',
-    title: 'Paie',
-    hint: 'Personnel',
-    description: 'Avances, périodes et paiements staff.',
-    accent: 'var(--gradient-payroll)'
-  },
-  {
-    id: 'settings',
-    icon: '⚙️',
-    title: 'Paramètres',
-    hint: 'Accès & système',
-    description: 'Rôles, tables, tickets et sécurité.',
-    accent: 'var(--gradient-settings)'
-  }
-];
+    {
+      id: 'inventory',
+      icon: '📦',
+      title: 'Stock',
+      hint: 'Matières & alertes',
+      description: 'Entrées, pertes et ruptures critiques.',
+      accent: 'var(--gradient-stock)'
+    },
+    {
+      id: 'pos',
+      icon: '🧾',
+      title: 'Point de vente',
+      hint: 'Commande rapide',
+      description: 'Caisse, cuisine, paiement et livraison.',
+      accent: 'var(--gradient-flame)',
+      priority: true
+    },
+    {
+      id: 'recipes',
+      icon: '🍔',
+      title: 'Recettes',
+      hint: 'Menu & marges',
+      description: 'Articles vendables, coûts et prix.',
+      accent: 'var(--gradient-recipes)'
+    },
+    {
+      id: 'sales',
+      icon: '📋',
+      title: 'Commandes',
+      hint: 'Tickets & factures',
+      description: 'Historique, annulations et impression.',
+      accent: 'var(--gradient-sales)'
+    },
+    {
+      id: 'reports',
+      icon: '📊',
+      title: 'Rapports',
+      hint: 'Ventes & profit',
+      description: 'CA, marges, pertes et décisions.',
+      accent: 'var(--gradient-reports)'
+    },
+    {
+      id: 'finance',
+      icon: '💸',
+      title: 'Finance',
+      hint: 'Dépenses',
+      description: 'Charges, achats stock et trésorerie.',
+      accent: 'var(--gradient-finance)'
+    },
+    {
+      id: 'payroll',
+      icon: '👥',
+      title: 'Paie',
+      hint: 'Personnel',
+      description: 'Avances, périodes et paiements staff.',
+      accent: 'var(--gradient-payroll)'
+    },
+    {
+      id: 'settings',
+      icon: '⚙️',
+      title: 'Paramètres',
+      hint: 'Accès & système',
+      description: 'Rôles, tables, tickets et sécurité.',
+      accent: 'var(--gradient-settings)'
+    }
+  ];
 
 export function ModuleLauncher() {
   const { setCurrentModule } = usePosStore();
@@ -131,13 +131,13 @@ export function ModuleLauncher() {
           <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <BrandLogo size={58} showName className="[&_div_div:first-child]:text-white [&_div_div:last-child]:text-amber-200" />
             <div className="flex flex-wrap items-center gap-2">
-              <label className="flex min-h-10 w-full min-w-[220px] items-center gap-2 rounded-2xl bg-white/10 px-3 ring-1 ring-white/15 sm:w-auto">
-                <span className="text-white/45">⌕</span>
+              <label className="flex min-h-10 w-full min-w-[260px] items-center gap-2 rounded-[1.35rem] border border-white/15 bg-white/[0.13] px-3 shadow-inner shadow-white/5 backdrop-blur-md transition focus-within:border-amber-200/55 focus-within:bg-white/[0.18] focus-within:ring-4 focus-within:ring-amber-200/10 sm:w-[320px]">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-sm text-amber-100/70">⌕</span>
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Rechercher un module..."
-                  className="w-full bg-transparent text-sm font-semibold text-white outline-none placeholder:text-white/40"
+                  className="min-w-0 flex-1 !bg-transparent border-0 px-0 py-2 text-sm font-semibold text-white caret-amber-200 outline-none placeholder:text-white/48 shadow-none"
                 />
               </label>
               <button onClick={toggleTheme} className="rounded-2xl bg-white/10 px-3 py-2 text-xs font-black text-white ring-1 ring-white/15">
@@ -182,9 +182,8 @@ export function ModuleLauncher() {
           <button
             key={card.id}
             onClick={() => setCurrentModule(card.id)}
-            className={`premium-card module-card-glow group min-h-[148px] rounded-[1.6rem] p-3.5 text-left transition hover:-translate-y-1 hover:scale-[1.01] ${
-              card.priority ? 'ring-2 ring-brand/20' : ''
-            }`}
+            className={`premium-card module-card-glow group min-h-[148px] rounded-[1.6rem] p-3.5 text-left transition hover:-translate-y-1 hover:scale-[1.01] ${card.priority ? 'ring-2 ring-brand/20' : ''
+              }`}
           >
             <div className="relative z-10 flex items-start justify-between gap-3">
               <div

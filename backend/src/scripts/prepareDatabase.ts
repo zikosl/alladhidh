@@ -1,6 +1,14 @@
 import { prisma } from '../lib/prisma';
 import { hashPassword } from '../lib/security';
 
+function startOfDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 0, 0, 0, 0);
+}
+
+function dateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
+}
+
 async function main() {
   const permissions = [
     ['inventory.read', 'Lecture stock', 'stock'],
@@ -116,6 +124,19 @@ async function main() {
     }
   });
 
+  await prisma.payrollSettings.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      id: 1,
+      paymentMode: 'daily',
+      defaultDailyAmount: 0,
+      monthlyDivisor: 30,
+      allowNegativeBalance: true,
+      autoDeductAcompte: true
+    }
+  });
+
   const defaultTables = [
     { name: 'A1', zone: 'Salle principale', capacity: 4 },
     { name: 'A2', zone: 'Salle principale', capacity: 4 },
@@ -128,6 +149,29 @@ async function main() {
       where: { name: table.name },
       update: {},
       create: table
+    });
+  }
+
+  const defaultShifts = [
+    { name: 'Matin', startTime: '08:00', endTime: '16:00', autoCloseMinutes: 15 },
+    { name: 'Soir', startTime: '16:00', endTime: '00:00', autoCloseMinutes: 15 }
+  ];
+
+  for (const shift of defaultShifts) {
+    await prisma.shiftTemplate.upsert({
+      where: { name: shift.name },
+      update: {
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        activeDays: '0,1,2,3,4,5,6',
+        autoCloseMinutes: shift.autoCloseMinutes,
+        isActive: true
+      },
+      create: {
+        ...shift,
+        activeDays: '0,1,2,3,4,5,6',
+        isActive: true
+      }
     });
   }
 
@@ -238,6 +282,224 @@ async function main() {
         isActive: user.status === 'active'
       }
     });
+  }
+
+  const cashSessions = await prisma.cashSession.findMany();
+  const cashSessionByDate = new Map(cashSessions.map((session) => [dateOnly(session.businessDate), session]));
+
+  const payments = await prisma.payment.findMany({
+    include: { sale: true }
+  });
+  for (const payment of payments) {
+    const session = cashSessionByDate.get(dateOnly(startOfDay(payment.createdAt)));
+    await prisma.financeTransaction.upsert({
+      where: {
+        type_sourceModule_sourceId: {
+          type: 'sale_payment',
+          sourceModule: 'pos',
+          sourceId: payment.id
+        }
+      },
+      update: {
+        direction: 'in',
+        amount: payment.amount,
+        status: 'paid',
+        paymentMethod: payment.method,
+        sourceLabel: `Commande #${payment.saleId}`,
+        description: `Encaissement commande #${payment.saleId}`,
+        cashSessionId: session?.id ?? null,
+        orderId: payment.saleId,
+        occurredAt: payment.createdAt
+      },
+      create: {
+        type: 'sale_payment',
+        direction: 'in',
+        amount: payment.amount,
+        status: 'paid',
+        paymentMethod: payment.method,
+        sourceModule: 'pos',
+        sourceType: 'payment',
+        sourceId: payment.id,
+        sourceLabel: `Commande #${payment.saleId}`,
+        description: `Encaissement commande #${payment.saleId}`,
+        cashSessionId: session?.id ?? null,
+        orderId: payment.saleId,
+        occurredAt: payment.createdAt
+      }
+    });
+  }
+
+  const expenses = await prisma.expense.findMany();
+  for (const expense of expenses) {
+    const type =
+      expense.sourceType === 'stock_purchase'
+        ? 'stock_purchase'
+        : expense.sourceType === 'payroll_payment'
+          ? 'payroll_payment'
+          : expense.sourceType === 'salary_advance'
+            ? 'salary_advance'
+            : 'manual_expense';
+    const sourceModule =
+      expense.sourceType === 'stock_purchase'
+        ? 'stock'
+        : expense.sourceType === 'manual'
+          ? 'finance'
+          : 'payroll';
+    const status =
+      expense.status === 'planned' ? 'pending' : expense.status === 'partial' ? 'partial' : expense.status === 'cancelled' ? 'cancelled' : 'paid';
+    const session = cashSessionByDate.get(dateOnly(startOfDay(expense.date)));
+    await prisma.financeTransaction.upsert({
+      where: {
+        type_sourceModule_sourceId: {
+          type,
+          sourceModule,
+          sourceId: expense.sourceType === 'manual' ? expense.id : expense.sourceId ?? expense.id
+        }
+      },
+      update: {
+        direction: 'out',
+        amount: expense.amount,
+        status,
+        paymentMethod: expense.paymentMethod,
+        sourceLabel: expense.sourceLabel ?? expense.category,
+        description: expense.description,
+        cashSessionId: session?.id ?? null,
+        expenseId: expense.id,
+        occurredAt: expense.date
+      },
+      create: {
+        type,
+        direction: 'out',
+        amount: expense.amount,
+        status,
+        paymentMethod: expense.paymentMethod,
+        sourceModule,
+        sourceType: expense.sourceType,
+        sourceId: expense.sourceType === 'manual' ? expense.id : expense.sourceId ?? expense.id,
+        sourceLabel: expense.sourceLabel ?? expense.category,
+        description: expense.description,
+        cashSessionId: session?.id ?? null,
+        expenseId: expense.id,
+        occurredAt: expense.date
+      }
+    });
+  }
+
+  const payrollAdjustments = await prisma.payrollAdjustment.findMany({
+    include: {
+      employee: {
+        include: { user: true }
+      }
+    }
+  });
+  for (const adjustment of payrollAdjustments) {
+    await prisma.financeTransaction.upsert({
+      where: {
+        type_sourceModule_sourceId: {
+          type: 'payroll_adjustment',
+          sourceModule: 'payroll',
+          sourceId: adjustment.id
+        }
+      },
+      update: {
+        direction: 'neutral',
+        amount: adjustment.amount,
+        status: 'paid',
+        sourceType: adjustment.type,
+        sourceLabel: (adjustment.employee.user?.fullName ?? adjustment.employee.fullName ?? 'Employe'),
+        description: `${adjustment.type === 'penalty' ? 'Penalite' : 'Retenue'} - ${adjustment.reason}`,
+        employeeId: adjustment.employeeId,
+        occurredAt: adjustment.date
+      },
+      create: {
+        type: 'payroll_adjustment',
+        direction: 'neutral',
+        amount: adjustment.amount,
+        status: 'paid',
+        sourceModule: 'payroll',
+        sourceType: adjustment.type,
+        sourceId: adjustment.id,
+        sourceLabel: (adjustment.employee.user?.fullName ?? adjustment.employee.fullName ?? 'Employe'),
+        description: `${adjustment.type === 'penalty' ? 'Penalite' : 'Retenue'} - ${adjustment.reason}`,
+        employeeId: adjustment.employeeId,
+        occurredAt: adjustment.date
+      }
+    });
+  }
+
+  for (const session of cashSessions) {
+    await prisma.financeTransaction.upsert({
+      where: {
+        type_sourceModule_sourceId: {
+          type: 'cash_opening',
+          sourceModule: 'caisse',
+          sourceId: session.id
+        }
+      },
+      update: {
+        direction: 'neutral',
+        amount: session.openingAmount,
+        status: 'paid',
+        paymentMethod: 'cash',
+        sourceLabel: dateOnly(session.businessDate),
+        description: `Ouverture caisse - ${dateOnly(session.businessDate)}`,
+        cashSessionId: session.id,
+        createdById: session.openedById,
+        occurredAt: session.openedAt
+      },
+      create: {
+        type: 'cash_opening',
+        direction: 'neutral',
+        amount: session.openingAmount,
+        status: 'paid',
+        paymentMethod: 'cash',
+        sourceModule: 'caisse',
+        sourceType: 'cash_session',
+        sourceId: session.id,
+        sourceLabel: dateOnly(session.businessDate),
+        description: `Ouverture caisse - ${dateOnly(session.businessDate)}`,
+        cashSessionId: session.id,
+        createdById: session.openedById,
+        occurredAt: session.openedAt
+      }
+    });
+    if (session.status === 'closed') {
+      await prisma.financeTransaction.upsert({
+        where: {
+          type_sourceModule_sourceId: {
+            type: 'cash_closing',
+            sourceModule: 'caisse',
+            sourceId: session.id
+          }
+        },
+        update: {
+          direction: 'neutral',
+          amount: session.closingAmount ?? 0,
+          status: 'paid',
+          paymentMethod: 'cash',
+          sourceLabel: dateOnly(session.businessDate),
+          description: `Cloture caisse - ${dateOnly(session.businessDate)}`,
+          cashSessionId: session.id,
+          createdById: session.closedById,
+          occurredAt: session.closedAt ?? session.updatedAt
+        },
+        create: {
+          type: 'cash_closing',
+          direction: 'neutral',
+          amount: session.closingAmount ?? 0,
+          status: 'paid',
+          paymentMethod: 'cash',
+          sourceModule: 'caisse',
+          sourceType: 'cash_session',
+          sourceId: session.id,
+          sourceLabel: dateOnly(session.businessDate),
+          description: `Cloture caisse - ${dateOnly(session.businessDate)}`,
+          cashSessionId: session.id,
+          createdById: session.closedById,
+          occurredAt: session.closedAt ?? session.updatedAt
+        }
+      });
+    }
   }
 
   console.log('Database stock constraints and security defaults are ready.');

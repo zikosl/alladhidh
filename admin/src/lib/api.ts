@@ -7,17 +7,22 @@ import {
   CashSession,
   CashSessionInput,
   DashboardData,
+  EmployeeAccount,
+  EmployeeAccountBulkInput,
+  EmployeeAccountTransactionInput,
   EmployeeProfile,
   EmployeeProfileInput,
   Expense,
   ExpenseCategory,
   ExpenseInput,
+  FinanceTransaction,
   PayrollEntryInput,
   PayrollAdjustment,
   PayrollAdjustmentInput,
   PayrollPaymentInput,
   PayrollPeriod,
   PayrollPeriodInput,
+  PayrollSettings,
   InventoryCategory,
   InventoryItem,
   InventoryItemInput,
@@ -37,6 +42,8 @@ import {
   Role,
   SalaryAdvance,
   SalaryAdvanceInput,
+  ShiftTemplate,
+  ShiftTemplateInput,
   StockEntryInput,
   StockLossInput,
   StockMovement,
@@ -372,6 +379,20 @@ export async function fetchExpenses() {
   return response.data.data;
 }
 
+export async function fetchFinanceTransactions(params?: {
+  dateFrom?: string;
+  dateTo?: string;
+  type?: string;
+  direction?: string;
+  status?: string;
+  sourceModule?: string;
+}) {
+  const response = await api.get<{ success: boolean; data: FinanceTransaction[] }>('/admin/finance/transactions', {
+    params
+  });
+  return response.data.data;
+}
+
 export async function createExpense(payload: ExpenseInput) {
   const response = await api.post<{ success: boolean; data: Expense }>('/admin/finance/expenses', payload);
   return response.data.data;
@@ -389,6 +410,22 @@ export async function deleteExpense(id: number) {
 export async function fetchCashSessions() {
   const response = await api.get<{ success: boolean; data: CashSession[] }>('/admin/finance/cash-sessions');
   return response.data.data;
+}
+
+export async function fetchShiftTemplates() {
+  const response = await api.get<{ success: boolean; data: ShiftTemplate[] }>('/admin/finance/shifts');
+  return response.data.data;
+}
+
+export async function upsertShiftTemplate(payload: ShiftTemplateInput) {
+  const response = payload.id
+    ? await api.put<{ success: boolean; data: ShiftTemplate }>(`/admin/finance/shifts/${payload.id}`, payload)
+    : await api.post<{ success: boolean; data: ShiftTemplate }>('/admin/finance/shifts', payload);
+  return response.data.data;
+}
+
+export async function deleteShiftTemplate(id: number) {
+  await api.delete(`/admin/finance/shifts/${id}`);
 }
 
 export async function upsertCashSession(payload: CashSessionInput) {
@@ -409,6 +446,31 @@ export async function fetchEmployeeProfiles() {
 
 export async function upsertEmployeeProfile(payload: EmployeeProfileInput) {
   const response = await api.put<{ success: boolean; data: EmployeeProfile }>('/admin/payroll/employees', payload);
+  return response.data.data;
+}
+
+export async function fetchPayrollSettings() {
+  const response = await api.get<{ success: boolean; data: PayrollSettings }>('/admin/payroll/settings');
+  return response.data.data;
+}
+
+export async function updatePayrollSettings(payload: PayrollSettings) {
+  const response = await api.put<{ success: boolean; data: PayrollSettings }>('/admin/payroll/settings', payload);
+  return response.data.data;
+}
+
+export async function fetchEmployeeAccounts() {
+  const response = await api.get<{ success: boolean; data: EmployeeAccount[] }>('/admin/payroll/accounts');
+  return response.data.data;
+}
+
+export async function createEmployeeAccountTransaction(payload: EmployeeAccountTransactionInput) {
+  const response = await api.post<{ success: boolean; data: EmployeeAccount[] }>('/admin/payroll/accounts/transactions', payload);
+  return response.data.data;
+}
+
+export async function bulkCreateEmployeeAccountTransactions(payload: EmployeeAccountBulkInput) {
+  const response = await api.post<{ success: boolean; data: EmployeeAccount[] }>('/admin/payroll/accounts/bulk', payload);
   return response.data.data;
 }
 
@@ -458,5 +520,10 @@ export async function updatePayrollEntry(id: number, payload: PayrollEntryInput)
 
 export async function createPayrollPayment(id: number, payload: PayrollPaymentInput) {
   const response = await api.post<{ success: boolean; data: PayrollPeriod }>(`/admin/payroll/entries/${id}/payments`, payload);
+  return response.data.data;
+}
+
+export async function createEmployeeAccountPayment(id: number, payload: Pick<PayrollPaymentInput, 'paidAt' | 'note'> = {}) {
+  const response = await api.post<{ success: boolean; data: PayrollPeriod }>(`/admin/payroll/employees/${id}/pay`, payload);
   return response.data.data;
 }

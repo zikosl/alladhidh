@@ -102,6 +102,8 @@ enum ExpenseSourceType {
   stock_purchase
   payroll_payment
   salary_advance
+  employee_account_payment
+  employee_account_acompte
 
   @@map("expense_source_type")
 }
@@ -129,11 +131,62 @@ enum PayrollAdjustmentType {
   @@map("payroll_adjustment_type")
 }
 
+enum PayrollPaymentMode {
+  daily
+  weekly
+  monthly
+
+  @@map("payroll_payment_mode")
+}
+
+enum EmployeeAccountTransactionType {
+  acompte
+  personal_deduction
+  lost_deduction
+  payment
+  bonus
+
+  @@map("employee_account_transaction_type")
+}
+
 enum CashSessionStatus {
   open
   closed
 
   @@map("cash_session_status")
+}
+
+enum FinanceTransactionType {
+  sale_payment
+  stock_purchase
+  manual_expense
+  payroll_payment
+  salary_advance
+  payroll_adjustment
+  cash_opening
+  cash_closing
+  cash_difference
+  order_loss
+  refund
+
+  @@map("finance_transaction_type")
+}
+
+enum FinanceDirection {
+  in
+  out
+  neutral
+
+  @@map("finance_direction")
+}
+
+enum FinanceTransactionStatus {
+  pending
+  partial
+  paid
+  cancelled
+
+  @@map("finance_transaction_status")
 }
 
 model Product {
@@ -149,7 +202,7 @@ model Product {
   isActive  Boolean    @default(true) @map("is_active")
   color     String     @default("#1f2937") @db.VarChar(30)
   icon      String     @default("🍽️") @db.VarChar(10)
-  imageUrl  String?    @map("image_url") @db.VarChar(255)
+  imageUrl  String?    @map("image_url")
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @updatedAt @map("updated_at")
   recipes   Recipe[]
@@ -215,10 +268,27 @@ model User {
   role         Role        @relation(fields: [roleId], references: [id], onDelete: Restrict)
   openedCashSessions CashSession[] @relation("CashSessionOpenedBy")
   closedCashSessions CashSession[] @relation("CashSessionClosedBy")
+  financeTransactions FinanceTransaction[] @relation("FinanceTransactionCreatedBy")
   alerts Alert[]
 
   @@index([roleId], map: "idx_users_role_id")
   @@map("users")
+}
+
+model ShiftTemplate {
+  id               Int           @id @default(autoincrement())
+  name             String        @unique @db.VarChar(80)
+  startTime        String        @map("start_time") @db.VarChar(5)
+  endTime          String        @map("end_time") @db.VarChar(5)
+  activeDays       String        @default("0,1,2,3,4,5,6") @map("active_days") @db.VarChar(30)
+  autoCloseMinutes Int           @default(0) @map("auto_close_minutes")
+  isActive         Boolean       @default(true) @map("is_active")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at")
+  cashSessions     CashSession[]
+
+  @@index([isActive], map: "idx_shift_templates_active")
+  @@map("shift_templates")
 }
 
 model RestaurantTable {
@@ -356,6 +426,7 @@ model Sale {
   updatedAt      DateTime        @updatedAt @map("updated_at")
   payments       Payment[]
   saleItems      SaleItem[]
+  financeTransactions FinanceTransaction[]
 
   @@index([createdAt], map: "idx_sales_created_at")
   @@index([status], map: "idx_sales_status")
@@ -407,8 +478,9 @@ model Expense {
   paidAt        DateTime?             @map("paid_at")
   date          DateTime              @default(now())
   createdAt     DateTime              @default(now()) @map("created_at")
-  updatedAt     DateTime              @updatedAt @map("updated_at")
+  updatedAt     DateTime              @default(now()) @updatedAt @map("updated_at")
   categoryRef   ExpenseCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  financeTransactions FinanceTransaction[]
 
   @@index([date], map: "idx_expenses_date")
   @@index([categoryId], map: "idx_expenses_category_id")
@@ -459,7 +531,8 @@ model Alert {
 
 model EmployeeProfile {
   id             Int             @id @default(autoincrement())
-  userId         Int             @unique @map("user_id")
+  userId         Int?            @unique @map("user_id")
+  fullName       String?         @map("full_name") @db.VarChar(150)
   position       String?         @db.VarChar(120)
   employmentType EmploymentType  @default(monthly) @map("employment_type")
   baseSalary     Decimal         @default(0) @map("base_salary") @db.Decimal(10, 2)
@@ -468,13 +541,46 @@ model EmployeeProfile {
   payrollNotes   String?         @map("payroll_notes") @db.VarChar(255)
   createdAt      DateTime        @default(now()) @map("created_at")
   updatedAt      DateTime        @updatedAt @map("updated_at")
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   advances       SalaryAdvance[]
   payrollEntries PayrollEntry[]
   payrollAdjustments PayrollAdjustment[]
+  financeTransactions FinanceTransaction[]
+  accountTransactions EmployeeAccountTransaction[]
 
+  @@index([fullName], map: "idx_employee_profiles_full_name")
   @@index([isActive], map: "idx_employee_profiles_active")
   @@map("employee_profiles")
+}
+
+model PayrollSettings {
+  id                 Int                @id @default(1)
+  paymentMode        PayrollPaymentMode @default(daily) @map("payment_mode")
+  defaultDailyAmount Decimal            @default(0) @map("default_daily_amount") @db.Decimal(10, 2)
+  monthlyDivisor     Int                @default(30) @map("monthly_divisor")
+  allowNegativeBalance Boolean          @default(true) @map("allow_negative_balance")
+  autoDeductAcompte  Boolean            @default(true) @map("auto_deduct_acompte")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  @@map("payroll_settings")
+}
+
+model EmployeeAccountTransaction {
+  id          Int                            @id @default(autoincrement())
+  employeeId  Int                            @map("employee_id")
+  type        EmployeeAccountTransactionType
+  amount      Decimal                        @db.Decimal(10, 2)
+  label       String                         @db.VarChar(160)
+  note        String?                        @db.VarChar(255)
+  occurredAt  DateTime                       @default(now()) @map("occurred_at")
+  createdAt   DateTime                       @default(now()) @map("created_at")
+  updatedAt   DateTime                       @updatedAt @map("updated_at")
+  employee    EmployeeProfile                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, occurredAt], map: "idx_employee_account_transactions_employee_date")
+  @@index([type], map: "idx_employee_account_transactions_type")
+  @@map("employee_account_transactions")
 }
 
 model SalaryAdvance {
@@ -553,7 +659,13 @@ model PayrollAdjustment {
 
 model CashSession {
   id            Int               @id @default(autoincrement())
-  businessDate  DateTime          @unique @map("business_date") @db.Date
+  businessDate  DateTime          @map("business_date") @db.Date
+  shiftTemplateId Int?            @map("shift_template_id")
+  shiftName     String?           @map("shift_name") @db.VarChar(80)
+  shiftStartAt  DateTime?         @map("shift_start_at")
+  shiftEndAt    DateTime?         @map("shift_end_at")
+  autoCloseAt   DateTime?         @map("auto_close_at")
+  closedBySystem Boolean          @default(false) @map("closed_by_system")
   openingAmount Decimal           @default(0) @map("opening_amount") @db.Decimal(10, 2)
   closingAmount Decimal?          @map("closing_amount") @db.Decimal(10, 2)
   expectedCash  Decimal           @default(0) @map("expected_cash") @db.Decimal(10, 2)
@@ -568,10 +680,53 @@ model CashSession {
   updatedAt     DateTime          @updatedAt @map("updated_at")
   openedBy      User?             @relation("CashSessionOpenedBy", fields: [openedById], references: [id], onDelete: SetNull)
   closedBy      User?             @relation("CashSessionClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+  shiftTemplate ShiftTemplate?    @relation(fields: [shiftTemplateId], references: [id], onDelete: SetNull)
+  financeTransactions FinanceTransaction[]
 
   @@index([businessDate], map: "idx_cash_sessions_business_date")
+  @@index([shiftTemplateId], map: "idx_cash_sessions_shift_template")
   @@index([status], map: "idx_cash_sessions_status")
+  @@unique([businessDate, shiftTemplateId], map: "uq_cash_sessions_business_date_shift")
   @@map("cash_sessions")
+}
+
+model FinanceTransaction {
+  id            Int                      @id @default(autoincrement())
+  type          FinanceTransactionType
+  direction     FinanceDirection
+  amount        Decimal                  @default(0) @db.Decimal(10, 2)
+  status        FinanceTransactionStatus @default(paid)
+  paymentMethod FinancePaymentMethod?    @map("payment_method")
+  sourceModule  String                   @map("source_module") @db.VarChar(80)
+  sourceType    String                   @map("source_type") @db.VarChar(80)
+  sourceId      Int?                     @map("source_id")
+  sourceLabel   String?                  @map("source_label") @db.VarChar(180)
+  description   String?                  @db.VarChar(255)
+  cashSessionId Int?                     @map("cash_session_id")
+  employeeId    Int?                     @map("employee_id")
+  orderId       Int?                     @map("order_id")
+  expenseId     Int?                     @map("expense_id")
+  createdById   Int?                     @map("created_by_id")
+  occurredAt    DateTime                 @default(now()) @map("occurred_at")
+  createdAt     DateTime                 @default(now()) @map("created_at")
+  updatedAt     DateTime                 @default(now()) @updatedAt @map("updated_at")
+  cashSession   CashSession?             @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
+  employee      EmployeeProfile?         @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  order         Sale?                    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  expense       Expense?                 @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  createdBy     User?                    @relation("FinanceTransactionCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([occurredAt], map: "idx_finance_transactions_occurred_at")
+  @@index([type], map: "idx_finance_transactions_type")
+  @@index([direction], map: "idx_finance_transactions_direction")
+  @@index([status], map: "idx_finance_transactions_status")
+  @@index([sourceModule, sourceType], map: "idx_finance_transactions_source_kind")
+  @@index([cashSessionId], map: "idx_finance_transactions_cash_session")
+  @@index([employeeId], map: "idx_finance_transactions_employee")
+  @@index([orderId], map: "idx_finance_transactions_order")
+  @@index([expenseId], map: "idx_finance_transactions_expense")
+  @@unique([type, sourceModule, sourceId], map: "uq_finance_transactions_source")
+  @@map("finance_transactions")
 }
 
 model PayrollPayment {

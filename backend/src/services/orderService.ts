@@ -3,6 +3,10 @@ import {
   PaymentMethod as PrismaPaymentMethod,
   Prisma,
   PrismaClient,
+  FinanceDirection,
+  FinancePaymentMethod,
+  FinanceTransactionStatus,
+  FinanceTransactionType,
   PayrollAdjustmentType,
   SaleStatus as PrismaSaleStatus,
   SaleType as PrismaSaleType,
@@ -14,6 +18,7 @@ import { DeliveryStatus, OrderStatus, OrderSummary, OrderType, PaymentMethod, Cr
 import { HttpError } from '../utils/httpError';
 import { requireField, toNonNegativeNumber, toPositiveNumber } from '../utils/validation';
 import { getOpenCashSessionForToday } from './financeService';
+import { recordFinanceTransaction } from './financeLedgerService';
 
 type SaleWithItems = Prisma.SaleGetPayload<{
   include: {
@@ -525,12 +530,27 @@ export async function createPayment(orderId: number, method: string, amount?: nu
       throw new HttpError(400, 'Le paiement depasse le restant a encaisser');
     }
 
-    await client.payment.create({
+    const payment = await client.payment.create({
       data: {
         saleId: orderId,
         method: method as PrismaPaymentMethod,
         amount: paymentAmount
       }
+    });
+
+    await recordFinanceTransaction(client, {
+      type: FinanceTransactionType.sale_payment,
+      direction: FinanceDirection.in,
+      amount: paymentAmount,
+      status: FinanceTransactionStatus.paid,
+      paymentMethod: method as FinancePaymentMethod,
+      sourceModule: 'pos',
+      sourceType: 'payment',
+      sourceId: payment.id,
+      sourceLabel: `Commande #${orderId}`,
+      description: `Encaissement commande #${orderId}`,
+      orderId,
+      occurredAt: payment.createdAt
     });
 
     const nextRemaining = remainingAmount - paymentAmount;
@@ -584,7 +604,7 @@ export async function markOrderLost(orderId: number, payload: MarkOrderLostInput
         throw new HttpError(404, 'Active employee not found');
       }
 
-      await client.payrollAdjustment.create({
+      const adjustment = await client.payrollAdjustment.create({
         data: {
           employeeId: employee.id,
           type: PayrollAdjustmentType.penalty,
@@ -593,6 +613,22 @@ export async function markOrderLost(orderId: number, payload: MarkOrderLostInput
           note: payload.note ? String(payload.note).trim() : 'Perte imputee depuis la caisse',
           date: new Date()
         }
+      });
+
+      await recordFinanceTransaction(client, {
+        type: FinanceTransactionType.payroll_adjustment,
+        direction: FinanceDirection.neutral,
+        amount: Number(adjustment.amount),
+        status: FinanceTransactionStatus.paid,
+        paymentMethod: null,
+        sourceModule: 'payroll',
+        sourceType: 'order_loss_penalty',
+        sourceId: adjustment.id,
+        sourceLabel: `Commande #${orderId}`,
+        description: adjustment.reason,
+        employeeId: employee.id,
+        orderId,
+        occurredAt: adjustment.date
       });
     }
 
@@ -610,6 +646,21 @@ export async function markOrderLost(orderId: number, payload: MarkOrderLostInput
           }
         }
       }
+    });
+
+    await recordFinanceTransaction(client, {
+      type: FinanceTransactionType.order_loss,
+      direction: FinanceDirection.neutral,
+      amount: amount ?? Number(existing.totalPrice),
+      status: FinanceTransactionStatus.paid,
+      paymentMethod: null,
+      sourceModule: 'orders',
+      sourceType: 'lost_order',
+      sourceId: orderId,
+      sourceLabel: `Commande #${orderId}`,
+      description: payload.note ? String(payload.note).trim() : 'Commande marquee perdue',
+      orderId,
+      occurredAt: new Date()
     });
 
     return mapOrder(updated);

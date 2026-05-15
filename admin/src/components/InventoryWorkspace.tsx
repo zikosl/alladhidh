@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { formatMoney } from '../lib/format';
+import { numberInputValue, parseNumberInput } from '../lib/numberInput';
 import { usePosStore } from '../store/usePosStore';
 import { ExpenseStatus, FinancePaymentMethod, InventoryCategory, InventoryItem, InventoryUsageType, MeasurementType, MeasurementUnit, StockMovement } from '../types/pos';
 import { AppModal } from './AppModal';
@@ -494,9 +495,9 @@ export function InventoryWorkspace() {
                     <input
                       type="number"
                       min={0}
-                      value={materialForm.sellingPrice}
+                      value={numberInputValue(materialForm.sellingPrice)}
                       onChange={(event) =>
-                        setMaterialForm((current) => ({ ...current, sellingPrice: Number(event.target.value) }))
+                        setMaterialForm((current) => ({ ...current, sellingPrice: parseNumberInput(event.target.value) }))
                       }
                       placeholder="Ex: 80"
                       className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
@@ -508,9 +509,9 @@ export function InventoryWorkspace() {
                       type="number"
                       min={0.001}
                       step="0.001"
-                      value={materialForm.saleUnitQuantity}
+                      value={numberInputValue(materialForm.saleUnitQuantity)}
                       onChange={(event) =>
-                        setMaterialForm((current) => ({ ...current, saleUnitQuantity: Number(event.target.value) }))
+                        setMaterialForm((current) => ({ ...current, saleUnitQuantity: parseNumberInput(event.target.value) }))
                       }
                       placeholder="Ex: 1"
                       className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
@@ -532,9 +533,9 @@ export function InventoryWorkspace() {
                     <input
                       type="number"
                       min={0}
-                      value={materialForm.initialQuantity}
+                      value={numberInputValue(materialForm.initialQuantity)}
                       onChange={(event) =>
-                        setMaterialForm((current) => ({ ...current, initialQuantity: Number(event.target.value) }))
+                        setMaterialForm((current) => ({ ...current, initialQuantity: parseNumberInput(event.target.value) }))
                       }
                       placeholder={selectedUnit.placeholder}
                       className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
@@ -545,9 +546,9 @@ export function InventoryWorkspace() {
                     <input
                       type="number"
                       min={0}
-                      value={materialForm.initialTotalPrice}
+                      value={numberInputValue(materialForm.initialTotalPrice)}
                       onChange={(event) =>
-                        setMaterialForm((current) => ({ ...current, initialTotalPrice: Number(event.target.value) }))
+                        setMaterialForm((current) => ({ ...current, initialTotalPrice: parseNumberInput(event.target.value) }))
                       }
                       placeholder="Ex: 4500"
                       className="mt-1 w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 text-sm outline-none"
@@ -608,8 +609,8 @@ export function InventoryWorkspace() {
                 <input
                   type="number"
                   min={0}
-                  value={entryForm.quantity}
-                  onChange={(event) => setEntryForm((current) => ({ ...current, quantity: Number(event.target.value) }))}
+                  value={numberInputValue(entryForm.quantity)}
+                  onChange={(event) => setEntryForm((current) => ({ ...current, quantity: parseNumberInput(event.target.value) }))}
                   placeholder="Ex: 20"
                   className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
                 />
@@ -619,8 +620,8 @@ export function InventoryWorkspace() {
                 <input
                   type="number"
                   min={0}
-                  value={entryForm.totalPrice}
-                  onChange={(event) => setEntryForm((current) => ({ ...current, totalPrice: Number(event.target.value) }))}
+                  value={numberInputValue(entryForm.totalPrice)}
+                  onChange={(event) => setEntryForm((current) => ({ ...current, totalPrice: parseNumberInput(event.target.value) }))}
                   placeholder="Ex: 4500"
                   className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
                 />
@@ -722,8 +723,8 @@ export function InventoryWorkspace() {
               <input
                 type="number"
                 min={0}
-                value={lossForm.quantity}
-                onChange={(event) => setLossForm((current) => ({ ...current, quantity: Number(event.target.value) }))}
+                value={numberInputValue(lossForm.quantity)}
+                onChange={(event) => setLossForm((current) => ({ ...current, quantity: parseNumberInput(event.target.value) }))}
                 placeholder="Ex: 2"
                 className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none"
               />

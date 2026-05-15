@@ -1,559 +1,451 @@
-import { useMemo, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
+import {
+  bulkCreateEmployeeAccountTransactions,
+  createEmployeeAccountTransaction,
+  fetchEmployeeAccounts,
+  fetchPayrollSettings,
+  updatePayrollSettings
+} from '../lib/api';
 import { formatMoney } from '../lib/format';
+import { numberInputValue, parseNumberInput } from '../lib/numberInput';
 import { usePosStore } from '../store/usePosStore';
-import { EmployeeProfileInput, PayrollAdjustmentInput, PayrollEntryInput, PayrollPaymentInput, PayrollPeriodInput, PayrollPeriodStatus, SalaryAdvanceInput } from '../types/pos';
+import {
+  EmployeeAccount,
+  EmployeeAccountBulkInput,
+  EmployeeAccountTransactionInput,
+  EmployeeAccountTransactionType,
+  EmployeeProfileInput,
+  PayrollPaymentMode,
+  PayrollSettings
+} from '../types/pos';
 import { useFeedback } from './FeedbackProvider';
 import { WorkspaceShell } from './WorkspaceShell';
 
-type PayrollView = 'employees' | 'periods' | 'advances' | 'adjustments';
-type PayrollStatusFilter = 'all' | PayrollPeriodStatus;
+type PayrollView = 'accounts' | 'history' | 'bulk' | 'settings';
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+const defaultSettings: PayrollSettings = {
+  paymentMode: 'daily',
+  defaultDailyAmount: 0,
+  monthlyDivisor: 30,
+  allowNegativeBalance: true,
+  autoDeductAcompte: true
+};
 
 const emptyEmployeeProfileForm: EmployeeProfileInput = {
-  userId: 0,
+  userId: null,
+  fullName: '',
   position: '',
-  employmentType: 'monthly',
+  employmentType: 'daily',
   baseSalary: 0,
   hireDate: '',
   isActive: true,
   payrollNotes: ''
 };
 
-const emptyAdvanceForm: SalaryAdvanceInput = {
+const emptyTransactionForm: EmployeeAccountTransactionInput = {
   employeeId: 0,
+  type: 'acompte',
   amount: 0,
-  reason: '',
-  method: 'cash',
-  note: '',
-  date: new Date().toISOString().slice(0, 10)
-};
-
-const emptyPayrollPeriodForm: PayrollPeriodInput = {
   label: '',
-  startDate: new Date().toISOString().slice(0, 10),
-  endDate: new Date().toISOString().slice(0, 10),
-  notes: ''
+  note: '',
+  occurredAt: today()
 };
 
-const emptyAdjustmentForm: PayrollAdjustmentInput = {
-  employeeId: 0,
-  periodId: null,
-  type: 'deduction',
-  amount: 0,
-  reason: '',
+const emptyBulkForm: EmployeeAccountBulkInput = {
+  employeeIds: [],
+  type: 'payment',
+  amount: null,
+  label: '',
   note: '',
-  date: new Date().toISOString().slice(0, 10)
+  occurredAt: today()
 };
 
 export function PayrollWorkspace() {
-  const { confirm } = useFeedback();
+  const { confirm, toast } = useFeedback();
   const {
     setCurrentModule,
     staffUsers,
     employeeProfiles,
-    salaryAdvances,
-    payrollAdjustments,
-    payrollPeriods,
-    upsertEmployeePayrollProfile,
-    addSalaryAdvance,
-    addPayrollAdjustment,
-    removePayrollAdjustment,
-    addPayrollPeriod,
-    savePayrollEntry,
-    addPayrollPayment,
-    savePayrollPeriodStatus
+    refreshAdminData,
+    upsertEmployeePayrollProfile
   } = usePosStore();
-  const [view, setView] = useState<PayrollView>('employees');
+  const [view, setView] = useState<PayrollView>('accounts');
+  const [accounts, setAccounts] = useState<EmployeeAccount[]>([]);
+  const [settings, setSettings] = useState<PayrollSettings>(defaultSettings);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [employeeProfileForm, setEmployeeProfileForm] = useState<EmployeeProfileInput>(emptyEmployeeProfileForm);
-  const [advanceForm, setAdvanceForm] = useState<SalaryAdvanceInput>(emptyAdvanceForm);
-  const [adjustmentForm, setAdjustmentForm] = useState<PayrollAdjustmentInput>(emptyAdjustmentForm);
-  const [payrollPeriodForm, setPayrollPeriodForm] = useState<PayrollPeriodInput>(emptyPayrollPeriodForm);
-  const [payrollEntryDrafts, setPayrollEntryDrafts] = useState<Record<number, PayrollEntryInput>>({});
-  const [payrollPaymentDrafts, setPayrollPaymentDrafts] = useState<Record<number, PayrollPaymentInput>>({});
-  const [periodStatusFilter, setPeriodStatusFilter] = useState<PayrollStatusFilter>('all');
-  const [periodSearch, setPeriodSearch] = useState('');
-  const canSaveEmployee = employeeProfileForm.userId > 0 && employeeProfileForm.baseSalary > 0;
-  const canCreatePeriod = payrollPeriodForm.label.trim().length > 0 && Boolean(payrollPeriodForm.startDate) && Boolean(payrollPeriodForm.endDate);
-  const canCreateAdvance = advanceForm.employeeId > 0 && advanceForm.amount > 0 && advanceForm.reason.trim().length > 0;
-  const canCreateAdjustment = adjustmentForm.employeeId > 0 && adjustmentForm.amount > 0 && adjustmentForm.reason.trim().length > 0;
+  const [transactionForm, setTransactionForm] = useState<EmployeeAccountTransactionInput>(emptyTransactionForm);
+  const [bulkForm, setBulkForm] = useState<EmployeeAccountBulkInput>(emptyBulkForm);
+  const [search, setSearch] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const payrollTotals = useMemo(() => {
-    return payrollPeriods.reduce(
-      (acc, period) => {
-        acc.payroll += period.payrollTotal;
-        acc.paid += period.paidTotal;
-        acc.remaining += period.remainingTotal;
-        acc.deductions += period.entries.reduce((sum, entry) => sum + entry.deductions, 0);
+  async function loadPayroll() {
+    setIsLoading(true);
+    try {
+      const [nextAccounts, nextSettings] = await Promise.all([fetchEmployeeAccounts(), fetchPayrollSettings()]);
+      setAccounts(nextAccounts);
+      setSettings(nextSettings);
+      if (!selectedEmployeeId && nextAccounts[0]) {
+        setSelectedEmployeeId(nextAccounts[0].employeeId);
+      }
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : 'Chargement paie impossible', tone: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadPayroll();
+  }, []);
+
+  const filteredAccounts = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return accounts.filter((account) => {
+      if (!query) return true;
+      return [account.fullName, account.position, account.roleName].some((value) => value?.toLowerCase().includes(query));
+    });
+  }, [accounts, search]);
+
+  const selectedAccount = accounts.find((account) => account.employeeId === selectedEmployeeId) ?? filteredAccounts[0] ?? null;
+
+  const allTransactions = useMemo(() => {
+    return accounts
+      .flatMap((account) => account.transactions.map((transaction) => ({ ...transaction, employeeName: account.fullName })))
+      .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime());
+  }, [accounts]);
+
+  const totals = useMemo(() => {
+    return accounts.reduce(
+      (acc, account) => {
+        acc.due += account.dueAmount;
+        acc.toPay += account.finalPayment;
+        acc.acompte += account.acompteTotal;
+        acc.deductions += account.deductionTotal;
+        if (account.accountBalance < 0) acc.negative += 1;
         return acc;
       },
-      { payroll: 0, paid: 0, remaining: 0, deductions: 0 }
+      { due: 0, toPay: 0, acompte: 0, deductions: 0, negative: 0 }
     );
-  }, [payrollPeriods]);
+  }, [accounts]);
 
-  const adjustmentTotals = useMemo(() => {
-    return payrollAdjustments.reduce(
-      (acc, adjustment) => {
-        acc.total += adjustment.amount;
-        if (adjustment.type === 'penalty') acc.penalties += adjustment.amount;
-        return acc;
-      },
-      { total: 0, penalties: 0 }
-    );
-  }, [payrollAdjustments]);
+  function selectAccount(account: EmployeeAccount) {
+    setSelectedEmployeeId(account.employeeId);
+    setTransactionForm((current) => ({ ...current, employeeId: account.employeeId }));
+  }
 
-  const filteredPayrollPeriods = useMemo(() => {
-    const query = periodSearch.trim().toLowerCase();
-    return payrollPeriods.filter((period) => {
-      const matchesStatus = periodStatusFilter === 'all' || period.status === periodStatusFilter;
-      const matchesSearch =
-        query.length === 0 ||
-        period.label.toLowerCase().includes(query) ||
-        period.entries.some((entry) => entry.employeeName.toLowerCase().includes(query));
-      return matchesStatus && matchesSearch;
+  async function submitTransaction(input: EmployeeAccountTransactionInput) {
+    setIsLoading(true);
+    try {
+      const nextAccounts = await createEmployeeAccountTransaction(input);
+      setAccounts(nextAccounts);
+      setTransactionForm({ ...emptyTransactionForm, employeeId: input.employeeId, occurredAt: today() });
+      toast({ title: 'Mouvement ajoute', tone: 'success' });
+      await refreshAdminData();
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : 'Mouvement impossible', tone: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function payAccount(account: EmployeeAccount) {
+    if (account.finalPayment <= 0) {
+      toast({ title: 'Aucun montant positif a payer', tone: 'warning' });
+      return;
+    }
+    const confirmed = await confirm({
+      title: 'Valider le paiement ?',
+      message: `${account.fullName} recevra ${formatMoney(account.finalPayment)} en especes.`,
+      confirmLabel: 'Payer',
+      tone: 'info'
     });
-  }, [payrollPeriods, periodSearch, periodStatusFilter]);
-
-  function editEmployeeProfile(userId: number) {
-    const profile = employeeProfiles.find((entry) => entry.userId === userId);
-    if (!profile) return;
-    setEmployeeProfileForm({
-      userId: profile.userId,
-      position: profile.position ?? '',
-      employmentType: profile.employmentType,
-      baseSalary: profile.baseSalary,
-      hireDate: profile.hireDate?.slice(0, 10) ?? '',
-      isActive: profile.isActive,
-      payrollNotes: profile.payrollNotes ?? ''
+    if (!confirmed) return;
+    await submitTransaction({
+      employeeId: account.employeeId,
+      type: 'payment',
+      amount: account.finalPayment,
+      label: `Paiement ${formatPaymentMode(settings.paymentMode)}`,
+      note: 'Paiement depuis compte employe',
+      occurredAt: today()
     });
-    setView('employees');
+  }
+
+  async function submitBulk() {
+    if (bulkForm.employeeIds.length === 0) {
+      toast({ title: 'Selectionnez au moins un employe', tone: 'warning' });
+      return;
+    }
+    const isAutoPayment = bulkForm.type === 'payment' && (!bulkForm.amount || bulkForm.amount <= 0);
+    if (!isAutoPayment && (!bulkForm.amount || bulkForm.amount <= 0)) {
+      toast({ title: 'Montant requis', tone: 'warning' });
+      return;
+    }
+    const confirmed = await confirm({
+      title: 'Appliquer en groupe ?',
+      message: `${bulkForm.employeeIds.length} employe(s) seront mis a jour.`,
+      confirmLabel: 'Appliquer',
+      tone: 'info'
+    });
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    try {
+      const nextAccounts = await bulkCreateEmployeeAccountTransactions(bulkForm);
+      setAccounts(nextAccounts);
+      setBulkForm(emptyBulkForm);
+      toast({ title: 'Operation groupee appliquee', tone: 'success' });
+      await refreshAdminData();
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : 'Operation groupee impossible', tone: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function saveSettings() {
+    setIsLoading(true);
+    try {
+      const nextSettings = await updatePayrollSettings(settings);
+      setSettings(nextSettings);
+      toast({ title: 'Reglages paie enregistres', tone: 'success' });
+      await loadPayroll();
+    } catch (error) {
+      toast({ title: error instanceof Error ? error.message : 'Sauvegarde reglages impossible', tone: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
     <WorkspaceShell
       title="Paie"
-      subtitle="Profils de paie, avances, periodes salariales et paiements du personnel."
+      subtitle="Comptes employes, a comptes, retenues, perdus et paiements journaliers."
       accent="var(--gradient-payroll)"
       icon="👥"
       sectionLabel="Module paie"
       onBack={() => setCurrentModule('apps')}
       navigation={[
-        { id: 'employees', label: 'Employes', hint: 'Profils & base salariale' },
-        { id: 'periods', label: 'Periodes', hint: 'Bulletins & paiements' },
-        { id: 'advances', label: 'Avances', hint: 'Acomptes & restant' },
-        { id: 'adjustments', label: 'Retenues', hint: 'Retenues & penalites' }
+        { id: 'accounts', label: 'Comptes', hint: 'Cartes & actions' },
+        { id: 'history', label: 'Historique', hint: 'Transactions' },
+        { id: 'bulk', label: 'Groupe', hint: 'Paiements rapides' },
+        { id: 'settings', label: 'Reglages', hint: 'Mode de paie' }
       ]}
       activeView={view}
       onChangeView={(next) => setView(next as PayrollView)}
     >
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricPanel label="Masse salariale" value={formatMoney(payrollTotals.payroll)} hint="Total net sur les periodes chargees" />
-        <MetricPanel label="Deja paye" value={formatMoney(payrollTotals.paid)} hint="Paiements de salaires enregistres" />
-        <MetricPanel label="Reste a payer" value={formatMoney(payrollTotals.remaining)} hint="Restant ouvert sur les periodes" />
-        <MetricPanel label="Retenues" value={formatMoney(adjustmentTotals.total || payrollTotals.deductions)} hint={`${formatMoney(adjustmentTotals.penalties)} en penalites`} />
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <MetricPanel label="A payer" value={formatMoney(totals.toPay)} hint="Apres a comptes et retenues" />
+        <MetricPanel label="Base periode" value={formatMoney(totals.due)} hint={`Mode ${formatPaymentMode(settings.paymentMode)}`} />
+        <MetricPanel label="A comptes" value={formatMoney(totals.acompte)} hint="Argent deja donne" />
+        <MetricPanel label="Retenues" value={formatMoney(totals.deductions)} hint="Perso + perdus" />
+        <MetricPanel label="Negatifs" value={String(totals.negative)} hint="Comptes sous zero" />
       </div>
 
-      {view === 'employees' ? (
-        <section className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+      {view === 'accounts' ? (
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px]">
           <div className="premium-panel rounded-[1.6rem] p-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Employes</div>
-            <h2 className="mt-1 text-xl font-bold text-zinc-950">Profil paie</h2>
-            <div className="mt-4 space-y-3">
-              <SelectField
-                label="Compte staff"
-                value={String(employeeProfileForm.userId)}
-                onChange={(value) => setEmployeeProfileForm((current) => ({ ...current, userId: Number(value) }))}
-                options={[
-                  ['0', 'Choisir un employe'],
-                  ...staffUsers.map((user) => [String(user.id), `${user.fullName} • ${user.roleName}`] as [string, string])
-                ]}
-              />
-              <Field label="Poste" value={employeeProfileForm.position ?? ''} onChange={(value) => setEmployeeProfileForm((current) => ({ ...current, position: value }))} placeholder="Ex: Chef de rang, Caissier principal" />
-              <SelectField label="Type de paie" value={employeeProfileForm.employmentType} onChange={(value) => setEmployeeProfileForm((current) => ({ ...current, employmentType: value as EmployeeProfileInput['employmentType'] }))} options={[['monthly', 'Mensuelle'], ['daily', 'Journaliere'], ['hourly', 'Horaire']]} />
-              <Field label="Salaire de base" type="number" value={String(employeeProfileForm.baseSalary || '')} onChange={(value) => setEmployeeProfileForm((current) => ({ ...current, baseSalary: Number(value) }))} placeholder="Ex: 45000" />
-              <Field label="Date embauche" type="date" value={employeeProfileForm.hireDate ?? ''} onChange={(value) => setEmployeeProfileForm((current) => ({ ...current, hireDate: value }))} placeholder="" />
-              <Toggle label="Employe actif pour la paie" checked={employeeProfileForm.isActive} onChange={(checked) => setEmployeeProfileForm((current) => ({ ...current, isActive: checked }))} />
-              <label className="block">
-                <span className="text-xs font-semibold text-zinc-600">Notes paie</span>
-                <textarea value={employeeProfileForm.payrollNotes ?? ''} onChange={(event) => setEmployeeProfileForm((current) => ({ ...current, payrollNotes: event.target.value }))} placeholder="Ex: prime weekend, contrat saisonnier..." className="mt-1 min-h-20 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none" />
-              </label>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <SectionTitle label="Comptes" title="Employes" />
+              <Field label="Recherche" value={search} onChange={setSearch} placeholder="Nom, poste, role..." />
             </div>
-            <div className="mt-4 flex gap-2">
-              <button
-                disabled={!canSaveEmployee}
-                onClick={() => void upsertEmployeePayrollProfile(employeeProfileForm)}
-                className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
-              >
-                Sauver profil
-              </button>
-              <button onClick={() => setEmployeeProfileForm(emptyEmployeeProfileForm)} className="rounded-2xl bg-zinc-100 px-4 py-3 text-sm font-black text-zinc-700">Reinitialiser</button>
-            </div>
-          </div>
-
-          <div className="premium-panel rounded-[1.6rem] p-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Equipe paie</div>
-            <h2 className="mt-1 text-xl font-bold text-zinc-950">Profils employes</h2>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {employeeProfiles.map((profile) => (
-                <article key={profile.id} className="premium-card rounded-2xl p-4">
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {filteredAccounts.map((account) => (
+                <button
+                  key={account.employeeId}
+                  type="button"
+                  onClick={() => selectAccount(account)}
+                  className={`rounded-[1.35rem] p-4 text-left transition hover:-translate-y-0.5 ${
+                    selectedAccount?.employeeId === account.employeeId
+                      ? 'bg-zinc-950 text-white shadow-xl shadow-zinc-950/15'
+                      : 'premium-card text-zinc-950 hover:shadow-soft'
+                  }`}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold text-zinc-950">{profile.fullName}</div>
-                      <div className="mt-1 text-xs text-zinc-500">{profile.position || profile.roleName} • {profile.employmentType}</div>
-                    </div>
-                    <button onClick={() => editEmployeeProfile(profile.userId)} className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-zinc-700">Editer</button>
-                  </div>
-                  <div className="mt-3 text-sm text-zinc-700">{formatMoney(profile.baseSalary)}</div>
-                </article>
-              ))}
-              {employeeProfiles.length === 0 ? (
-                <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500 md:col-span-2">
-                  Aucun profil paie. Selectionnez un compte staff pour creer le premier profil.
-                </div>
-              ) : null}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {view === 'periods' ? (
-        <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <div className="premium-panel rounded-[1.6rem] p-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Periodes</div>
-            <h2 className="mt-1 text-xl font-bold text-zinc-950">Creer une periode de paie</h2>
-            <div className="mt-4 space-y-3">
-              <Field label="Libelle" value={payrollPeriodForm.label} onChange={(value) => setPayrollPeriodForm((current) => ({ ...current, label: value }))} placeholder="Ex: Paie Avril 2026" />
-              <div className="grid gap-3 md:grid-cols-2">
-                <Field label="Debut" type="date" value={payrollPeriodForm.startDate} onChange={(value) => setPayrollPeriodForm((current) => ({ ...current, startDate: value }))} placeholder="" />
-                <Field label="Fin" type="date" value={payrollPeriodForm.endDate} onChange={(value) => setPayrollPeriodForm((current) => ({ ...current, endDate: value }))} placeholder="" />
-              </div>
-              <Field label="Note" value={payrollPeriodForm.notes ?? ''} onChange={(value) => setPayrollPeriodForm((current) => ({ ...current, notes: value }))} placeholder="Ex: Paie mensuelle staff salle et cuisine" />
-              <button
-                disabled={!canCreatePeriod}
-                onClick={() => {
-                  void addPayrollPeriod(payrollPeriodForm);
-                  setPayrollPeriodForm(emptyPayrollPeriodForm);
-                }}
-                className="rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
-              >
-                Generer la periode
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="premium-panel rounded-[1.6rem] p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Suivi periodes</div>
-                  <h2 className="mt-1 text-xl font-bold text-zinc-950">Bulletins & paiements</h2>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:w-[520px]">
-                  <Field label="Recherche" value={periodSearch} onChange={setPeriodSearch} placeholder="Periode ou employe" />
-                  <SelectField
-                    label="Statut"
-                    value={periodStatusFilter}
-                    onChange={(value) => setPeriodStatusFilter(value as PayrollStatusFilter)}
-                    options={[
-                      ['all', 'Tous'],
-                      ['draft', 'Brouillon'],
-                      ['validated', 'Validee'],
-                      ['paid', 'Cloturee']
-                    ]}
-                  />
-                </div>
-              </div>
-              <div className="mt-3 text-xs font-semibold text-zinc-500">
-                {filteredPayrollPeriods.length} periode(s) affichee(s)
-              </div>
-            </div>
-
-            {filteredPayrollPeriods.map((period) => (
-              <article key={period.id} className="premium-panel rounded-[1.7rem] p-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="text-lg font-bold text-zinc-950">{period.label}</div>
-                      <PeriodBadge status={period.status} />
-                    </div>
-                    <div className="mt-1 text-xs text-zinc-500">
-                      {new Date(period.startDate).toLocaleDateString('fr-DZ')} - {new Date(period.endDate).toLocaleDateString('fr-DZ')}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-700">
-                      Reste {formatMoney(period.remainingTotal)}
-                    </span>
-                    <button onClick={() => void savePayrollPeriodStatus(period.id, 'draft')} className={statusActionClass(period.status === 'draft')}>Brouillon</button>
-                    <button onClick={() => void savePayrollPeriodStatus(period.id, 'validated')} className={statusActionClass(period.status === 'validated')}>Valider</button>
-                    <button onClick={() => void savePayrollPeriodStatus(period.id, 'paid')} className={statusActionClass(period.status === 'paid')}>Cloturer</button>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  <MetricMini label="Total paie" value={formatMoney(period.payrollTotal)} />
-                  <MetricMini label="Paye" value={formatMoney(period.paidTotal)} />
-                  <MetricMini label="Reste" value={formatMoney(period.remainingTotal)} />
-                </div>
-                <div className="mt-4 space-y-3">
-                  {period.entries.map((entry) => {
-                    const draft = payrollEntryDrafts[entry.id] ?? {
-                      baseSalary: entry.baseSalary,
-                      bonuses: entry.bonuses,
-                      deductions: entry.deductions,
-                      advanceDeduction: entry.advanceDeduction,
-                      notes: entry.notes ?? ''
-                    };
-                    const paymentDraft = payrollPaymentDrafts[entry.id] ?? {
-                      amount: entry.remainingAmount,
-                      method: 'cash',
-                      paidAt: new Date().toISOString().slice(0, 10),
-                      note: ''
-                    };
-                    const canPayEntry = entry.remainingAmount > 0 && paymentDraft.amount > 0 && paymentDraft.amount <= entry.remainingAmount;
-
-                    return (
-                      <div key={entry.id} className="rounded-2xl border border-zinc-100 bg-zinc-50/85 p-4">
-                        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                          <div>
-                            <div className="text-sm font-semibold text-zinc-950">{entry.employeeName}</div>
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                              <span>{entry.position || 'Sans poste'}</span>
-                              <PaymentBadge status={entry.paymentStatus} />
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-semibold text-zinc-900">{formatMoney(entry.netSalary)}</div>
-                            <div className="mt-1 text-xs font-black text-amber-600">Reste {formatMoney(entry.remainingAmount)}</div>
-                          </div>
-                        </div>
-                        <div className="mt-3 grid gap-3 md:grid-cols-4">
-                          <Field label="Base" type="number" value={String(draft.baseSalary)} onChange={(value) => setPayrollEntryDrafts((current) => ({ ...current, [entry.id]: { ...draft, baseSalary: Number(value) } }))} placeholder="" />
-                          <Field label="Primes" type="number" value={String(draft.bonuses)} onChange={(value) => setPayrollEntryDrafts((current) => ({ ...current, [entry.id]: { ...draft, bonuses: Number(value) } }))} placeholder="" />
-                          <Field label="Retenues" type="number" value={String(draft.deductions)} onChange={(value) => setPayrollEntryDrafts((current) => ({ ...current, [entry.id]: { ...draft, deductions: Number(value) } }))} placeholder="" />
-                          <Field label="Avances deduites" type="number" value={String(draft.advanceDeduction)} onChange={(value) => setPayrollEntryDrafts((current) => ({ ...current, [entry.id]: { ...draft, advanceDeduction: Number(value) } }))} placeholder="" />
-                        </div>
-                        <div className="mt-3">
-                          <Field label="Note ligne" value={draft.notes ?? ''} onChange={(value) => setPayrollEntryDrafts((current) => ({ ...current, [entry.id]: { ...draft, notes: value } }))} placeholder="Optionnel" />
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button onClick={() => void savePayrollEntry(entry.id, draft)} className="rounded-2xl bg-ink px-4 py-2.5 text-sm font-black text-white shadow-soft">Mettre a jour ligne</button>
-                        </div>
-                        <div className="mt-4 rounded-2xl bg-white p-3">
-                          <div className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Paiement</div>
-                          <div className="mt-3 grid gap-3 md:grid-cols-4">
-                            <Field label="Montant" type="number" value={String(paymentDraft.amount)} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, amount: Number(value) } }))} placeholder="" />
-                            <SelectField label="Mode" value={paymentDraft.method} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, method: value as PayrollPaymentInput['method'] } }))} options={[['cash', 'Especes'], ['card', 'Carte'], ['transfer', 'Virement']]} />
-                            <Field label="Date" type="date" value={paymentDraft.paidAt ?? ''} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, paidAt: value } }))} placeholder="" />
-                            <Field label="Note" value={paymentDraft.note ?? ''} onChange={(value) => setPayrollPaymentDrafts((current) => ({ ...current, [entry.id]: { ...paymentDraft, note: value } }))} placeholder="Optionnel" />
-                          </div>
-                          {paymentDraft.amount > entry.remainingAmount ? (
-                            <div className="mt-3 rounded-2xl bg-red-50 px-3 py-2 text-xs font-black text-red-600">
-                              Le montant depasse le reste a payer.
-                            </div>
-                          ) : null}
-                          <div className="mt-3 rounded-2xl bg-brand/10 px-3 py-2 text-xs font-black text-brand ring-1 ring-brand/15">
-                            Impact finance: le paiement sera visible automatiquement dans Finance / Salaires.
-                          </div>
-                          <button
-                            disabled={!canPayEntry}
-                            onClick={async () => {
-                              const confirmed = await confirm({
-                                title: 'Valider le paiement salaire ?',
-                                message: `${formatMoney(paymentDraft.amount)} pour ${entry.employeeName}.`,
-                                confirmLabel: 'Valider paiement',
-                                tone: 'info'
-                              });
-                              if (confirmed) {
-                                await addPayrollPayment(entry.id, paymentDraft);
-                                setPayrollPaymentDrafts((current) => {
-                                  const next = { ...current };
-                                  delete next[entry.id];
-                                  return next;
-                                });
-                              }
-                            }}
-                            className="mt-3 rounded-2xl bg-zinc-950 px-4 py-2.5 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
-                          >
-                            Enregistrer paiement
-                          </button>
-                        </div>
+                      <div className="text-sm font-black">{account.fullName}</div>
+                      <div className={`mt-1 text-xs font-semibold ${selectedAccount?.employeeId === account.employeeId ? 'text-white/60' : 'text-zinc-500'}`}>
+                        {account.position || account.roleName}
                       </div>
-                    );
-                  })}
-                </div>
-              </article>
+                    </div>
+                    <StatusPill balance={account.accountBalance} active={selectedAccount?.employeeId === account.employeeId} />
+                  </div>
+                  <div className="mt-5 text-[10px] font-black uppercase tracking-[0.18em] opacity-60">A payer</div>
+                  <div className="mt-1 text-2xl font-black">{formatMoney(account.finalPayment)}</div>
+                  <div className={`mt-3 grid grid-cols-2 gap-2 text-xs font-bold ${selectedAccount?.employeeId === account.employeeId ? 'text-white/72' : 'text-zinc-500'}`}>
+                    <MiniStat label="A compte" value={formatMoney(account.acompteTotal)} />
+                    <MiniStat label="Retenues" value={formatMoney(account.deductionTotal)} />
+                  </div>
+                </button>
+              ))}
+              {filteredAccounts.length === 0 ? (
+                <EmptyState text="Aucun compte employe. Creez un profil paie dans Reglages." />
+              ) : null}
+            </div>
+          </div>
+
+          <AccountPanel
+            account={selectedAccount}
+            transactionForm={transactionForm}
+            setTransactionForm={setTransactionForm}
+            isLoading={isLoading}
+            onSubmitTransaction={submitTransaction}
+            onPay={payAccount}
+          />
+        </section>
+      ) : null}
+
+      {view === 'history' ? (
+        <section className="premium-panel rounded-[1.6rem] p-4">
+          <SectionTitle label="Historique" title="Toutes les transactions employes" />
+          <div className="mt-4 space-y-2">
+            {allTransactions.map((transaction) => (
+              <TransactionRow key={transaction.id} transaction={transaction} />
             ))}
-            {filteredPayrollPeriods.length === 0 ? (
-              <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500">
-                Aucune periode ne correspond aux filtres.
-              </div>
-            ) : null}
+            {allTransactions.length === 0 ? <EmptyState text="Aucune transaction de paie pour le moment." /> : null}
           </div>
         </section>
       ) : null}
 
-      {view === 'advances' ? (
-        <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      {view === 'bulk' ? (
+        <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
           <div className="premium-panel rounded-[1.6rem] p-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Avances</div>
-            <h2 className="mt-1 text-xl font-bold text-zinc-950">Enregistrer une avance</h2>
+            <SectionTitle label="Groupe" title="Action rapide" />
             <div className="mt-4 space-y-3">
               <SelectField
-                label="Employe"
-                value={String(advanceForm.employeeId)}
-                onChange={(value) => setAdvanceForm((current) => ({ ...current, employeeId: Number(value) }))}
-                options={[
-                  ['0', 'Choisir un employe'],
-                  ...employeeProfiles.map((employee) => [String(employee.id), employee.fullName] as [string, string])
-                ]}
+                label="Action"
+                value={bulkForm.type}
+                onChange={(value) => setBulkForm((current) => ({ ...current, type: value as EmployeeAccountTransactionType }))}
+                options={transactionOptions}
               />
-              <Field label="Montant avance" type="number" value={String(advanceForm.amount || '')} onChange={(value) => setAdvanceForm((current) => ({ ...current, amount: Number(value) }))} placeholder="Ex: 10000" />
-              <Field label="Motif" value={advanceForm.reason} onChange={(value) => setAdvanceForm((current) => ({ ...current, reason: value }))} placeholder="Ex: Avance de fin de semaine" />
-              <div className="grid gap-3 md:grid-cols-2">
-                <SelectField label="Paiement" value={advanceForm.method ?? 'cash'} onChange={(value) => setAdvanceForm((current) => ({ ...current, method: value as SalaryAdvanceInput['method'] }))} options={[['cash', 'Especes'], ['card', 'Carte'], ['transfer', 'Virement']]} />
-                <Field label="Date" type="date" value={advanceForm.date ?? ''} onChange={(value) => setAdvanceForm((current) => ({ ...current, date: value }))} placeholder="" />
-              </div>
-              <Field label="Note" value={advanceForm.note ?? ''} onChange={(value) => setAdvanceForm((current) => ({ ...current, note: value }))} placeholder="Optionnel" />
-              <div className="rounded-2xl bg-amber-50 px-3 py-2 text-xs font-black text-amber-800">
-                Impact finance: une depense automatique "Avances salaires" sera ajoutee.
-              </div>
-              <button
-                disabled={!canCreateAdvance}
-                onClick={() => {
-                  void addSalaryAdvance(advanceForm);
-                  setAdvanceForm(emptyAdvanceForm);
-                }}
-                className="rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
-              >
-                Ajouter avance
+              <Field
+                label={bulkForm.type === 'payment' ? 'Montant fixe (vide = final auto)' : 'Montant'}
+                type="number"
+                value={bulkForm.amount === null || bulkForm.amount === undefined ? '' : numberInputValue(bulkForm.amount)}
+                onChange={(value) => setBulkForm((current) => ({ ...current, amount: value === '' ? null : parseNumberInput(value) }))}
+                placeholder={bulkForm.type === 'payment' ? 'Laisser vide pour payer le final' : 'Ex: 1000'}
+              />
+              <Field label="Libelle" value={bulkForm.label ?? ''} onChange={(value) => setBulkForm((current) => ({ ...current, label: value }))} placeholder="Ex: Paiement journee" />
+              <Field label="Date" type="date" value={bulkForm.occurredAt ?? today()} onChange={(value) => setBulkForm((current) => ({ ...current, occurredAt: value }))} placeholder="" />
+              <TextArea label="Note" value={bulkForm.note ?? ''} onChange={(value) => setBulkForm((current) => ({ ...current, note: value }))} placeholder="Optionnel" />
+              <button disabled={isLoading || bulkForm.employeeIds.length === 0} onClick={() => void submitBulk()} className="w-full rounded-2xl bg-brand px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300">
+                Appliquer au groupe
               </button>
             </div>
           </div>
 
           <div className="premium-panel rounded-[1.6rem] p-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Suivi</div>
-            <h2 className="mt-1 text-xl font-bold text-zinc-950">Avances actives</h2>
-            <div className="mt-4 space-y-3">
-              {salaryAdvances.map((advance) => (
-                <article key={advance.id} className="premium-card rounded-2xl p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-zinc-950">{advance.employeeName}</div>
-                      <div className="mt-1 text-xs text-zinc-500">{advance.reason}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-zinc-950">{formatMoney(advance.amount)}</div>
-                      <div className="mt-1 text-xs text-amber-600">Reste {formatMoney(advance.remainingAmount)}</div>
-                    </div>
-                  </div>
-                </article>
-              ))}
-              {salaryAdvances.length === 0 ? (
-                <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500">
-                  Aucune avance active.
-                </div>
-              ) : null}
+            <SectionTitle label="Selection" title={`${bulkForm.employeeIds.length} employe(s)`} />
+            <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {accounts.map((account) => {
+                const checked = bulkForm.employeeIds.includes(account.employeeId);
+                return (
+                  <label key={account.employeeId} className={`rounded-2xl p-3 text-sm ring-1 transition ${checked ? 'bg-zinc-950 text-white ring-zinc-950' : 'bg-zinc-50 text-zinc-700 ring-zinc-100'}`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(event) => {
+                        setBulkForm((current) => ({
+                          ...current,
+                          employeeIds: event.target.checked
+                            ? [...current.employeeIds, account.employeeId]
+                            : current.employeeIds.filter((id) => id !== account.employeeId)
+                        }));
+                      }}
+                      className="mr-2"
+                    />
+                    <span className="font-bold">{account.fullName}</span>
+                    <span className="ml-2 text-xs opacity-70">{formatMoney(account.finalPayment)}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
         </section>
       ) : null}
 
-      {view === 'adjustments' ? (
-        <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      {view === 'settings' ? (
+        <section className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
           <div className="premium-panel rounded-[1.6rem] p-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Retenues</div>
-            <h2 className="mt-1 text-xl font-bold text-zinc-950">Ajouter une retenue</h2>
+            <SectionTitle label="Reglages" title="Mode de paiement" />
             <div className="mt-4 space-y-3">
               <SelectField
-                label="Employe"
-                value={String(adjustmentForm.employeeId)}
-                onChange={(value) => setAdjustmentForm((current) => ({ ...current, employeeId: Number(value) }))}
+                label="Frequence"
+                value={settings.paymentMode}
+                onChange={(value) => setSettings((current) => ({ ...current, paymentMode: value as PayrollPaymentMode }))}
                 options={[
-                  ['0', 'Choisir un employe'],
-                  ...employeeProfiles.map((employee) => [String(employee.id), employee.fullName] as [string, string])
+                  ['daily', 'Journalier'],
+                  ['weekly', 'Hebdomadaire'],
+                  ['monthly', 'Mensuel']
                 ]}
               />
-              <SelectField
-                label="Periode"
-                value={String(adjustmentForm.periodId ?? 0)}
-                onChange={(value) => setAdjustmentForm((current) => ({ ...current, periodId: Number(value) || null }))}
-                options={[
-                  ['0', 'Sans periode'],
-                  ...payrollPeriods.map((period) => [String(period.id), period.label] as [string, string])
-                ]}
-              />
-              <div className="grid gap-3 md:grid-cols-2">
-                <SelectField label="Type" value={adjustmentForm.type} onChange={(value) => setAdjustmentForm((current) => ({ ...current, type: value as PayrollAdjustmentInput['type'] }))} options={[['deduction', 'Retenue'], ['penalty', 'Penalite']]} />
-                <Field label="Montant" type="number" value={String(adjustmentForm.amount || '')} onChange={(value) => setAdjustmentForm((current) => ({ ...current, amount: Number(value) }))} placeholder="Ex: 1500" />
+              <Field label="Montant journalier par defaut" type="number" value={numberInputValue(settings.defaultDailyAmount)} onChange={(value) => setSettings((current) => ({ ...current, defaultDailyAmount: parseNumberInput(value) }))} placeholder="Ex: 2000" />
+              <Field label="Diviseur mensuel" type="number" value={numberInputValue(settings.monthlyDivisor)} onChange={(value) => setSettings((current) => ({ ...current, monthlyDivisor: parseNumberInput(value) || 30 }))} placeholder="30" />
+              <Toggle label="Autoriser solde negatif" checked={settings.allowNegativeBalance} onChange={(checked) => setSettings((current) => ({ ...current, allowNegativeBalance: checked }))} />
+              <Toggle label="Deduction automatique des a comptes" checked={settings.autoDeductAcompte} onChange={(checked) => setSettings((current) => ({ ...current, autoDeductAcompte: checked }))} />
+              <button disabled={isLoading} onClick={() => void saveSettings()} className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-soft disabled:bg-zinc-300">
+                Enregistrer reglages
+              </button>
+            </div>
+          </div>
+
+          <div className="premium-panel rounded-[1.6rem] p-4">
+            <SectionTitle label="Profils" title="Comptes paie" />
+            <div className="mt-4 grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+              <div className="space-y-3">
+                <SelectField
+                  label="Compte staff"
+                  value={String(employeeProfileForm.userId ?? 0)}
+                  onChange={(value) => setEmployeeProfileForm((current) => ({ ...current, userId: Number(value) || null }))}
+                  options={[
+                    ['0', 'Travailleur sans acces'],
+                    ...staffUsers.map((user) => [String(user.id), `${user.fullName} · ${user.roleName}`] as [string, string])
+                  ]}
+                />
+                {!employeeProfileForm.userId ? (
+                  <Field label="Nom travailleur" value={employeeProfileForm.fullName ?? ''} onChange={(value) => setEmployeeProfileForm((current) => ({ ...current, fullName: value }))} placeholder="Ex: Mohamed cuisine" />
+                ) : null}
+                <Field label="Poste" value={employeeProfileForm.position ?? ''} onChange={(value) => setEmployeeProfileForm((current) => ({ ...current, position: value }))} placeholder="Ex: Serveur" />
+                <SelectField label="Type salaire" value={employeeProfileForm.employmentType} onChange={(value) => setEmployeeProfileForm((current) => ({ ...current, employmentType: value as EmployeeProfileInput['employmentType'] }))} options={[['daily', 'Journalier'], ['monthly', 'Mensuel'], ['hourly', 'Horaire']]} />
+                <Field label="Salaire base" type="number" value={numberInputValue(employeeProfileForm.baseSalary)} onChange={(value) => setEmployeeProfileForm((current) => ({ ...current, baseSalary: parseNumberInput(value) }))} placeholder="Ex: 2000" />
+                <Toggle label="Actif" checked={employeeProfileForm.isActive} onChange={(checked) => setEmployeeProfileForm((current) => ({ ...current, isActive: checked }))} />
+                <button
+                  disabled={(!employeeProfileForm.userId && !employeeProfileForm.fullName?.trim()) || employeeProfileForm.baseSalary <= 0}
+                  onClick={async () => {
+                    await upsertEmployeePayrollProfile(employeeProfileForm);
+                    setEmployeeProfileForm(emptyEmployeeProfileForm);
+                    await refreshAdminData();
+                    await loadPayroll();
+                  }}
+                  className="w-full rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-black text-white disabled:bg-zinc-300"
+                >
+                  Sauver profil
+                </button>
               </div>
-              <Field label="Motif" value={adjustmentForm.reason} onChange={(value) => setAdjustmentForm((current) => ({ ...current, reason: value }))} placeholder="Ex: Retard, casse, absence..." />
-              <div className="grid gap-2 sm:grid-cols-3">
-                {['Absence', 'Retard', 'Retenue personnalisee'].map((reason) => (
+              <div className="grid gap-2 md:grid-cols-2">
+                {employeeProfiles.map((profile) => (
                   <button
-                    key={reason}
-                    type="button"
-                    onClick={() => setAdjustmentForm((current) => ({ ...current, reason }))}
-                    className="rounded-2xl bg-zinc-100 px-3 py-2 text-xs font-black text-zinc-700"
+                    key={profile.id}
+                    onClick={() => setEmployeeProfileForm({
+                      userId: profile.userId,
+                      id: profile.id,
+                      fullName: profile.userId ? '' : profile.fullName,
+                      position: profile.position ?? '',
+                      employmentType: profile.employmentType,
+                      baseSalary: profile.baseSalary,
+                      hireDate: profile.hireDate?.slice(0, 10) ?? '',
+                      isActive: profile.isActive,
+                      payrollNotes: profile.payrollNotes ?? ''
+                    })}
+                    className="rounded-2xl bg-zinc-50 p-3 text-left text-sm ring-1 ring-zinc-100"
                   >
-                    {reason}
+                    <div className="font-bold text-zinc-950">{profile.fullName}</div>
+                    <div className="mt-1 text-xs text-zinc-500">{profile.position || profile.roleName} · {formatMoney(profile.baseSalary)}</div>
                   </button>
                 ))}
               </div>
-              <Field label="Date" type="date" value={adjustmentForm.date ?? ''} onChange={(value) => setAdjustmentForm((current) => ({ ...current, date: value }))} placeholder="" />
-              <Field label="Note" value={adjustmentForm.note ?? ''} onChange={(value) => setAdjustmentForm((current) => ({ ...current, note: value }))} placeholder="Optionnel" />
-              <div className="rounded-2xl bg-brand/10 px-3 py-2 text-xs font-semibold text-brand ring-1 ring-brand/15">
-                Si une periode est choisie, la retenue est appliquee automatiquement a la ligne de paie.
-              </div>
-              <button
-                disabled={!canCreateAdjustment}
-                onClick={async () => {
-                  await addPayrollAdjustment(adjustmentForm);
-                  setAdjustmentForm(emptyAdjustmentForm);
-                }}
-                className="rounded-2xl bg-zinc-950 px-4 py-3 text-sm font-black text-white shadow-soft disabled:cursor-not-allowed disabled:bg-zinc-300"
-              >
-                Ajouter retenue
-              </button>
-            </div>
-          </div>
-
-          <div className="premium-panel rounded-[1.6rem] p-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">Suivi</div>
-            <h2 className="mt-1 text-xl font-bold text-zinc-950">Retenues & penalites</h2>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <MetricMini label="Total retenues" value={formatMoney(adjustmentTotals.total)} />
-              <MetricMini label="Penalites" value={formatMoney(adjustmentTotals.penalties)} />
-              <MetricMini label="Nombre" value={String(payrollAdjustments.length)} />
-            </div>
-            <div className="mt-4 space-y-3">
-              {payrollAdjustments.map((adjustment) => (
-                <article key={adjustment.id} className="premium-card rounded-2xl p-4">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <div className="text-sm font-semibold text-zinc-950">{adjustment.employeeName}</div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                        <AdjustmentBadge type={adjustment.type} />
-                        <span>{new Date(adjustment.date).toLocaleDateString('fr-DZ')}</span>
-                        {adjustment.periodLabel ? <span>{adjustment.periodLabel}</span> : <span>Sans periode</span>}
-                      </div>
-                      <div className="mt-2 text-sm text-zinc-700">{adjustment.reason}</div>
-                      {adjustment.note ? <div className="mt-1 text-xs text-zinc-500">{adjustment.note}</div> : null}
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-zinc-950">{formatMoney(adjustment.amount)}</div>
-                      <button
-                        onClick={() => void removePayrollAdjustment(adjustment.id)}
-                        className="mt-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-600"
-                      >
-                        Supprimer
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-              {payrollAdjustments.length === 0 ? (
-                <div className="premium-card rounded-2xl border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500">
-                  Aucune retenue enregistree.
-                </div>
-              ) : null}
             </div>
           </div>
         </section>
@@ -562,11 +454,143 @@ export function PayrollWorkspace() {
   );
 }
 
+function AccountPanel({
+  account,
+  transactionForm,
+  setTransactionForm,
+  isLoading,
+  onSubmitTransaction,
+  onPay
+}: {
+  account: EmployeeAccount | null;
+  transactionForm: EmployeeAccountTransactionInput;
+  setTransactionForm: Dispatch<SetStateAction<EmployeeAccountTransactionInput>>;
+  isLoading: boolean;
+  onSubmitTransaction: (input: EmployeeAccountTransactionInput) => Promise<void>;
+  onPay: (account: EmployeeAccount) => Promise<void>;
+}) {
+  if (!account) {
+    return (
+      <aside className="premium-panel rounded-[1.6rem] p-4">
+        <EmptyState text="Selectionnez un employe." />
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="premium-panel rounded-[1.6rem] p-4 xl:sticky xl:top-4 xl:self-start">
+      <SectionTitle label="Compte" title={account.fullName} />
+      <div className="mt-4 rounded-3xl bg-zinc-950 p-4 text-white">
+        <div className="text-xs font-bold text-white/60">Paiement final</div>
+        <div className="mt-2 text-3xl font-black">{formatMoney(account.finalPayment)}</div>
+        <div className={`mt-2 text-xs font-bold ${account.accountBalance < 0 ? 'text-red-200' : 'text-emerald-200'}`}>
+          Solde: {formatMoney(account.accountBalance)}
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <MetricMini label="Base" value={formatMoney(account.dueAmount)} />
+        <MetricMini label="A compte" value={formatMoney(account.acompteTotal)} />
+        <MetricMini label="Retenues" value={formatMoney(account.deductionTotal)} />
+        <MetricMini label="Payé" value={formatMoney(account.paidTotal)} />
+      </div>
+      <button disabled={isLoading || account.finalPayment <= 0} onClick={() => void onPay(account)} className="mt-3 w-full rounded-2xl bg-brand px-4 py-3 text-sm font-black text-white shadow-soft disabled:bg-zinc-300">
+        Payer maintenant
+      </button>
+
+      <div className="mt-5 rounded-3xl bg-zinc-50 p-3 ring-1 ring-zinc-100">
+        <div className="text-xs font-black uppercase tracking-[0.16em] text-zinc-500">Ajouter mouvement</div>
+        <div className="mt-3 space-y-3">
+          <SelectField label="Type" value={transactionForm.type} onChange={(value) => setTransactionForm((current) => ({ ...current, employeeId: account.employeeId, type: value as EmployeeAccountTransactionType }))} options={transactionOptions} />
+          <Field label="Montant" type="number" value={numberInputValue(transactionForm.amount)} onChange={(value) => setTransactionForm((current) => ({ ...current, employeeId: account.employeeId, amount: parseNumberInput(value) }))} placeholder="Ex: 1000" />
+          <Field label="Libelle" value={transactionForm.label ?? ''} onChange={(value) => setTransactionForm((current) => ({ ...current, employeeId: account.employeeId, label: value }))} placeholder="Ex: Perdu commande #14" />
+          <TextArea label="Note" value={transactionForm.note ?? ''} onChange={(value) => setTransactionForm((current) => ({ ...current, employeeId: account.employeeId, note: value }))} placeholder="Optionnel" />
+          <button disabled={isLoading || transactionForm.amount <= 0} onClick={() => void onSubmitTransaction({ ...transactionForm, employeeId: account.employeeId })} className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white disabled:bg-zinc-300">
+            Ajouter au compte
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-5 border-t border-zinc-100 pt-4">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Historique</div>
+        <div className="mt-3 max-h-[360px] space-y-2 overflow-y-auto pr-1">
+          {account.transactions.map((transaction) => <TransactionRow key={transaction.id} transaction={transaction} />)}
+          {account.transactions.length === 0 ? <EmptyState text="Aucun mouvement." /> : null}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+const transactionOptions: Array<[EmployeeAccountTransactionType, string]> = [
+  ['acompte', 'A compte'],
+  ['personal_deduction', 'Retenue personnelle'],
+  ['lost_deduction', 'Perdu / casse'],
+  ['payment', 'Paiement'],
+  ['bonus', 'Prime']
+];
+
+function formatPaymentMode(mode: PayrollPaymentMode) {
+  const labels: Record<PayrollPaymentMode, string> = {
+    daily: 'journalier',
+    weekly: 'hebdomadaire',
+    monthly: 'mensuel'
+  };
+  return labels[mode];
+}
+
+function formatTransactionType(type: EmployeeAccountTransactionType) {
+  const labels: Record<EmployeeAccountTransactionType, string> = {
+    acompte: 'A compte',
+    personal_deduction: 'Retenue',
+    lost_deduction: 'Perdu',
+    payment: 'Paiement',
+    bonus: 'Prime'
+  };
+  return labels[type];
+}
+
+function TransactionRow({ transaction }: { transaction: { employeeName?: string; type: EmployeeAccountTransactionType; amount: number; impact: number; label: string; note: string | null; occurredAt: string } }) {
+  const positive = transaction.impact >= 0;
+  return (
+    <div className="rounded-2xl bg-zinc-50 px-3 py-2 ring-1 ring-zinc-100">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-bold text-zinc-900">{transaction.employeeName ? `${transaction.employeeName} · ` : ''}{formatTransactionType(transaction.type)}</div>
+          <div className="mt-0.5 text-xs text-zinc-500">{transaction.label}</div>
+          {transaction.note ? <div className="mt-0.5 text-xs text-zinc-400">{transaction.note}</div> : null}
+          <div className="mt-1 text-[11px] font-semibold text-zinc-400">{new Date(transaction.occurredAt).toLocaleDateString('fr-DZ')}</div>
+        </div>
+        <div className={`text-sm font-black ${positive ? 'text-emerald-700' : 'text-red-600'}`}>
+          {positive ? '+' : '-'}{formatMoney(transaction.amount)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({ label, title }: { label: string; title: string }) {
+  return (
+    <div>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-brand">{label}</div>
+      <h2 className="mt-1 text-xl font-bold text-zinc-950">{title}</h2>
+    </div>
+  );
+}
+
 function Field({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; type?: string }) {
   return (
     <label className="block">
       <span className="text-xs font-semibold text-zinc-600">{label}</span>
-      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none" />
+      <input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none transition focus:border-brand/50 focus:bg-white" />
+    </label>
+  );
+}
+
+function TextArea({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold text-zinc-600">{label}</span>
+      <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-1 min-h-20 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none transition focus:border-brand/50 focus:bg-white" />
     </label>
   );
 }
@@ -575,11 +599,9 @@ function SelectField({ label, value, onChange, options }: { label: string; value
   return (
     <label className="block">
       <span className="text-xs font-semibold text-zinc-600">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none">
+      <select value={value} onChange={(event) => onChange(event.target.value)} className="mt-1 w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-3 text-sm outline-none transition focus:border-brand/50 focus:bg-white">
         {options.map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>
-            {optionLabel}
-          </option>
+          <option key={optionValue} value={optionValue}>{optionLabel}</option>
         ))}
       </select>
     </label>
@@ -588,69 +610,11 @@ function SelectField({ label, value, onChange, options }: { label: string; value
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <label className="flex items-center gap-3 rounded-2xl bg-zinc-50 px-3 py-3 text-sm text-zinc-700 ring-1 ring-zinc-100">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    <label className="flex items-center justify-between gap-3 rounded-2xl bg-zinc-50 px-3 py-3 text-sm text-zinc-700 ring-1 ring-zinc-100">
       <span>{label}</span>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
     </label>
   );
-}
-
-function formatPayrollStatus(status: PayrollPeriodStatus) {
-  const labels: Record<PayrollPeriodStatus, string> = {
-    draft: 'Brouillon',
-    validated: 'Validee',
-    paid: 'Cloturee'
-  };
-  return labels[status];
-}
-
-function PeriodBadge({ status }: { status: PayrollPeriodStatus }) {
-  const toneClass: Record<PayrollPeriodStatus, string> = {
-    draft: 'bg-zinc-100 text-zinc-600',
-    validated: 'bg-brand/10 text-brand',
-    paid: 'bg-emerald-50 text-emerald-700'
-  };
-  return (
-    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${toneClass[status]}`}>
-      {formatPayrollStatus(status)}
-    </span>
-  );
-}
-
-function PaymentBadge({ status }: { status: 'unpaid' | 'partial' | 'paid' }) {
-  const labels: Record<typeof status, string> = {
-    unpaid: 'Non paye',
-    partial: 'Partiel',
-    paid: 'Paye'
-  };
-  const toneClass: Record<typeof status, string> = {
-    unpaid: 'bg-amber-50 text-amber-700',
-    partial: 'bg-brand/10 text-brand',
-    paid: 'bg-emerald-50 text-emerald-700'
-  };
-  return (
-    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${toneClass[status]}`}>
-      {labels[status]}
-    </span>
-  );
-}
-
-function AdjustmentBadge({ type }: { type: 'deduction' | 'penalty' }) {
-  const labels: Record<typeof type, string> = {
-    deduction: 'Retenue',
-    penalty: 'Penalite'
-  };
-  const toneClass: Record<typeof type, string> = {
-    deduction: 'bg-amber-50 text-amber-700',
-    penalty: 'bg-red-50 text-red-600'
-  };
-  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${toneClass[type]}`}>{labels[type]}</span>;
-}
-
-function statusActionClass(active: boolean) {
-  return `rounded-full px-3 py-1.5 text-xs font-black ${
-    active ? 'bg-zinc-950 text-white' : 'bg-zinc-100 text-zinc-700'
-  }`;
 }
 
 function MetricPanel({ label, value, hint }: { label: string; value: string; hint: string }) {
@@ -665,9 +629,32 @@ function MetricPanel({ label, value, hint }: { label: string; value: string; hin
 
 function MetricMini({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3">
-      <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-2 text-sm font-bold text-zinc-950">{value}</div>
+    <div className="rounded-2xl border border-zinc-100 bg-zinc-50 px-3 py-2">
+      <div className="text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500">{label}</div>
+      <div className="mt-1 text-sm font-bold text-zinc-950">{value}</div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-white/10 px-3 py-2 ring-1 ring-black/5">
+      {label}<br /><span className="font-black">{value}</span>
+    </div>
+  );
+}
+
+function StatusPill({ balance, active }: { balance: number; active: boolean }) {
+  if (balance < 0) {
+    return <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${active ? 'bg-red-500/15 text-red-200' : 'bg-red-50 text-red-600'}`}>Negatif</span>;
+  }
+  return <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ${active ? 'bg-white/15 text-white' : 'bg-emerald-50 text-emerald-700'}`}>OK</span>;
+}
+
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-zinc-200 p-8 text-center text-sm font-semibold text-zinc-500">
+      {text}
     </div>
   );
 }

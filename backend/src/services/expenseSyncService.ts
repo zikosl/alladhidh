@@ -1,5 +1,6 @@
-import { ExpenseSourceType, ExpenseStatus, ExpenseType, FinancePaymentMethod, Prisma } from '@prisma/client';
+import { ExpenseSourceType, ExpenseStatus, ExpenseType, FinanceDirection, FinancePaymentMethod, FinanceTransactionType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { recordFinanceTransaction, transactionStatusFromExpense } from './financeLedgerService';
 
 type PrismaClientLike = typeof prisma | Prisma.TransactionClient;
 
@@ -85,14 +86,39 @@ export async function upsertLinkedExpense(
     date
   };
 
-  if (existing) {
-    return client.expense.update({
+  const expense = existing
+    ? await client.expense.update({
       where: { id: existing.id },
       data
+    })
+    : await client.expense.create({
+      data
     });
-  }
 
-  return client.expense.create({
-    data
+  await recordFinanceTransaction(client, {
+    type:
+      payload.sourceType === ExpenseSourceType.payroll_payment || payload.sourceType === ExpenseSourceType.employee_account_payment
+        ? FinanceTransactionType.payroll_payment
+        : payload.sourceType === ExpenseSourceType.salary_advance || payload.sourceType === ExpenseSourceType.employee_account_acompte
+          ? FinanceTransactionType.salary_advance
+          : FinanceTransactionType.stock_purchase,
+    direction: FinanceDirection.out,
+    amount: payload.amount,
+    status: transactionStatusFromExpense(status),
+    paymentMethod: payload.paymentMethod ?? null,
+    sourceModule:
+      payload.sourceType === ExpenseSourceType.stock_purchase
+        ? 'stock'
+        : payload.sourceType === ExpenseSourceType.salary_advance
+          ? 'payroll'
+          : 'payroll',
+    sourceType: payload.sourceType,
+    sourceId: payload.sourceId,
+    sourceLabel: payload.sourceLabel,
+    description: payload.description,
+    expenseId: expense.id,
+    occurredAt: date
   });
+
+  return expense;
 }

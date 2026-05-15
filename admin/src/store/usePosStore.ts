@@ -4,6 +4,7 @@ import {
   completeAlert,
   createAlert,
   createPayrollAdjustment,
+  createEmployeeAccountPayment,
   createExpense,
   createExpenseCategory,
   createPayrollPayment,
@@ -31,6 +32,7 @@ import {
   fetchCashSessions,
   fetchExpenseCategories,
   fetchExpenses,
+  fetchFinanceTransactions,
   fetchDashboard,
   fetchAlerts,
   fetchInventoryCategories,
@@ -47,6 +49,7 @@ import {
   fetchRoles,
   fetchSalaryAdvances,
   fetchSettings,
+  fetchShiftTemplates,
   fetchStock,
   fetchStockMovements,
   fetchStaffUsers,
@@ -62,6 +65,8 @@ import {
   updateTable,
   upsertCashSession,
   upsertEmployeeProfile,
+  upsertShiftTemplate,
+  deleteShiftTemplate,
   updateDeliveryStatus,
   updateInventoryItem,
   deleteMenuItem,
@@ -85,10 +90,10 @@ import {
   Expense,
   ExpenseCategory,
   ExpenseInput,
+  FinanceTransaction,
   InventoryCategory,
   InventoryItem,
   InventoryItemInput,
-  InventoryStatus,
   InventoryUsageType,
   MenuCategory,
   MenuItem,
@@ -113,6 +118,8 @@ import {
   Role,
   SalaryAdvance,
   SalaryAdvanceInput,
+  ShiftTemplate,
+  ShiftTemplateInput,
   StockEntryInput,
   StockLossInput,
   StockMovement,
@@ -133,8 +140,10 @@ interface PosState {
   dashboard: DashboardData | null;
   profitReport: ProfitReport | null;
   expenses: Expense[];
+  financeTransactions: FinanceTransaction[];
   expenseCategories: ExpenseCategory[];
   cashSessions: CashSession[];
+  shiftTemplates: ShiftTemplate[];
   employeeProfiles: EmployeeProfile[];
   salaryAdvances: SalaryAdvance[];
   payrollAdjustments: PayrollAdjustment[];
@@ -194,6 +203,8 @@ interface PosState {
   removeExpenseCategory: (id: number) => Promise<void>;
   saveCashSession: (session: CashSessionInput) => Promise<void>;
   removeCashSession: (id: number) => Promise<void>;
+  saveShiftTemplate: (shift: ShiftTemplateInput) => Promise<void>;
+  removeShiftTemplate: (id: number) => Promise<void>;
   upsertEmployeePayrollProfile: (profile: EmployeeProfileInput) => Promise<void>;
   addSalaryAdvance: (advance: SalaryAdvanceInput) => Promise<void>;
   addPayrollAdjustment: (adjustment: PayrollAdjustmentInput) => Promise<void>;
@@ -201,6 +212,7 @@ interface PosState {
   addPayrollPeriod: (period: PayrollPeriodInput) => Promise<void>;
   savePayrollEntry: (entryId: number, entry: PayrollEntryInput) => Promise<void>;
   addPayrollPayment: (entryId: number, payment: PayrollPaymentInput) => Promise<void>;
+  payEmployeeAccount: (employeeId: number, payment: Pick<PayrollPaymentInput, 'paidAt' | 'note'>) => Promise<void>;
   savePayrollPeriodStatus: (periodId: number, status: 'draft' | 'validated' | 'paid') => Promise<void>;
   upsertStaffUser: (user: StaffUserInput) => Promise<void>;
   resetStaffPasswordForUser: (userId: number, password: string) => Promise<void>;
@@ -220,55 +232,6 @@ interface PosState {
 }
 
 const heldCartKey = 'restaurant-pos-held-cart';
-const inventoryKey = 'restaurant-modules-inventory';
-const menuKey = 'restaurant-modules-menu';
-const inventoryCategoriesKey = 'restaurant-modules-inventory-categories';
-const menuCategoriesKey = 'restaurant-modules-menu-categories';
-
-function computeInventoryStatus(item: Pick<InventoryItem, 'quantity' | 'minimumStock'>): InventoryStatus {
-  if (item.quantity <= 0) {
-    return 'out_of_stock';
-  }
-  if (item.minimumStock !== null && item.quantity <= item.minimumStock) {
-    return 'low_stock';
-  }
-  return 'in_stock';
-}
-
-function loadLocalInventory() {
-  const raw = localStorage.getItem(inventoryKey);
-  if (!raw) return initialInventoryItems;
-  try {
-    const parsed = JSON.parse(raw) as InventoryItem[];
-    return parsed.map((item) => ({
-      ...item,
-      isActive: item.isActive ?? true,
-      measurementType: String(item.measurementType) === 'unit' ? 'portion' : item.measurementType,
-      usageType: item.usageType ?? 'recipe_only',
-      directSale: item.directSale ?? null,
-      status: computeInventoryStatus(item)
-    }));
-  } catch {
-    return initialInventoryItems;
-  }
-}
-
-function loadLocalMenu() {
-  const raw = localStorage.getItem(menuKey);
-  if (!raw) return initialMenuItems;
-  try {
-    const parsed = JSON.parse(raw) as MenuItem[];
-    return parsed.map((item) => ({
-      ...item,
-      categoryId: item.categoryId ?? null,
-      sourceType: item.sourceType ?? 'recipe',
-      stockItemId: item.stockItemId ?? null,
-      saleUnitQuantity: item.saleUnitQuantity ?? 1
-    }));
-  } catch {
-    return initialMenuItems;
-  }
-}
 
 function mergeInventoryUsageTypes(types: InventoryUsageType[]): InventoryUsageType {
   if (types.includes('both')) return 'both';
@@ -309,21 +272,6 @@ function syncInventoryCategoryCounts(items: InventoryItem[], categories: Invento
   });
 }
 
-function loadLocalInventoryCategories(items: InventoryItem[]) {
-  const raw = localStorage.getItem(inventoryCategoriesKey);
-  if (!raw) return categoriesFromInventory(items);
-  try {
-    const parsed = JSON.parse(raw) as InventoryCategory[];
-    return parsed.map((category) => ({
-      ...category,
-      usageType: category.usageType ?? 'recipe_only',
-      itemsCount: items.filter((item) => (item.category || 'General') === category.name).length
-    }));
-  } catch {
-    return categoriesFromInventory(items);
-  }
-}
-
 function menuCategoriesFromMenu(items: MenuItem[]): MenuCategory[] {
   const names = Array.from(new Set(['General', ...items.map((item) => item.category || 'General')])).sort();
   return names.map((name, index) => ({
@@ -334,52 +282,12 @@ function menuCategoriesFromMenu(items: MenuItem[]): MenuCategory[] {
   }));
 }
 
-function loadLocalMenuCategories(items: MenuItem[]) {
-  const raw = localStorage.getItem(menuCategoriesKey);
-  if (!raw) return menuCategoriesFromMenu(items);
-  try {
-    const parsed = JSON.parse(raw) as MenuCategory[];
-    return parsed.map((category) => ({
-      ...category,
-      itemsCount: items.filter((item) => (item.category || 'General') === category.name).length
-    }));
-  } catch {
-    return menuCategoriesFromMenu(items);
-  }
-}
-
-function persistLocalData(
-  inventoryItems: InventoryItem[],
-  menuItems: MenuItem[],
-  inventoryCategories?: InventoryCategory[],
-  menuCategories?: MenuCategory[]
-) {
-  localStorage.setItem(inventoryKey, JSON.stringify(inventoryItems));
-  localStorage.setItem(menuKey, JSON.stringify(menuItems));
-  if (inventoryCategories) {
-    localStorage.setItem(inventoryCategoriesKey, JSON.stringify(inventoryCategories));
-  }
-  if (menuCategories) {
-    localStorage.setItem(menuCategoriesKey, JSON.stringify(menuCategories));
-  }
-}
-
-function computeMenuMetrics(
-  menuItem: MenuItemInput,
-  _inventoryItems: InventoryItem[]
-) {
-  const estimatedCost = menuItem.estimatedCost;
-  const profit = menuItem.sellingPrice - estimatedCost;
-  const margin = menuItem.sellingPrice > 0 ? (profit / menuItem.sellingPrice) * 100 : 0;
-  return {
-    estimatedCost,
-    profit,
-    margin
-  };
-}
-
 function hasPermission(...permissions: string[]) {
   return useAuthStore.getState().hasPermission(...permissions);
+}
+
+function canReadCatalog() {
+  return hasPermission('pos.use', 'pos.cashier', 'pos.kitchen', 'pos.delivery', 'sales.read', 'recipes.read', 'recipes.write', 'inventory.read', 'inventory.write');
 }
 
 const initialNavigation = resolveNavigationPath(typeof window === 'undefined' ? '/apps' : window.location.pathname);
@@ -395,8 +303,10 @@ export const usePosStore = create<PosState>((set, get) => ({
   dashboard: null,
   profitReport: null,
   expenses: [],
+  financeTransactions: [],
   expenseCategories: [],
   cashSessions: [],
+  shiftTemplates: [],
   employeeProfiles: [],
   salaryAdvances: [],
   payrollAdjustments: [],
@@ -565,42 +475,9 @@ export const usePosStore = create<PosState>((set, get) => ({
         ? state.inventoryItems.map((existing) => (existing.id === item.id ? nextItem : existing))
         : [nextItem, ...state.inventoryItems];
       const inventoryCategories = syncInventoryCategoryCounts(inventoryItems, state.inventoryCategories);
-      set({ inventoryItems, inventoryCategories, lastError: null });
-      persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
-      await get().refreshLiveData();
-    } catch {
-      const quantity = item.initialQuantity ?? state.inventoryItems.find((existing) => existing.id === item.id)?.quantity ?? 0;
-      const minimumStock = item.minimumStock ?? null;
-      const nextItem: InventoryItem = {
-        name: item.name,
-        category: item.category || 'General',
-        measurementType: item.measurementType ?? (item.unit === 'kg' ? 'weight' : item.unit === 'liter' ? 'volume' : 'portion'),
-        unit: item.unit,
-        usageType: item.usageType ?? 'recipe_only',
-        estimatedCost: item.estimatedCost ?? 0,
-        minimumStock,
-        isActive: true,
-        directSale:
-          item.directSale?.enabled && item.directSale.sellingPrice > 0
-            ? {
-                productId: item.id ?? Date.now(),
-                sellingPrice: item.directSale.sellingPrice,
-                category: item.directSale.category ?? item.category ?? 'General',
-                categoryId: item.directSale.categoryId ?? null,
-                saleUnitQuantity: item.directSale.saleUnitQuantity ?? 1,
-                isActive: true
-              }
-            : null,
-        id: item.id ?? Date.now(),
-        quantity,
-        status: computeInventoryStatus({ quantity, minimumStock })
-      };
-      const inventoryItems = item.id
-        ? state.inventoryItems.map((existing) => (existing.id === item.id ? nextItem : existing))
-        : [nextItem, ...state.inventoryItems];
-      const inventoryCategories = syncInventoryCategoryCounts(inventoryItems, state.inventoryCategories);
-      set({ inventoryItems, inventoryCategories, lastError: "Mode hors ligne: l'article a ete sauvegarde localement" });
-      persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
+      set({ inventoryItems, inventoryCategories, lastError: null });      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Sauvegarde produit stock impossible' });
     }
   },
   addInventoryCategory: async (category) => {
@@ -610,22 +487,9 @@ export const usePosStore = create<PosState>((set, get) => ({
       const inventoryCategories = [...state.inventoryCategories, nextCategory].sort((left, right) =>
         left.name.localeCompare(right.name)
       );
-      set({ inventoryCategories, lastError: null });
-      persistLocalData(state.inventoryItems, state.menuItems, inventoryCategories);
-      await get().refreshLiveData();
-    } catch {
-      const nextCategory: InventoryCategory = {
-        id: Date.now(),
-        name: category.name.trim(),
-        description: category.description ?? null,
-        usageType: category.usageType ?? 'recipe_only',
-        itemsCount: 0
-      };
-      const inventoryCategories = [...state.inventoryCategories, nextCategory].sort((left, right) =>
-        left.name.localeCompare(right.name)
-      );
-      set({ inventoryCategories, lastError: 'Mode hors ligne: la categorie a ete sauvegardee localement' });
-      persistLocalData(state.inventoryItems, state.menuItems, inventoryCategories);
+      set({ inventoryCategories, lastError: null });      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Creation categorie stock impossible' });
     }
   },
   removeInventoryCategory: async (id) => {
@@ -633,9 +497,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     try {
       await deleteInventoryCategory(id);
       const inventoryCategories = state.inventoryCategories.filter((category) => category.id !== id);
-      set({ inventoryCategories, lastError: null });
-      persistLocalData(state.inventoryItems, state.menuItems, inventoryCategories);
-      await get().refreshLiveData();
+      set({ inventoryCategories, lastError: null });      await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Suppression categorie impossible' });
     }
@@ -646,9 +508,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       const updatedItem = await createStockEntry(entry);
       const inventoryItems = state.inventoryItems.map((item) => (item.id === updatedItem.id ? updatedItem : item));
       const inventoryCategories = syncInventoryCategoryCounts(inventoryItems, state.inventoryCategories);
-      set({ inventoryItems, inventoryCategories, lastError: null });
-      persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
-      await get().refreshLiveData();
+      set({ inventoryItems, inventoryCategories, lastError: null });      await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Entree de stock impossible' });
     }
@@ -659,9 +519,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       const updatedItem = await createStockLoss(loss);
       const inventoryItems = state.inventoryItems.map((item) => (item.id === updatedItem.id ? updatedItem : item));
       const inventoryCategories = syncInventoryCategoryCounts(inventoryItems, state.inventoryCategories);
-      set({ inventoryItems, inventoryCategories, lastError: null });
-      persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
-      await get().refreshLiveData();
+      set({ inventoryItems, inventoryCategories, lastError: null });      await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Declaration de perte impossible' });
     }
@@ -676,31 +534,9 @@ export const usePosStore = create<PosState>((set, get) => ({
         ? state.menuItems.map((existing) => (existing.id === item.id ? nextItem : existing))
         : [nextItem, ...state.menuItems];
       const menuCategories = menuCategoriesFromMenu(menuItems);
-      set({ menuItems, menuCategories, lastError: null });
-      persistLocalData(state.inventoryItems, menuItems, state.inventoryCategories, menuCategories);
-      await get().refreshLiveData();
-    } catch {
-      const metrics = computeMenuMetrics(item, state.inventoryItems);
-      const category = state.menuCategories.find((entry) => entry.id === item.categoryId);
-      const nextItem: MenuItem = {
-        id: item.id ?? Date.now(),
-        name: item.name,
-        category: category?.name ?? item.category ?? 'General',
-        categoryId: item.categoryId ?? category?.id ?? null,
-        image: item.image ?? null,
-        ingredients: item.ingredients,
-        sellingPrice: item.sellingPrice,
-        sourceType: item.sourceType ?? 'recipe',
-        stockItemId: item.stockItemId ?? null,
-        saleUnitQuantity: item.saleUnitQuantity ?? 1,
-        ...metrics
-      };
-      const menuItems = item.id
-        ? state.menuItems.map((existing) => (existing.id === item.id ? nextItem : existing))
-        : [nextItem, ...state.menuItems];
-      const menuCategories = menuCategoriesFromMenu(menuItems);
-      set({ menuItems, menuCategories, lastError: 'Mode hors ligne: le menu a ete sauvegarde localement' });
-      persistLocalData(state.inventoryItems, menuItems, state.inventoryCategories, menuCategories);
+      set({ menuItems, menuCategories, lastError: null });      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Sauvegarde recette impossible' });
     }
   },
   addMenuCategory: async (category) => {
@@ -710,21 +546,9 @@ export const usePosStore = create<PosState>((set, get) => ({
       const menuCategories = [...state.menuCategories, nextCategory].sort((left, right) =>
         left.name.localeCompare(right.name)
       );
-      set({ menuCategories, lastError: null });
-      persistLocalData(state.inventoryItems, state.menuItems, state.inventoryCategories, menuCategories);
-      await get().refreshLiveData();
-    } catch {
-      const nextCategory: MenuCategory = {
-        id: Date.now(),
-        name: category.name.trim(),
-        description: category.description ?? null,
-        itemsCount: 0
-      };
-      const menuCategories = [...state.menuCategories, nextCategory].sort((left, right) =>
-        left.name.localeCompare(right.name)
-      );
-      set({ menuCategories, lastError: 'Mode hors ligne: la categorie menu a ete sauvegardee localement' });
-      persistLocalData(state.inventoryItems, state.menuItems, state.inventoryCategories, menuCategories);
+      set({ menuCategories, lastError: null });      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Creation categorie menu impossible' });
     }
   },
   removeMenuCategory: async (id) => {
@@ -732,9 +556,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     try {
       await deleteMenuCategory(id);
       const menuCategories = state.menuCategories.filter((category) => category.id !== id);
-      set({ menuCategories, lastError: null });
-      persistLocalData(state.inventoryItems, state.menuItems, state.inventoryCategories, menuCategories);
-      await get().refreshLiveData();
+      set({ menuCategories, lastError: null });      await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Suppression categorie menu impossible' });
     }
@@ -745,9 +567,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       await deleteInventoryItem(id);
       const inventoryItems = state.inventoryItems.filter((item) => item.id !== id);
       const inventoryCategories = syncInventoryCategoryCounts(inventoryItems, state.inventoryCategories);
-      set({ inventoryItems, inventoryCategories, lastError: null });
-      persistLocalData(inventoryItems, state.menuItems, inventoryCategories);
-      await get().refreshLiveData();
+      set({ inventoryItems, inventoryCategories, lastError: null });      await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Archivage stock impossible' });
     }
@@ -758,9 +578,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       await deleteMenuItem(id);
       const menuItems = state.menuItems.filter((item) => item.id !== id);
       const menuCategories = menuCategoriesFromMenu(menuItems);
-      set({ menuItems, menuCategories, lastError: null });
-      persistLocalData(state.inventoryItems, menuItems, state.inventoryCategories, menuCategories);
-      await get().refreshLiveData();
+      set({ menuItems, menuCategories, lastError: null });      await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Suppression menu impossible' });
     }
@@ -845,6 +663,36 @@ export const usePosStore = create<PosState>((set, get) => ({
       await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Suppression caisse impossible' });
+    }
+  },
+  saveShiftTemplate: async (shift) => {
+    const state = get();
+    try {
+      const saved = await upsertShiftTemplate(shift);
+      const exists = state.shiftTemplates.some((entry) => entry.id === saved.id);
+      set({
+        shiftTemplates: (exists
+          ? state.shiftTemplates.map((entry) => (entry.id === saved.id ? saved : entry))
+          : [...state.shiftTemplates, saved]
+        ).sort((left, right) => left.startTime.localeCompare(right.startTime)),
+        lastError: null
+      });
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Sauvegarde shift impossible' });
+    }
+  },
+  removeShiftTemplate: async (id) => {
+    const state = get();
+    try {
+      await deleteShiftTemplate(id);
+      set({
+        shiftTemplates: state.shiftTemplates.filter((entry) => entry.id !== id),
+        lastError: null
+      });
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Suppression shift impossible' });
     }
   },
   upsertEmployeePayrollProfile: async (profile) => {
@@ -941,6 +789,21 @@ export const usePosStore = create<PosState>((set, get) => ({
       await get().refreshLiveData();
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Paiement de paie impossible' });
+    }
+  },
+  payEmployeeAccount: async (employeeId, payment) => {
+    const state = get();
+    try {
+      const period = await createEmployeeAccountPayment(employeeId, payment);
+      const exists = state.payrollPeriods.some((item) => item.id === period.id);
+      set({
+        payrollPeriods: exists ? state.payrollPeriods.map((item) => (item.id === period.id ? period : item)) : [period, ...state.payrollPeriods],
+        lastError: null
+      });
+      await get().refreshAdminData();
+      await get().refreshLiveData();
+    } catch (error) {
+      set({ lastError: error instanceof Error ? error.message : 'Paiement compte employe impossible' });
     }
   },
   savePayrollPeriodStatus: async (periodId, status) => {
@@ -1047,12 +910,13 @@ export const usePosStore = create<PosState>((set, get) => ({
       }
       if (hasPermission('finance.read', 'finance.write')) {
         calls.push(
-          Promise.all([fetchExpenseCategories(), fetchExpenses(), fetchCashSessions()]).then(([expenseCategories, expenses, cashSessions]) =>
-            set({ expenseCategories, expenses, cashSessions })
+          Promise.all([fetchExpenseCategories(), fetchExpenses(), fetchCashSessions(), fetchFinanceTransactions(), fetchShiftTemplates()]).then(
+            ([expenseCategories, expenses, cashSessions, financeTransactions, shiftTemplates]) =>
+              set({ expenseCategories, expenses, cashSessions, financeTransactions, shiftTemplates })
           )
         );
       } else if (hasPermission('pos.cashier', 'pos.use')) {
-        calls.push(fetchCashSessions().then((cashSessions) => set({ cashSessions })));
+        calls.push(Promise.all([fetchCashSessions(), fetchShiftTemplates()]).then(([cashSessions, shiftTemplates]) => set({ cashSessions, shiftTemplates })));
       }
       if (hasPermission('payroll.read', 'payroll.write')) {
         calls.push(
@@ -1069,10 +933,6 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
   },
   hydrate: async () => {
-    const inventoryItems = loadLocalInventory();
-    const inventoryCategories = loadLocalInventoryCategories(inventoryItems);
-    const menuItems = loadLocalMenu();
-    const menuCategories = loadLocalMenuCategories(menuItems);
     set({
       loading: true,
       lastError: null,
@@ -1084,8 +944,10 @@ export const usePosStore = create<PosState>((set, get) => ({
       dashboard: null,
       profitReport: null,
       expenses: [],
+      financeTransactions: [],
       expenseCategories: [],
       cashSessions: [],
+      shiftTemplates: [],
       employeeProfiles: [],
       salaryAdvances: [],
       payrollAdjustments: [],
@@ -1097,15 +959,15 @@ export const usePosStore = create<PosState>((set, get) => ({
       staffUsers: [],
       roles: [],
       permissions: [],
-      inventoryItems,
-      inventoryCategories,
-      menuItems,
-      menuCategories
+      inventoryItems: initialInventoryItems,
+      inventoryCategories: categoriesFromInventory(initialInventoryItems),
+      menuItems: initialMenuItems,
+      menuCategories: menuCategoriesFromMenu(initialMenuItems)
     });
     try {
       const nextState: Partial<PosState> = {};
 
-      if (hasPermission('pos.use', 'pos.cashier', 'pos.kitchen', 'pos.delivery', 'sales.read')) {
+      if (canReadCatalog()) {
         const catalog = await fetchProducts();
         nextState.categories = ['Tout', ...catalog.categories];
         nextState.products = catalog.products;
@@ -1139,14 +1001,12 @@ export const usePosStore = create<PosState>((set, get) => ({
         nextState.stockMovements = stockMovements;
         nextState.inventoryItems = serverInventory;
         nextState.inventoryCategories = serverCategories;
-        persistLocalData(serverInventory, nextState.menuItems ?? menuItems, serverCategories, nextState.menuCategories ?? menuCategories);
       }
 
       if (hasPermission('recipes.read', 'recipes.write')) {
         const [serverMenu, serverMenuCategories] = await Promise.all([fetchMenuItems(), fetchMenuCategories()]);
         nextState.menuItems = serverMenu;
         nextState.menuCategories = serverMenuCategories;
-        persistLocalData(nextState.inventoryItems ?? inventoryItems, serverMenu, nextState.inventoryCategories ?? inventoryCategories, serverMenuCategories);
       }
 
       set({
@@ -1166,6 +1026,19 @@ export const usePosStore = create<PosState>((set, get) => ({
       const updates: Partial<PosState> = {};
       const tasks: Array<Promise<void>> = [];
 
+      if (canReadCatalog()) {
+        tasks.push(
+          fetchProducts().then((catalog) => {
+            updates.categories = ['Tout', ...catalog.categories];
+            updates.products = catalog.products;
+            const selectedCategory = get().selectedCategory;
+            if (selectedCategory !== 'Tout' && !updates.categories.includes(selectedCategory)) {
+              updates.selectedCategory = 'Tout';
+            }
+          })
+        );
+      }
+
       if (hasPermission('sales.read', 'pos.cashier', 'pos.delivery')) {
         tasks.push(fetchOrders().then((orders) => void (updates.orders = orders)));
       }
@@ -1181,10 +1054,13 @@ export const usePosStore = create<PosState>((set, get) => ({
       }
       if (hasPermission('finance.read', 'finance.write')) {
         tasks.push(fetchExpenses().then((expenses) => void (updates.expenses = expenses)));
+        tasks.push(fetchFinanceTransactions().then((financeTransactions) => void (updates.financeTransactions = financeTransactions)));
         tasks.push(fetchExpenseCategories().then((expenseCategories) => void (updates.expenseCategories = expenseCategories)));
         tasks.push(fetchCashSessions().then((cashSessions) => void (updates.cashSessions = cashSessions)));
+        tasks.push(fetchShiftTemplates().then((shiftTemplates) => void (updates.shiftTemplates = shiftTemplates)));
       } else if (hasPermission('pos.cashier', 'pos.use')) {
         tasks.push(fetchCashSessions().then((cashSessions) => void (updates.cashSessions = cashSessions)));
+        tasks.push(fetchShiftTemplates().then((shiftTemplates) => void (updates.shiftTemplates = shiftTemplates)));
       }
       if (hasPermission('payroll.read', 'payroll.write')) {
         tasks.push(fetchPayrollPeriods().then((payrollPeriods) => void (updates.payrollPeriods = payrollPeriods)));
@@ -1204,15 +1080,6 @@ export const usePosStore = create<PosState>((set, get) => ({
 
       await Promise.all(tasks);
       set(updates);
-      if (updates.inventoryItems || updates.menuItems || updates.inventoryCategories || updates.menuCategories) {
-        const current = get();
-        persistLocalData(
-          updates.inventoryItems ?? current.inventoryItems,
-          updates.menuItems ?? current.menuItems,
-          updates.inventoryCategories ?? current.inventoryCategories,
-          updates.menuCategories ?? current.menuCategories
-        );
-      }
     } catch (error) {
       set({ lastError: error instanceof Error ? error.message : 'Actualisation live impossible' });
     }

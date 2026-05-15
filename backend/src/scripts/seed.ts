@@ -495,11 +495,11 @@ async function main() {
             type: 'variable',
             status: 'paid',
             paymentMethod: 'cash',
-            supplierName: employee.user.fullName,
-            description: `Avance salaire seed - ${employee.user.fullName}`,
+            supplierName: (employee.user?.fullName ?? employee.fullName ?? 'Employe'),
+            description: `Avance salaire seed - ${(employee.user?.fullName ?? employee.fullName ?? 'Employe')}`,
             sourceType: 'salary_advance',
             sourceId: advance.id,
-            sourceLabel: employee.user.fullName,
+            sourceLabel: (employee.user?.fullName ?? employee.fullName ?? 'Employe'),
             paidAt: advance.date,
             date: advance.date
           }
@@ -547,11 +547,11 @@ async function main() {
             type: 'variable',
             status: 'paid',
             paymentMethod: payment.method,
-            supplierName: employee.user.fullName,
-            description: `Paiement salaire seed - ${employee.user.fullName}`,
+            supplierName: (employee.user?.fullName ?? employee.fullName ?? 'Employe'),
+            description: `Paiement salaire seed - ${(employee.user?.fullName ?? employee.fullName ?? 'Employe')}`,
             sourceType: 'payroll_payment',
             sourceId: payment.id,
-            sourceLabel: employee.user.fullName,
+            sourceLabel: (employee.user?.fullName ?? employee.fullName ?? 'Employe'),
             paidAt: payment.paidAt,
             date: payment.paidAt
           }
