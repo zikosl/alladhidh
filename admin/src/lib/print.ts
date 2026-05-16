@@ -35,8 +35,9 @@ function contactLines(settings?: RestaurantSettings | null) {
 function baseStyles() {
   return `
     * { box-sizing: border-box; }
-    body { font-family: "Cairo", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #fffaf1; color: #1a1714; }
-    .ticket { width: 80mm; padding: 12px 10px 18px; margin: 0 auto; }
+    html, body { width: 80mm; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; background: #fff; }
+    body { font-family: "Cairo", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1a1714; }
+    .ticket { display: block; width: 80mm; min-height: 0 !important; padding: 0 3mm 0; margin: 0; overflow: hidden; break-after: avoid; page-break-after: avoid; }
     .logo-wrap { text-align: center; margin-bottom: 6px; }
     .logo { max-width: 112px; max-height: 58px; object-fit: contain; }
     .brand { text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 0.03em; }
@@ -57,9 +58,26 @@ function baseStyles() {
     .totals { margin-top: 8px; border: 1px solid #1a1714; border-radius: 12px; padding: 8px; background: #fff4e3; }
     .total-line { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; padding: 3px 0; }
     .total-line.grand { font-size: 17px; font-weight: 700; padding-top: 4px; }
-    .thanks { margin-top: 12px; text-align: center; font-size: 11px; font-weight: 700; }
-    @media print { body { margin: 0; } .ticket { width: 100%; } }
+    .thanks { margin-top: 10px; text-align: center; font-size: 11px; font-weight: 700; }
+    @page { size: 80mm auto; margin: 0; }
+    @media print {
+      html, body { width: 80mm !important; height: auto !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+      .ticket { width: 80mm !important; margin: 0 !important; padding: 0 3mm 0 !important; break-inside: avoid; break-after: avoid; page-break-after: avoid; }
+    }
   `;
+}
+
+function applyDynamicPageSize(documentRef: Document) {
+  const ticket = documentRef.querySelector<HTMLElement>('.ticket');
+  if (!ticket) return;
+
+  const heightPx = Math.ceil(ticket.getBoundingClientRect().height || ticket.scrollHeight);
+  if (!heightPx) return;
+
+  const heightMm = Math.max(20, Math.ceil((heightPx * 25.4) / 96) + 1);
+  const style = documentRef.createElement('style');
+  style.textContent = `@page { size: 80mm ${heightMm}mm; margin: 0; }`;
+  documentRef.head.appendChild(style);
 }
 
 function waitForImages(documentRef: Document) {
@@ -112,6 +130,7 @@ function openPrintWindow(title: string, html: string) {
   waitForImages(documentRef).then(() => {
     window.setTimeout(() => {
       try {
+        applyDynamicPageSize(documentRef);
         frame.contentWindow?.addEventListener('afterprint', cleanup, { once: true });
         frame.contentWindow?.focus();
         frame.contentWindow?.print();
